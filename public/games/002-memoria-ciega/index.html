@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Memoria Ciega - Mierdijuegos</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0a; touch-action: none; user-select: none; -webkit-user-select: none; }
+canvas { display: block; }
+#ui {
+  position: absolute; top: 0; left: 0; width: 100%;
+  padding: 10px 15px;
+  display: flex; justify-content: space-between; align-items: center;
+  font-family: 'Courier New', monospace;
+  color: #00ff41; font-size: 16px;
+  pointer-events: none; z-index: 10;
+}
+#start-screen, #game-over {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  display: flex; flex-direction: column; justify-content: center; align-items: center;
+  background: rgba(10,10,10,0.95);
+  font-family: 'Courier New', monospace; color: #00ff41;
+  z-index: 20; padding: 20px; text-align: center;
+}
+#game-over { display: none; }
+h2 { font-size: 24px; color: #ff00ff; margin-bottom: 15px; text-shadow: 0 0 10px #ff00ff; }
+.desc { font-size: 16px; color: #00aa2a; max-width: 320px; line-height: 1.5; margin-bottom: 20px; }
+.play-btn {
+  font-family: 'Courier New', monospace; font-size: 20px; color: #0a0a0a;
+  background: #00ff41; border: none; padding: 12px 30px; cursor: pointer;
+  text-transform: uppercase; font-weight: bold;
+}
+.play-btn:active { background: #00aa2a; }
+.mechanic-hint { font-size: 13px; color: #ffff00; margin-top: 15px; max-width: 300px; }
+#phase-indicator {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  font-family: 'Courier New', monospace; font-size: 28px; color: #ff00ff;
+  text-shadow: 0 0 20px #ff00ff; pointer-events: none; z-index: 15;
+  display: none;
+}
+</style>
+</head>
+<body>
+
+<div id="ui">
+  <span id="level">Nivel 1</span>
+  <span id="score">★ 0</span>
+</div>
+
+<canvas id="game"></canvas>
+<div id="phase-indicator"></div>
+
+<div id="start-screen">
+  <h2>MEMORIA CIEGA</h2>
+  <p class="desc">
+    Tienes <span style="color:#00ffff">3 segundos</span> para memorizar el mapa.<br><br>
+    Luego todo se oscurece. Llega a la <span style="color:#ffff00">meta</span> sin tocar las <span style="color:#ff0040">paredes</span>.
+  </p>
+  <p class="mechanic-hint">🧠 ¿Cuánto confías en tu memoria?</p>
+  <br>
+  <button class="play-btn" id="btn-start">► JUGAR</button>
+</div>
+
+<div id="game-over">
+  <h2 id="go-title">FIN</h2>
+  <p class="desc" id="go-score"></p>
+  <p class="mechanic-hint" id="go-msg"></p>
+  <br>
+  <button class="play-btn" id="btn-retry">OTRA VEZ</button>
+  <br><br>
+  <a href="/" style="color:#00ffff;font-family:'Courier New',monospace;font-size:14px;">← más mierdijuegos</a>
+</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const phaseEl = document.getElementById('phase-indicator');
+const levelEl = document.getElementById('level');
+const scoreEl = document.getElementById('score');
+
+let W, H, cellSize, cols, rows;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  cellSize = Math.floor(Math.min(W, H) / 12);
+  cols = Math.floor(W / cellSize);
+  rows = Math.floor(H / cellSize);
+}
+resize();
+window.addEventListener('resize', resize);
+
+let player, goal, walls, level, score, phase, phaseTimer, running, visibility;
+let touchStart = null, playerStart = null;
+
+function generateLevel(lvl) {
+  walls = [];
+  const wallCount = 5 + lvl * 3;
+  
+  // Place player at top-left area
+  player = { 
+    x: 1 + Math.floor(Math.random() * 2), 
+    y: 1 + Math.floor(Math.random() * 2) 
+  };
+  
+  // Place goal far from player
+  goal = {
+    x: cols - 2 - Math.floor(Math.random() * 2),
+    y: rows - 2 - Math.floor(Math.random() * 2)
+  };
+  
+  // Generate walls avoiding player and goal
+  for (let i = 0; i < wallCount; i++) {
+    let wx, wy, attempts = 0;
+    do {
+      wx = Math.floor(Math.random() * cols);
+      wy = Math.floor(Math.random() * rows);
+      attempts++;
+    } while (attempts < 50 && (
+      (wx === player.x && wy === player.y) ||
+      (wx === goal.x && wy === goal.y) ||
+      Math.abs(wx - player.x) + Math.abs(wy - player.y) < 2
+    ));
+    if (attempts < 50) walls.push({ x: wx, y: wy });
+  }
+}
+
+function isWall(x, y) {
+  return walls.some(w => w.x === x && w.y === y) || x < 0 || y < 0 || x >= cols || y >= rows;
+}
+
+function startPhase(name, duration) {
+  phase = name;
+  phaseTimer = duration;
+  if (name === 'memorize') {
+    phaseEl.textContent = 'MEMORIZA';
+    phaseEl.style.display = 'block';
+    phaseEl.style.color = '#00ffff';
+    visibility = 1;
+  } else if (name === 'fade') {
+    phaseEl.textContent = 'OSCURIDAD...';
+    phaseEl.style.color = '#ff00ff';
+  } else if (name === 'dark') {
+    phaseEl.style.display = 'none';
+    visibility = 0;
+  }
+}
+
+function initGame() {
+  level = 1;
+  score = 0;
+  running = true;
+  resize();
+  generateLevel(level);
+  startPhase('memorize', 3);
+}
+
+// Touch controls - swipe to move
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+});
+
+canvas.addEventListener('touchend', e => {
+  e.preventDefault();
+  if (!touchStart || !running || phase === 'memorize') return;
+  const dx = e.changedTouches[0].clientX - touchStart.x;
+  const dy = e.changedTouches[0].clientY - touchStart.y;
+  const threshold = 20;
+  
+  let mx = 0, my = 0;
+  if (Math.abs(dx) > Math.abs(dy)) {
+    if (Math.abs(dx) > threshold) mx = dx > 0 ? 1 : -1;
+  } else {
+    if (Math.abs(dy) > threshold) my = dy > 0 ? 1 : -1;
+  }
+  
+  if (mx !== 0 || my !== 0) movePlayer(mx, my);
+  touchStart = null;
+});
+
+// Keyboard fallback
+document.addEventListener('keydown', e => {
+  if (!running || phase === 'memorize') return;
+  const map = { ArrowUp: [0,-1], ArrowDown: [0,1], ArrowLeft: [-1,0], ArrowRight: [1,0] };
+  if (map[e.key]) {
+    e.preventDefault();
+    movePlayer(...map[e.key]);
+  }
+});
+
+function movePlayer(dx, dy) {
+  const nx = player.x + dx;
+  const ny = player.y + dy;
+  
+  if (isWall(nx, ny)) {
+    // Hit wall — game over
+    running = false;
+    endGame(false);
+    return;
+  }
+  
+  player.x = nx;
+  player.y = ny;
+  
+  // Briefly show small area around player
+  visibility = 0.3;
+  setTimeout(() => { if (phase === 'dark') visibility = 0; }, 200);
+  
+  // Check goal
+  if (player.x === goal.x && player.y === goal.y) {
+    score += level * 10;
+    level++;
+    generateLevel(level);
+    startPhase('memorize', Math.max(1.5, 3 - level * 0.2));
+  }
+}
+
+function endGame(won) {
+  running = false;
+  const goTitle = document.getElementById('go-title');
+  const goScore = document.getElementById('go-score');
+  const goMsg = document.getElementById('go-msg');
+  
+  goTitle.textContent = score >= 100 ? '¡MEMORIA FOTOGRÁFICA!' : score >= 50 ? 'NO ESTÁ MAL' : 'CEGUERA TOTAL';
+  goScore.textContent = `Nivel ${level} · Puntuación: ${score}`;
+  
+  const msgs = [
+    'Tu GPS interno necesita recalibración.',
+    'La oscuridad te ha consumido.',
+    'Deberías haber prestado más atención.',
+    '¿Seguro que no necesitas gafas?'
+  ];
+  goMsg.textContent = msgs[Math.floor(Math.random() * msgs.length)];
+  document.getElementById('game-over').style.display = 'flex';
+  phaseEl.style.display = 'none';
+}
+
+let lastTime = 0;
+function gameLoop(timestamp) {
+  const dt = Math.min((timestamp - lastTime) / 1000, 0.1);
+  lastTime = timestamp;
+  
+  if (running) {
+    if (phase === 'memorize') {
+      phaseTimer -= dt;
+      phaseEl.textContent = `MEMORIZA (${Math.ceil(phaseTimer)})`;
+      if (phaseTimer <= 0) startPhase('fade', 0.5);
+    } else if (phase === 'fade') {
+      phaseTimer -= dt;
+      visibility = Math.max(0, phaseTimer / 0.5);
+      if (phaseTimer <= 0) startPhase('dark', 0);
+    }
+  }
+  
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+function draw() {
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(0, 0, W, H);
+  
+  const offsetX = (W - cols * cellSize) / 2;
+  const offsetY = (H - rows * cellSize) / 2;
+  
+  // Grid
+  ctx.strokeStyle = 'rgba(0,255,65,0.05)';
+  ctx.lineWidth = 1;
+  for (let x = 0; x <= cols; x++) {
+    ctx.beginPath();
+    ctx.moveTo(offsetX + x * cellSize, offsetY);
+    ctx.lineTo(offsetX + x * cellSize, offsetY + rows * cellSize);
+    ctx.stroke();
+  }
+  for (let y = 0; y <= rows; y++) {
+    ctx.beginPath();
+    ctx.moveTo(offsetX, offsetY + y * cellSize);
+    ctx.lineTo(offsetX + cols * cellSize, offsetY + y * cellSize);
+    ctx.stroke();
+  }
+  
+  const playerDist = (x, y) => Math.abs(x - player.x) + Math.abs(y - player.y);
+  
+  // Walls
+  walls.forEach(w => {
+    let alpha = visibility;
+    // In dark mode, show walls very close to player briefly
+    if (phase === 'dark' && playerDist(w.x, w.y) <= 1) alpha = Math.max(alpha, 0.15);
+    if (alpha <= 0) return;
+    
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#ff0040';
+    ctx.shadowColor = '#ff0040';
+    ctx.shadowBlur = 5;
+    ctx.fillRect(offsetX + w.x * cellSize + 2, offsetY + w.y * cellSize + 2, cellSize - 4, cellSize - 4);
+    ctx.shadowBlur = 0;
+  });
+  
+  // Goal
+  let goalAlpha = visibility;
+  if (phase === 'dark' && playerDist(goal.x, goal.y) <= 2) goalAlpha = Math.max(goalAlpha, 0.2);
+  if (goalAlpha > 0) {
+    ctx.globalAlpha = goalAlpha;
+    ctx.fillStyle = '#ffff00';
+    ctx.shadowColor = '#ffff00';
+    ctx.shadowBlur = 10;
+    ctx.fillRect(offsetX + goal.x * cellSize + 2, offsetY + goal.y * cellSize + 2, cellSize - 4, cellSize - 4);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#0a0a0a';
+    ctx.font = `${cellSize * 0.5}px Courier New`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('★', offsetX + goal.x * cellSize + cellSize/2, offsetY + goal.y * cellSize + cellSize/2);
+  }
+  
+  // Player (always visible)
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#00ff41';
+  ctx.shadowColor = '#00ff41';
+  ctx.shadowBlur = 15;
+  ctx.beginPath();
+  ctx.arc(offsetX + player.x * cellSize + cellSize/2, offsetY + player.y * cellSize + cellSize/2, cellSize * 0.35, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  
+  ctx.globalAlpha = 1;
+  
+  // UI
+  levelEl.textContent = `Nivel ${level}`;
+  scoreEl.textContent = `★ ${score}`;
+}
+
+function startGame() {
+  document.getElementById('start-screen').style.display = 'none';
+  document.getElementById('game-over').style.display = 'none';
+  initGame();
+  lastTime = performance.now();
+  requestAnimationFrame(gameLoop);
+}
+
+document.getElementById('btn-start').addEventListener('click', startGame);
+document.getElementById('btn-retry').addEventListener('click', startGame);
+
+// Initial render
+resize();
+</script>
+</body>
+</html>

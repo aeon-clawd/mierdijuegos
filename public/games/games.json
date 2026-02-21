@@ -2,9 +2,33 @@
   {
     "id": "001-espejo-invertido",
     "title": "Espejo Invertido",
-    "date": "2026-02-20",
+    "date": "2026-02-17",
     "description": "Tus controles están invertidos en un eje que rota constantemente. Tu cerebro tendrá que recalibrarse cada segundo.",
     "mechanic": "Inversión dinámica de controles",
     "emoji": "🪞"
+  },
+  {
+    "id": "002-memoria-ciega",
+    "title": "Memoria Ciega",
+    "date": "2026-02-18",
+    "description": "Tienes 3 segundos para memorizar el mapa. Luego oscuridad total. Llega a la meta sin chocar.",
+    "mechanic": "Navegación de memoria temporal",
+    "emoji": "🧠"
+  },
+  {
+    "id": "003-gravedad-liquida",
+    "title": "Gravedad Líquida",
+    "date": "2026-02-19",
+    "description": "Tú no controlas la bola — controlas la gravedad. Toca la pantalla y la física se dobla hacia tu dedo.",
+    "mechanic": "Control indirecto por gravedad",
+    "emoji": "🌊"
+  },
+  {
+    "id": "004-ritmo-caotico",
+    "title": "Ritmo Caótico",
+    "date": "2026-02-20",
+    "description": "Solo puedes actuar en el beat. Pero el ritmo es irregular y cambia. Tienes que sentirlo, no pensarlo.",
+    "mechanic": "Ritmo irregular como mecánica core",
+    "emoji": "🥁"
   }
 ]

@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Ritmo Caótico - Mierdijuegos</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0a; touch-action: none; user-select: none; -webkit-user-select: none; }
+canvas { display: block; }
+#ui {
+  position: absolute; top: 0; left: 0; width: 100%;
+  padding: 10px 15px;
+  display: flex; justify-content: space-between; align-items: center;
+  font-family: 'Courier New', monospace; color: #00ff41; font-size: 16px;
+  pointer-events: none; z-index: 10;
+}
+#start-screen, #game-over {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  display: flex; flex-direction: column; justify-content: center; align-items: center;
+  background: rgba(10,10,10,0.95);
+  font-family: 'Courier New', monospace; color: #00ff41;
+  z-index: 20; padding: 20px; text-align: center;
+}
+#game-over { display: none; }
+h2 { font-size: 24px; color: #ff00ff; margin-bottom: 15px; text-shadow: 0 0 10px #ff00ff; }
+.desc { font-size: 16px; color: #00aa2a; max-width: 320px; line-height: 1.5; margin-bottom: 20px; }
+.play-btn {
+  font-family: 'Courier New', monospace; font-size: 20px; color: #0a0a0a;
+  background: #00ff41; border: none; padding: 12px 30px; cursor: pointer;
+  text-transform: uppercase; font-weight: bold;
+}
+.play-btn:active { background: #00aa2a; }
+.mechanic-hint { font-size: 13px; color: #ffff00; margin-top: 15px; max-width: 300px; }
+#beat-bar {
+  position: absolute; bottom: 0; left: 0; width: 100%; height: 60px;
+  pointer-events: none; z-index: 10;
+}
+</style>
+</head>
+<body>
+
+<div id="ui">
+  <span id="score">★ 0</span>
+  <span id="combo">x1</span>
+</div>
+
+<canvas id="game"></canvas>
+<canvas id="beat-bar" width="100" height="60"></canvas>
+
+<div id="start-screen">
+  <h2>RITMO CAÓTICO</h2>
+  <p class="desc">
+    Toca la pantalla para moverte hacia las estrellas.<br><br>
+    Pero solo puedes actuar <span style="color:#ff00ff">EN EL BEAT</span>.<br>
+    El ritmo es <span style="color:#00ffff">irregular</span> — tienes que <em>sentirlo</em>.
+  </p>
+  <p class="mechanic-hint">🥁 Toca en el momento justo o pierde tu combo</p>
+  <br>
+  <button class="play-btn" id="btn-start">► JUGAR</button>
+</div>
+
+<div id="game-over">
+  <h2 id="go-title">FIN</h2>
+  <p class="desc" id="go-score"></p>
+  <p class="mechanic-hint" id="go-msg"></p>
+  <br>
+  <button class="play-btn" id="btn-retry">OTRA VEZ</button>
+  <br><br>
+  <a href="/" style="color:#00ffff;font-family:'Courier New',monospace;font-size:14px;">← más mierdijuegos</a>
+</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const beatCanvas = document.getElementById('beat-bar');
+const beatCtx = beatCanvas.getContext('2d');
+const scoreEl = document.getElementById('score');
+const comboEl = document.getElementById('combo');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  beatCanvas.width = W;
+  beatCanvas.height = 60;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// Audio context for beat sounds
+let audioCtx;
+function initAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+function playBeat(freq, dur) {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.frequency.value = freq;
+  osc.type = 'square';
+  gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+  osc.start();
+  osc.stop(audioCtx.currentTime + dur);
+}
+
+let player, targets, score, combo, maxCombo, running, beats, beatIndex, elapsed;
+let beatWindow, lastBeatTime, beatFlash, moveQueue, particles;
+
+// Generate an irregular rhythm pattern (intervals in seconds)
+function generateRhythm() {
+  const patterns = [
+    [0.5, 0.5, 0.75, 0.25, 0.5, 0.5, 1.0],
+    [0.3, 0.3, 0.6, 0.4, 0.4, 0.8, 0.3, 0.6],
+    [0.5, 0.25, 0.25, 0.5, 0.75, 0.5, 0.25],
+    [0.4, 0.4, 0.8, 0.4, 0.6, 0.4, 0.6],
+    [0.6, 0.3, 0.3, 0.6, 0.6, 0.3, 0.3]
+  ];
+  return patterns[Math.floor(Math.random() * patterns.length)];
+}
+
+function spawnTarget() {
+  return {
+    x: 40 + Math.random() * (W - 80),
+    y: 40 + Math.random() * (H - 140),
+    r: 15, pulse: Math.random() * Math.PI * 2,
+    life: 8 // seconds before it disappears
+  };
+}
+
+function init() {
+  player = { x: W/2, y: H/2, r: 16 };
+  targets = [];
+  score = 0;
+  combo = 0;
+  maxCombo = 0;
+  running = true;
+  beats = generateRhythm();
+  beatIndex = 0;
+  elapsed = 0;
+  lastBeatTime = 0;
+  beatFlash = 0;
+  beatWindow = 0.12; // seconds tolerance
+  moveQueue = null;
+  particles = [];
+  
+  for (let i = 0; i < 3; i++) targets.push(spawnTarget());
+}
+
+function isOnBeat() {
+  const currentInterval = beats[beatIndex % beats.length];
+  const timeSinceBeat = elapsed - lastBeatTime;
+  const timeToNext = currentInterval - timeSinceBeat;
+  return timeSinceBeat < beatWindow || timeToNext < beatWindow;
+}
+
+// Touch — tap to move toward nearest target
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  if (!running) return;
+  initAudio();
+  const tx = e.touches[0].clientX;
+  const ty = e.touches[0].clientY;
+  handleTap(tx, ty);
+});
+canvas.addEventListener('mousedown', e => {
+  if (!running) return;
+  initAudio();
+  handleTap(e.clientX, e.clientY);
+});
+
+function handleTap(tx, ty) {
+  if (isOnBeat()) {
+    // Move player toward tap
+    const dx = tx - player.x;
+    const dy = ty - player.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    const moveSpeed = 120;
+    player.x += (dx / dist) * moveSpeed;
+    player.y += (dy / dist) * moveSpeed;
+    player.x = Math.max(player.r, Math.min(W - player.r, player.x));
+    player.y = Math.max(player.r, Math.min(H - player.r, player.y));
+    
+    playBeat(300, 0.1);
+    addParticles(player.x, player.y, '#00ff41', 5);
+    
+    // Check target collection
+    targets = targets.filter(t => {
+      if (Math.hypot(player.x - t.x, player.y - t.y) < player.r + t.r) {
+        combo++;
+        maxCombo = Math.max(maxCombo, combo);
+        score += 10 * combo;
+        addParticles(t.x, t.y, '#ffff00', 12);
+        playBeat(600, 0.15);
+        setTimeout(() => { if (running) targets.push(spawnTarget()); }, 500);
+        return false;
+      }
+      return true;
+    });
+  } else {
+    // Off-beat — penalty
+    combo = 0;
+    playBeat(100, 0.2);
+    addParticles(player.x, player.y, '#ff0040', 8);
+    
+    // Screen shake effect
+    canvas.style.transform = 'translateX(5px)';
+    setTimeout(() => canvas.style.transform = 'translateX(-5px)', 50);
+    setTimeout(() => canvas.style.transform = '', 100);
+  }
+}
+
+function addParticles(x, y, color, count) {
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x, y, vx: (Math.random()-0.5)*6, vy: (Math.random()-0.5)*6,
+      life: 1, color, r: 2 + Math.random()*3
+    });
+  }
+}
+
+function update(dt) {
+  if (!running) return;
+  
+  elapsed += dt;
+  
+  // Beat check
+  const currentInterval = beats[beatIndex % beats.length];
+  if (elapsed - lastBeatTime >= currentInterval) {
+    lastBeatTime += currentInterval;
+    beatIndex++;
+    beatFlash = 1;
+    playBeat(200, 0.05);
+    
+    // Change rhythm occasionally
+    if (beatIndex % 20 === 0) {
+      beats = generateRhythm();
+    }
+  }
+  
+  beatFlash = Math.max(0, beatFlash - dt * 5);
+  
+  // Target life countdown
+  targets = targets.filter(t => {
+    t.life -= dt;
+    if (t.life <= 0) {
+      score = Math.max(0, score - 5);
+      combo = 0;
+      return false;
+    }
+    return true;
+  });
+  
+  // Keep minimum targets
+  while (targets.length < 2) targets.push(spawnTarget());
+  
+  // End after collecting enough or time
+  if (beatIndex > 80) { endGame(); return; }
+  
+  // Particles
+  particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life -= dt * 2; });
+  particles = particles.filter(p => p.life > 0);
+  
+  scoreEl.textContent = `★ ${score}`;
+  comboEl.textContent = combo > 1 ? `x${combo}` : '';
+  comboEl.style.color = combo > 5 ? '#ff00ff' : combo > 2 ? '#00ffff' : '#00ff41';
+}
+
+function drawBeatBar() {
+  beatCtx.clearRect(0, 0, W, 60);
+  
+  const currentInterval = beats[beatIndex % beats.length];
+  const progress = (elapsed - lastBeatTime) / currentInterval;
+  
+  // Background
+  beatCtx.fillStyle = `rgba(255,0,255,${beatFlash * 0.3})`;
+  beatCtx.fillRect(0, 0, W, 60);
+  
+  // Beat line moving across
+  const lineX = progress * W;
+  beatCtx.beginPath();
+  beatCtx.moveTo(lineX, 0);
+  beatCtx.lineTo(lineX, 60);
+  beatCtx.strokeStyle = '#ff00ff';
+  beatCtx.lineWidth = 3;
+  beatCtx.shadowColor = '#ff00ff';
+  beatCtx.shadowBlur = 10;
+  beatCtx.stroke();
+  beatCtx.shadowBlur = 0;
+  
+  // Hit zones at edges
+  const zoneWidth = beatWindow / currentInterval * W;
+  beatCtx.fillStyle = 'rgba(0,255,65,0.2)';
+  beatCtx.fillRect(0, 0, zoneWidth, 60);
+  beatCtx.fillRect(W - zoneWidth, 0, zoneWidth, 60);
+  
+  // Labels
+  beatCtx.font = '12px Courier New';
+  beatCtx.fillStyle = '#00ff41';
+  beatCtx.textAlign = 'center';
+  beatCtx.fillText('BEAT', W/2, 40);
+}
+
+function draw() {
+  // Background flash on beat
+  ctx.fillStyle = beatFlash > 0.5 ? `rgba(255,0,255,${beatFlash * 0.05})` : '#0a0a0a';
+  ctx.fillRect(0, 0, W, H);
+  
+  // Background with beat flash
+  if (beatFlash > 0) {
+    ctx.fillStyle = `rgba(255,0,255,${beatFlash * 0.03})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+  
+  // Targets
+  targets.forEach(t => {
+    t.pulse += 0.05;
+    const pr = t.r + Math.sin(t.pulse) * 3;
+    const urgency = t.life < 3 ? (1 + Math.sin(t.pulse * 3) * 0.5) : 1;
+    
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, pr * urgency, 0, Math.PI * 2);
+    ctx.fillStyle = t.life < 3 ? '#ff8800' : '#ffff00';
+    ctx.shadowColor = t.life < 3 ? '#ff8800' : '#ffff00';
+    ctx.shadowBlur = 10;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    
+    // Life indicator ring
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, pr + 5, -Math.PI/2, -Math.PI/2 + (t.life / 8) * Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255,255,0,0.3)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  });
+  
+  // Player
+  const playerPulse = isOnBeat() ? 1.3 : 1;
+  ctx.beginPath();
+  ctx.arc(player.x, player.y, player.r * playerPulse, 0, Math.PI * 2);
+  ctx.fillStyle = isOnBeat() ? '#00ffff' : '#00ff41';
+  ctx.shadowColor = isOnBeat() ? '#00ffff' : '#00ff41';
+  ctx.shadowBlur = isOnBeat() ? 25 : 12;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.beginPath();
+  ctx.arc(player.x, player.y, player.r * 0.4, 0, Math.PI * 2);
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fill();
+  
+  // Particles
+  particles.forEach(p => {
+    ctx.globalAlpha = p.life;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r * p.life, 0, Math.PI * 2);
+    ctx.fillStyle = p.color;
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+  
+  drawBeatBar();
+}
+
+function endGame() {
+  running = false;
+  const t = document.getElementById('go-title');
+  const s = document.getElementById('go-score');
+  const m = document.getElementById('go-msg');
+  t.textContent = maxCombo >= 10 ? '¡RÍTMICO TOTAL!' : maxCombo >= 5 ? 'TIENES OÍDO' : 'ARRÍTMICO';
+  s.textContent = `Puntuación: ${score} · Combo máx: x${maxCombo}`;
+  const msgs = ['Tu sentido del ritmo es... único.','El caos tiene su propia música.','¿Eso era un patrón o era aleatorio? Exacto.','Beethoven empezó peor. Probablemente.'];
+  m.textContent = msgs[Math.floor(Math.random() * msgs.length)];
+  document.getElementById('game-over').style.display = 'flex';
+}
+
+let lastTime = 0;
+function gameLoop(ts) {
+  const dt = Math.min((ts - lastTime) / 1000, 0.1);
+  lastTime = ts;
+  update(dt);
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+function startGame() {
+  document.getElementById('start-screen').style.display = 'none';
+  document.getElementById('game-over').style.display = 'none';
+  init();
+  lastTime = performance.now();
+  requestAnimationFrame(gameLoop);
+}
+
+document.getElementById('btn-start').addEventListener('click', startGame);
+document.getElementById('btn-retry').addEventListener('click', startGame);
+</script>
+</body>
+</html>

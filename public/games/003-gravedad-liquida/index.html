@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Gravedad Líquida - Mierdijuegos</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0a; touch-action: none; user-select: none; -webkit-user-select: none; }
+canvas { display: block; }
+#ui {
+  position: absolute; top: 0; left: 0; width: 100%;
+  padding: 10px 15px;
+  display: flex; justify-content: space-between; align-items: center;
+  font-family: 'Courier New', monospace; color: #00ff41; font-size: 16px;
+  pointer-events: none; z-index: 10;
+}
+#start-screen, #game-over {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  display: flex; flex-direction: column; justify-content: center; align-items: center;
+  background: rgba(10,10,10,0.95);
+  font-family: 'Courier New', monospace; color: #00ff41;
+  z-index: 20; padding: 20px; text-align: center;
+}
+#game-over { display: none; }
+h2 { font-size: 24px; color: #ff00ff; margin-bottom: 15px; text-shadow: 0 0 10px #ff00ff; }
+.desc { font-size: 16px; color: #00aa2a; max-width: 320px; line-height: 1.5; margin-bottom: 20px; }
+.play-btn {
+  font-family: 'Courier New', monospace; font-size: 20px; color: #0a0a0a;
+  background: #00ff41; border: none; padding: 12px 30px; cursor: pointer;
+  text-transform: uppercase; font-weight: bold;
+}
+.play-btn:active { background: #00aa2a; }
+.mechanic-hint { font-size: 13px; color: #ffff00; margin-top: 15px; max-width: 300px; }
+</style>
+</head>
+<body>
+
+<div id="ui">
+  <span id="score">★ 0</span>
+  <span id="time">45s</span>
+</div>
+
+<canvas id="game"></canvas>
+
+<div id="start-screen">
+  <h2>GRAVEDAD LÍQUIDA</h2>
+  <p class="desc">
+    Toca cualquier punto de la pantalla.<br><br>
+    La <span style="color:#00ffff">gravedad</span> empuja la bola hacia donde tocas.
+    Recoge las <span style="color:#ffff00">estrellas</span> y evita los <span style="color:#ff0040">muros</span>.
+  </p>
+  <p class="mechanic-hint">🌊 Tú controlas la física, no el personaje</p>
+  <br>
+  <button class="play-btn" id="btn-start">► JUGAR</button>
+</div>
+
+<div id="game-over">
+  <h2 id="go-title">FIN</h2>
+  <p class="desc" id="go-score"></p>
+  <p class="mechanic-hint" id="go-msg"></p>
+  <br>
+  <button class="play-btn" id="btn-retry">OTRA VEZ</button>
+  <br><br>
+  <a href="/" style="color:#00ffff;font-family:'Courier New',monospace;font-size:14px;">← más mierdijuegos</a>
+</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const scoreEl = document.getElementById('score');
+const timeEl = document.getElementById('time');
+
+let W, H;
+function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+resize();
+window.addEventListener('resize', resize);
+
+let ball, gravity, collectibles, hazards, score, timeLeft, running, particles, trail;
+
+function init() {
+  ball = { x: W/2, y: H/2, vx: 0, vy: 0, r: 14 };
+  gravity = { x: 0, y: 200 }; // pixels/s²
+  score = 0;
+  timeLeft = 45;
+  running = true;
+  particles = [];
+  trail = [];
+  collectibles = [];
+  hazards = [];
+  
+  for (let i = 0; i < 5; i++) spawnCollectible();
+  for (let i = 0; i < 4; i++) spawnHazard();
+}
+
+function spawnCollectible() {
+  collectibles.push({
+    x: 40 + Math.random() * (W - 80),
+    y: 40 + Math.random() * (H - 80),
+    r: 10, pulse: Math.random() * Math.PI * 2
+  });
+}
+
+function spawnHazard() {
+  hazards.push({
+    x: 40 + Math.random() * (W - 80),
+    y: 40 + Math.random() * (H - 80),
+    r: 20 + Math.random() * 15
+  });
+}
+
+// Touch/mouse - set gravity direction
+let touching = false;
+let touchPos = { x: W/2, y: H/2 };
+
+function setGravity(cx, cy) {
+  const dx = cx - ball.x;
+  const dy = cy - ball.y;
+  const dist = Math.hypot(dx, dy) || 1;
+  const strength = Math.min(dist * 0.8, 400);
+  gravity.x = (dx / dist) * strength;
+  gravity.y = (dy / dist) * strength;
+}
+
+canvas.addEventListener('touchstart', e => { e.preventDefault(); touching = true; touchPos = {x: e.touches[0].clientX, y: e.touches[0].clientY}; });
+canvas.addEventListener('touchmove', e => { e.preventDefault(); touchPos = {x: e.touches[0].clientX, y: e.touches[0].clientY}; });
+canvas.addEventListener('touchend', e => { e.preventDefault(); touching = false; });
+canvas.addEventListener('mousedown', e => { touching = true; touchPos = {x: e.clientX, y: e.clientY}; });
+canvas.addEventListener('mousemove', e => { if (touching) touchPos = {x: e.clientX, y: e.clientY}; });
+canvas.addEventListener('mouseup', () => { touching = false; });
+
+function addParticles(x, y, color, count) {
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x, y, vx: (Math.random()-0.5)*8, vy: (Math.random()-0.5)*8,
+      life: 1, color, r: 2 + Math.random()*3
+    });
+  }
+}
+
+function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+
+function update(dt) {
+  if (!running) return;
+  
+  timeLeft -= dt;
+  if (timeLeft <= 0) { timeLeft = 0; endGame(); return; }
+  
+  if (touching) setGravity(touchPos.x, touchPos.y);
+  
+  // Physics
+  ball.vx += gravity.x * dt;
+  ball.vy += gravity.y * dt;
+  
+  // Damping
+  ball.vx *= 0.995;
+  ball.vy *= 0.995;
+  
+  ball.x += ball.vx * dt;
+  ball.y += ball.vy * dt;
+  
+  // Bounce off walls
+  if (ball.x < ball.r) { ball.x = ball.r; ball.vx *= -0.7; }
+  if (ball.x > W - ball.r) { ball.x = W - ball.r; ball.vx *= -0.7; }
+  if (ball.y < ball.r) { ball.y = ball.r; ball.vy *= -0.7; }
+  if (ball.y > H - ball.r) { ball.y = H - ball.r; ball.vy *= -0.7; }
+  
+  // Trail
+  trail.push({ x: ball.x, y: ball.y, life: 1 });
+  if (trail.length > 30) trail.shift();
+  trail.forEach(t => t.life -= dt * 2);
+  trail = trail.filter(t => t.life > 0);
+  
+  // Collectibles
+  collectibles = collectibles.filter(c => {
+    if (dist(ball, c) < ball.r + c.r) {
+      score += 10;
+      addParticles(c.x, c.y, '#ffff00', 10);
+      setTimeout(() => { if (running) spawnCollectible(); }, 800);
+      return false;
+    }
+    return true;
+  });
+  
+  // Hazards
+  for (const h of hazards) {
+    if (dist(ball, h) < ball.r + h.r) {
+      addParticles(ball.x, ball.y, '#ff0040', 20);
+      endGame();
+      return;
+    }
+  }
+  
+  // More hazards over time
+  if (hazards.length < 4 + Math.floor(score / 30)) spawnHazard();
+  
+  // Particles
+  particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life -= dt * 2; });
+  particles = particles.filter(p => p.life > 0);
+  
+  scoreEl.textContent = `★ ${score}`;
+  timeEl.textContent = `${Math.ceil(timeLeft)}s`;
+  timeEl.style.color = timeLeft < 10 ? '#ff0040' : '#00ff41';
+}
+
+function draw() {
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(0, 0, W, H);
+  
+  // Gravity indicator (subtle arrow from ball toward gravity)
+  if (touching) {
+    ctx.beginPath();
+    ctx.moveTo(ball.x, ball.y);
+    ctx.lineTo(touchPos.x, touchPos.y);
+    ctx.strokeStyle = 'rgba(0,255,255,0.15)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    
+    // Touch point indicator
+    ctx.beginPath();
+    ctx.arc(touchPos.x, touchPos.y, 8, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0,255,255,0.3)';
+    ctx.fill();
+  }
+  
+  // Trail
+  trail.forEach(t => {
+    ctx.globalAlpha = t.life * 0.3;
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, ball.r * t.life * 0.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#00ff41';
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+  
+  // Hazards
+  hazards.forEach(h => {
+    ctx.beginPath();
+    ctx.arc(h.x, h.y, h.r, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,0,64,0.25)';
+    ctx.strokeStyle = '#ff0040';
+    ctx.lineWidth = 2;
+    ctx.shadowColor = '#ff0040';
+    ctx.shadowBlur = 8;
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  });
+  
+  // Collectibles
+  collectibles.forEach(c => {
+    c.pulse += 0.05;
+    const pr = c.r + Math.sin(c.pulse) * 3;
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, pr, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffff00';
+    ctx.shadowColor = '#ffff00';
+    ctx.shadowBlur = 10;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  });
+  
+  // Ball
+  ctx.beginPath();
+  ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+  ctx.fillStyle = '#00ff41';
+  ctx.shadowColor = '#00ff41';
+  ctx.shadowBlur = 15;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.beginPath();
+  ctx.arc(ball.x, ball.y, ball.r * 0.4, 0, Math.PI * 2);
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fill();
+  
+  // Particles
+  particles.forEach(p => {
+    ctx.globalAlpha = p.life;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r * p.life, 0, Math.PI * 2);
+    ctx.fillStyle = p.color;
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+}
+
+function endGame() {
+  running = false;
+  const t = document.getElementById('go-title');
+  const s = document.getElementById('go-score');
+  const m = document.getElementById('go-msg');
+  t.textContent = score >= 80 ? '¡MAESTRO GRAVITATORIO!' : score >= 40 ? 'DECENTE' : 'MIERDIPUNTUACIÓN';
+  s.textContent = `Puntuación: ${score}`;
+  const msgs = ['Newton estaría orgulloso. O confundido.','La gravedad no perdona.','¿Quién necesita física real?','Einstein acaba de girar en su tumba.'];
+  m.textContent = msgs[Math.floor(Math.random() * msgs.length)];
+  document.getElementById('game-over').style.display = 'flex';
+}
+
+let lastTime = 0;
+function gameLoop(ts) {
+  const dt = Math.min((ts - lastTime) / 1000, 0.1);
+  lastTime = ts;
+  update(dt);
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+function startGame() {
+  document.getElementById('start-screen').style.display = 'none';
+  document.getElementById('game-over').style.display = 'none';
+  init();
+  lastTime = performance.now();
+  requestAnimationFrame(gameLoop);
+}
+
+document.getElementById('btn-start').addEventListener('click', startGame);
+document.getElementById('btn-retry').addEventListener('click', startGame);
+</script>
+</body>
+</html>

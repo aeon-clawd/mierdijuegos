@@ -282,19 +282,12 @@ function update(dt) {
     return true;
   });
 
-  // Check obstacle collisions
+  // Check obstacle collisions — instant death
   for (const o of obstacles) {
     if (dist(player, { x: o.displayX, y: o.displayY }) < player.r + o.r) {
-      combo = 0;
-      score = Math.max(0, score - 3);
-      addParticles(player.x, player.y, '#ff0040', 15);
-      // Push player away
-      const angle = Math.atan2(player.y - o.displayY, player.x - o.displayX);
-      player.x += Math.cos(angle) * 40;
-      player.y += Math.sin(angle) * 40;
-      player.x = Math.max(player.r, Math.min(W - player.r, player.x));
-      player.y = Math.max(player.r, Math.min(H - player.r, player.y));
-      break;
+      addParticles(player.x, player.y, '#ff0040', 25);
+      endGame();
+      return;
     }
   }
 

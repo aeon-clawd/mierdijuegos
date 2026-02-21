@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Espejo Invertido - Mierdijuegos</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { 
+  width: 100%; height: 100%; overflow: hidden; 
+  background: #0a0a0a; 
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+canvas { display: block; }
+#ui {
+  position: absolute; top: 0; left: 0; width: 100%; 
+  padding: 10px 15px;
+  display: flex; justify-content: space-between; align-items: center;
+  font-family: 'Courier New', monospace;
+  color: #00ff41;
+  font-size: 16px;
+  pointer-events: none;
+  z-index: 10;
+}
+#start-screen, #game-over {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  display: flex; flex-direction: column; justify-content: center; align-items: center;
+  background: rgba(10,10,10,0.95);
+  font-family: 'Courier New', monospace;
+  color: #00ff41;
+  z-index: 20;
+  padding: 20px;
+  text-align: center;
+}
+#game-over { display: none; }
+h2 { font-size: 24px; color: #ff00ff; margin-bottom: 15px; text-shadow: 0 0 10px #ff00ff; }
+.desc { font-size: 16px; color: #00aa2a; max-width: 320px; line-height: 1.5; margin-bottom: 20px; }
+.play-btn {
+  font-family: 'Courier New', monospace;
+  font-size: 20px; color: #0a0a0a; background: #00ff41;
+  border: none; padding: 12px 30px; cursor: pointer;
+  text-transform: uppercase; font-weight: bold;
+}
+.play-btn:active { background: #00aa2a; }
+.mechanic-hint {
+  font-size: 13px; color: #ffff00; margin-top: 15px; max-width: 300px;
+}
+#compass {
+  position: absolute; bottom: 15px; right: 15px;
+  width: 60px; height: 60px;
+  pointer-events: none; z-index: 10;
+}
+</style>
+</head>
+<body>
+
+<div id="ui">
+  <span id="score">★ 0</span>
+  <span id="time">30s</span>
+</div>
+
+<canvas id="game"></canvas>
+
+<!-- Compass indicator showing inversion axis -->
+<canvas id="compass" width="60" height="60"></canvas>
+
+<div id="start-screen">
+  <h2>ESPEJO INVERTIDO</h2>
+  <p class="desc">
+    Mueve el dedo para controlar el punto.<br><br>
+    Pero cuidado: los controles están <span style="color:#ff00ff">INVERTIDOS</span> 
+    en un eje que <span style="color:#00ffff">ROTA</span> constantemente.
+  </p>
+  <p class="mechanic-hint">
+    🧠 Tu cerebro tendrá que recalibrarse cada segundo
+  </p>
+  <br>
+  <button class="play-btn" id="btn-start">► JUGAR</button>
+</div>
+
+<div id="game-over">
+  <h2 id="go-title">FIN</h2>
+  <p class="desc" id="go-score"></p>
+  <p class="mechanic-hint" id="go-msg"></p>
+  <br>
+  <button class="play-btn" id="btn-retry">OTRA VEZ</button>
+  <br><br>
+  <a href="/" style="color:#00ffff;font-family:'Courier New',monospace;font-size:14px;">← más mierdijuegos</a>
+</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const compassCanvas = document.getElementById('compass');
+const compassCtx = compassCanvas.getContext('2d');
+const scoreEl = document.getElementById('score');
+const timeEl = document.getElementById('time');
+const startScreen = document.getElementById('start-screen');
+const gameOverScreen = document.getElementById('game-over');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// Game state
+let player = { x: 0, y: 0, r: 12 };
+let collectibles = [];
+let obstacles = [];
+let score = 0;
+let timeLeft = 30;
+let inversionAngle = 0; // radians - the axis of inversion
+let rotationSpeed = 0.4; // radians per second
+let running = false;
+let touchStart = null;
+let playerStart = null;
+let lastTime = 0;
+let particles = [];
+let combo = 0;
+let speedMultiplier = 1;
+
+function spawnCollectible() {
+  const margin = 40;
+  return {
+    x: margin + Math.random() * (W - margin * 2),
+    y: margin + Math.random() * (H - margin * 2),
+    r: 10,
+    pulse: Math.random() * Math.PI * 2,
+    type: Math.random() < 0.15 ? 'time' : 'point' // 15% chance of time bonus
+  };
+}
+
+function spawnObstacle() {
+  const margin = 50;
+  return {
+    x: margin + Math.random() * (W - margin * 2),
+    y: margin + Math.random() * (H - margin * 2),
+    r: 15 + Math.random() * 10,
+    angle: Math.random() * Math.PI * 2,
+    speed: 0.5 + Math.random() * 1.5,
+    orbitR: 20 + Math.random() * 30
+  };
+}
+
+function initGame() {
+  player.x = W / 2;
+  player.y = H / 2;
+  score = 0;
+  timeLeft = 30;
+  inversionAngle = 0;
+  combo = 0;
+  speedMultiplier = 1;
+  rotationSpeed = 0.4;
+  collectibles = [];
+  obstacles = [];
+  particles = [];
+  for (let i = 0; i < 4; i++) collectibles.push(spawnCollectible());
+  for (let i = 0; i < 3; i++) obstacles.push(spawnObstacle());
+}
+
+// Apply inversion transform to a movement delta
+function invertMovement(dx, dy) {
+  // Project movement onto inversion axis, then flip that component
+  const ax = Math.cos(inversionAngle);
+  const ay = Math.sin(inversionAngle);
+  
+  // Component along axis
+  const dot = dx * ax + dy * ay;
+  
+  // Flip the component along the inversion axis
+  const newDx = dx - 2 * dot * ax;
+  const newDy = dy - 2 * dot * ay;
+  
+  return { x: newDx, y: newDy };
+}
+
+// Touch/mouse controls
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  touchStart = { x: t.clientX, y: t.clientY };
+  playerStart = { x: player.x, y: player.y };
+});
+
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if (!touchStart || !running) return;
+  const t = e.touches[0];
+  const dx = t.clientX - touchStart.x;
+  const dy = t.clientY - touchStart.y;
+  const inv = invertMovement(dx, dy);
+  player.x = Math.max(player.r, Math.min(W - player.r, playerStart.x + inv.x));
+  player.y = Math.max(player.r, Math.min(H - player.r, playerStart.y + inv.y));
+});
+
+canvas.addEventListener('touchend', () => {
+  touchStart = null;
+  playerStart = null;
+});
+
+// Mouse fallback
+let mouseDown = false;
+canvas.addEventListener('mousedown', e => {
+  mouseDown = true;
+  touchStart = { x: e.clientX, y: e.clientY };
+  playerStart = { x: player.x, y: player.y };
+});
+canvas.addEventListener('mousemove', e => {
+  if (!mouseDown || !running) return;
+  const dx = e.clientX - touchStart.x;
+  const dy = e.clientY - touchStart.y;
+  const inv = invertMovement(dx, dy);
+  player.x = Math.max(player.r, Math.min(W - player.r, playerStart.x + inv.x));
+  player.y = Math.max(player.r, Math.min(H - player.r, playerStart.y + inv.y));
+});
+canvas.addEventListener('mouseup', () => { mouseDown = false; touchStart = null; });
+
+function addParticles(x, y, color, count) {
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x, y,
+      vx: (Math.random() - 0.5) * 6,
+      vy: (Math.random() - 0.5) * 6,
+      life: 1,
+      color,
+      r: 2 + Math.random() * 3
+    });
+  }
+}
+
+function dist(a, b) {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function update(dt) {
+  if (!running) return;
+
+  // Rotate inversion axis
+  inversionAngle += rotationSpeed * dt;
+  
+  // Gradually increase difficulty
+  speedMultiplier = 1 + score * 0.02;
+  rotationSpeed = 0.4 + score * 0.015;
+
+  // Update time
+  timeLeft -= dt;
+  if (timeLeft <= 0) {
+    timeLeft = 0;
+    endGame();
+    return;
+  }
+
+  // Update obstacles (orbit in small circles)
+  obstacles.forEach(o => {
+    o.angle += o.speed * speedMultiplier * dt;
+    o.displayX = o.x + Math.cos(o.angle) * o.orbitR;
+    o.displayY = o.y + Math.sin(o.angle) * o.orbitR;
+  });
+
+  // Check collectible collisions
+  collectibles = collectibles.filter(c => {
+    if (dist(player, c) < player.r + c.r) {
+      if (c.type === 'time') {
+        timeLeft = Math.min(timeLeft + 5, 60);
+        addParticles(c.x, c.y, '#00ffff', 12);
+      } else {
+        combo++;
+        score += combo;
+        addParticles(c.x, c.y, '#ffff00', 8);
+      }
+      // Spawn replacement
+      setTimeout(() => {
+        if (running) collectibles.push(spawnCollectible());
+      }, 500);
+      return false;
+    }
+    return true;
+  });
+
+  // Check obstacle collisions
+  for (const o of obstacles) {
+    if (dist(player, { x: o.displayX, y: o.displayY }) < player.r + o.r) {
+      combo = 0;
+      score = Math.max(0, score - 3);
+      addParticles(player.x, player.y, '#ff0040', 15);
+      // Push player away
+      const angle = Math.atan2(player.y - o.displayY, player.x - o.displayX);
+      player.x += Math.cos(angle) * 40;
+      player.y += Math.sin(angle) * 40;
+      player.x = Math.max(player.r, Math.min(W - player.r, player.x));
+      player.y = Math.max(player.r, Math.min(H - player.r, player.y));
+      break;
+    }
+  }
+
+  // Spawn more obstacles over time
+  if (obstacles.length < 3 + Math.floor(score / 10)) {
+    obstacles.push(spawnObstacle());
+  }
+
+  // Update particles
+  particles = particles.filter(p => {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.life -= dt * 2;
+    return p.life > 0;
+  });
+
+  // Update UI
+  scoreEl.textContent = `★ ${score}${combo > 1 ? ` x${combo}` : ''}`;
+  timeEl.textContent = `${Math.ceil(timeLeft)}s`;
+  timeEl.style.color = timeLeft < 10 ? '#ff0040' : '#00ff41';
+}
+
+function drawCompass() {
+  const cx = 30, cy = 30, r = 22;
+  compassCtx.clearRect(0, 0, 60, 60);
+  
+  // Ring
+  compassCtx.beginPath();
+  compassCtx.arc(cx, cy, r, 0, Math.PI * 2);
+  compassCtx.strokeStyle = 'rgba(0,255,65,0.3)';
+  compassCtx.lineWidth = 1;
+  compassCtx.stroke();
+  
+  // Inversion axis line
+  const ax = Math.cos(inversionAngle) * r;
+  const ay = Math.sin(inversionAngle) * r;
+  compassCtx.beginPath();
+  compassCtx.moveTo(cx - ax, cy - ay);
+  compassCtx.lineTo(cx + ax, cy + ay);
+  compassCtx.strokeStyle = '#ff00ff';
+  compassCtx.lineWidth = 2;
+  compassCtx.shadowColor = '#ff00ff';
+  compassCtx.shadowBlur = 5;
+  compassCtx.stroke();
+  compassCtx.shadowBlur = 0;
+  
+  // Label
+  compassCtx.fillStyle = '#ff00ff';
+  compassCtx.font = '8px Courier New';
+  compassCtx.textAlign = 'center';
+  compassCtx.fillText('EJE', cx, cy + r + 10);
+}
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+
+  // Draw collectibles
+  collectibles.forEach(c => {
+    c.pulse += 0.05;
+    const pr = c.r + Math.sin(c.pulse) * 3;
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, pr, 0, Math.PI * 2);
+    if (c.type === 'time') {
+      ctx.fillStyle = '#00ffff';
+      ctx.shadowColor = '#00ffff';
+    } else {
+      ctx.fillStyle = '#ffff00';
+      ctx.shadowColor = '#ffff00';
+    }
+    ctx.shadowBlur = 10;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    
+    // Symbol
+    ctx.fillStyle = '#0a0a0a';
+    ctx.font = `${pr}px Courier New`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(c.type === 'time' ? '+' : '★', c.x, c.y);
+  });
+
+  // Draw obstacles
+  obstacles.forEach(o => {
+    const x = o.displayX || o.x;
+    const y = o.displayY || o.y;
+    ctx.beginPath();
+    ctx.arc(x, y, o.r, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 0, 64, 0.3)';
+    ctx.strokeStyle = '#ff0040';
+    ctx.lineWidth = 2;
+    ctx.shadowColor = '#ff0040';
+    ctx.shadowBlur = 8;
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  });
+
+  // Draw player
+  ctx.beginPath();
+  ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2);
+  ctx.fillStyle = '#00ff41';
+  ctx.shadowColor = '#00ff41';
+  ctx.shadowBlur = 15;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  
+  // Player inner
+  ctx.beginPath();
+  ctx.arc(player.x, player.y, player.r * 0.5, 0, Math.PI * 2);
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fill();
+
+  // Draw particles
+  particles.forEach(p => {
+    ctx.globalAlpha = p.life;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r * p.life, 0, Math.PI * 2);
+    ctx.fillStyle = p.color;
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+
+  // Draw compass
+  if (running) drawCompass();
+}
+
+function gameLoop(timestamp) {
+  const dt = Math.min((timestamp - lastTime) / 1000, 0.1);
+  lastTime = timestamp;
+  update(dt);
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+function endGame() {
+  running = false;
+  const goTitle = document.getElementById('go-title');
+  const goScore = document.getElementById('go-score');
+  const goMsg = document.getElementById('go-msg');
+  
+  goTitle.textContent = score >= 50 ? '¡MÁQUINA!' : score >= 25 ? 'NADA MAL' : 'MIERDIPUNTUACIÓN';
+  goScore.textContent = `Puntuación: ${score}`;
+  
+  const msgs = [
+    'Tu cerebro ahora está oficialmente roto.',
+    'Los espejos nunca volverán a ser lo mismo.',
+    'La inversión te ha cambiado como persona.',
+    '¿Quién necesita sentido de la orientación?'
+  ];
+  goMsg.textContent = msgs[Math.floor(Math.random() * msgs.length)];
+  gameOverScreen.style.display = 'flex';
+}
+
+function startGame() {
+  startScreen.style.display = 'none';
+  gameOverScreen.style.display = 'none';
+  initGame();
+  running = true;
+  lastTime = performance.now();
+}
+
+document.getElementById('btn-start').addEventListener('click', startGame);
+document.getElementById('btn-retry').addEventListener('click', startGame);
+
+// Initial render
+initGame();
+draw();
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>

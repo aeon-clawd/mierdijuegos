@@ -1,0 +1,161 @@
+---
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description = "Un mierdijuego nuevo cada día. Juegos revolucionarios generados por IA." } = Astro.props;
+---
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <meta name="description" content={description} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet" />
+    <title>{title}</title>
+  </head>
+  <body>
+    <header>
+      <a href="/" class="logo-link">
+        <h1 class="site-title">MIERDIJUEGOS<span class="blink">.COM</span></h1>
+      </a>
+      <p class="tagline">un mierdijuego nuevo cada día</p>
+    </header>
+
+    <main>
+      <slot />
+    </main>
+
+    <footer>
+      <div class="footer-content">
+        <p class="footer-text">Juegos generados por IA · Ningún humano fue dañado en el proceso</p>
+        <a href="https://aeoninfinitive.com" target="_blank" rel="noopener" class="aeon-link">
+          ∞ Aeon Infinitive
+        </a>
+      </div>
+    </footer>
+  </body>
+</html>
+
+<style is:global>
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  :root {
+    --bg: #0a0a0a;
+    --text: #00ff41;
+    --text-dim: #00aa2a;
+    --accent: #ff00ff;
+    --accent2: #00ffff;
+    --warning: #ffff00;
+    --grid-color: rgba(0, 255, 65, 0.05);
+  }
+
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'VT323', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    background-image: 
+      linear-gradient(var(--grid-color) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+
+  header {
+    text-align: center;
+    padding: 1.5rem 1rem 1rem;
+    border-bottom: 2px solid var(--text-dim);
+  }
+
+  .logo-link {
+    text-decoration: none;
+    color: inherit;
+  }
+
+  .site-title {
+    font-family: 'Press Start 2P', cursive;
+    font-size: clamp(1rem, 5vw, 2rem);
+    color: var(--accent);
+    text-shadow: 0 0 10px var(--accent), 0 0 20px var(--accent);
+    letter-spacing: 2px;
+  }
+
+  .site-title .blink {
+    animation: blink 1.5s step-end infinite;
+    color: var(--accent2);
+  }
+
+  .tagline {
+    font-size: 1.2rem;
+    color: var(--text-dim);
+    margin-top: 0.5rem;
+    font-style: italic;
+  }
+
+  main {
+    flex: 1;
+    padding: 1rem;
+    max-width: 900px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  footer {
+    border-top: 2px solid var(--text-dim);
+    padding: 1rem;
+    text-align: center;
+  }
+
+  .footer-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .footer-text {
+    font-size: 0.9rem;
+    color: var(--text-dim);
+  }
+
+  .aeon-link {
+    font-family: 'Press Start 2P', cursive;
+    font-size: 0.7rem;
+    color: var(--accent2);
+    text-decoration: none;
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--accent2);
+    transition: all 0.3s;
+  }
+
+  .aeon-link:hover {
+    background: var(--accent2);
+    color: var(--bg);
+    box-shadow: 0 0 15px var(--accent2);
+  }
+
+  @keyframes blink {
+    50% { opacity: 0; }
+  }
+
+  @keyframes scanline {
+    0% { transform: translateY(-100%); }
+    100% { transform: translateY(100vh); }
+  }
+</style>

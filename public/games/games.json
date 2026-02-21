@@ -1,0 +1,10 @@
+[
+  {
+    "id": "001-espejo-invertido",
+    "title": "Espejo Invertido",
+    "date": "2026-02-20",
+    "description": "Tus controles están invertidos en un eje que rota constantemente. Tu cerebro tendrá que recalibrarse cada segundo.",
+    "mechanic": "Inversión dinámica de controles",
+    "emoji": "🪞"
+  }
+]

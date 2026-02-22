@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Eco Temporal — mierdijuegos.com</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0a;color:#00ff41;font-family:'Courier New',monospace;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;overflow:hidden;touch-action:none}
+canvas{display:block;cursor:none}
+#ui{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 16px;background:rgba(0,0,0,.6);z-index:10;pointer-events:none}
+#score{color:#00ff41;font-size:1.2rem;font-weight:bold}
+#dbar-w{display:flex;align-items:center;gap:6px}
+#dlabel{color:#ff00ff;font-size:.75rem}
+#dbar{width:80px;height:8px;background:#1a1a1a;border:1px solid #ff00ff;border-radius:4px;overflow:hidden}
+#dfill{height:100%;background:#ff00ff;width:0%;transition:width .1s}
+#lvl{color:#ffff00;font-size:1rem}
+.screen{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,.92);z-index:20;padding:24px;text-align:center}
+.screen.hidden{display:none}
+h1{font-size:2rem;color:#00ffff;margin-bottom:6px;letter-spacing:2px}
+.em{font-size:3rem;margin:12px 0}
+.desc{color:#aaa;font-size:.87rem;line-height:1.6;max-width:320px;margin:0 auto 8px}
+.leg{display:flex;gap:20px;margin:12px 0;justify-content:center}
+.li{display:flex;align-items:center;gap:6px;font-size:.8rem;color:#ccc}
+.dot{width:14px;height:14px;border-radius:50%}
+.dy{background:#00ffff;box-shadow:0 0 8px #00ffff}
+.de{background:#ff00ff;box-shadow:0 0 8px #ff00ff}
+button{margin-top:20px;padding:14px 40px;background:transparent;border:2px solid #00ff41;color:#00ff41;font-family:'Courier New',monospace;font-size:1rem;cursor:pointer;letter-spacing:2px;transition:all .2s}
+button:hover,button:active{background:#00ff41;color:#0a0a0a}
+#fscore{font-size:2rem;color:#ffff00;margin:10px 0}
+#fmsg{color:#ff00ff;font-size:.9rem;margin:6px 0 0;font-style:italic}
+a.bk{display:block;margin-top:16px;color:#555;font-size:.8rem;text-decoration:none}
+a.bk:hover{color:#00ff41}
+</style>
+</head>
+<body>
+<div class="screen" id="ss">
+  <div class="em">⏳</div>
+  <h1>ECO TEMPORAL</h1>
+  <p class="desc">Eres <span style="color:#00ffff">TÚ</span> y tu <span style="color:#ff00ff">ECO</span>.<br>El eco repite lo que hiciste hace 2 segundos.<br><br>Ambos deben sobrevivir. Tienes que pensar en el presente <em>y</em> en tu pasado.</p>
+  <div class="leg">
+    <div class="li"><div class="dot dy"></div>Tú (ahora)</div>
+    <div class="li"><div class="dot de"></div>Eco (−2s)</div>
+  </div>
+  <p class="desc" style="font-size:.78rem;color:#666;margin-top:4px">Toca/arrastra para mover. Sobrevive el mayor tiempo posible.</p>
+  <button id="sbtn">▶ JUGAR</button>
+</div>
+<div class="screen hidden" id="gs">
+  <div class="em" id="goem">💀</div>
+  <h1 style="color:#ff0040">GAME OVER</h1>
+  <div id="fscore">0</div>
+  <div id="fmsg"></div>
+  <button id="rbtn">↺ REINTENTAR</button>
+  <a class="bk" href="/">← más mierdijuegos</a>
+</div>
+<div id="ui">
+  <div id="score">0</div>
+  <div id="dbar-w"><span id="dlabel">ECO</span><div id="dbar"><div id="dfill"></div></div></div>
+  <div id="lvl">Nv.1</div>
+</div>
+<canvas id="c"></canvas>
+<script>
+(function(){
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const ss=document.getElementById('ss'),gs=document.getElementById('gs');
+const sEl=document.getElementById('score'),lEl=document.getElementById('lvl');
+const df=document.getElementById('dfill');
+const fsEl=document.getElementById('fscore'),fmEl=document.getElementById('fmsg'),goEm=document.getElementById('goem');
+let W,H;
+function resize(){W=cv.width=window.innerWidth;H=cv.height=window.innerHeight;}
+window.addEventListener('resize',resize);resize();
+
+let AC=null;
+function getAC(){if(!AC)AC=new(window.AudioContext||window.webkitAudioContext)();return AC;}
+function beep(f,d,v,t='square'){try{const a=getAC(),o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.type=t;o.frequency.value=f;g.gain.setValueAtTime(v,a.currentTime);g.gain.exponentialRampToValueAtTime(.001,a.currentTime+d);o.start();o.stop(a.currentTime+d);}catch(e){}}
+
+const DELAY=120,PR=14,ER=12;
+const MSGS=['"Tu yo del pasado te mató. Gracias, imbécil."','"El eco era smarter que tú. O igual de burro."','"2 segundos en el pasado y ya jodiste el presente."','"Paradoja temporal: eres tu propio peor enemigo."','"El eco solo seguía órdenes. Tus órdenes. Cabrón."','"No puedes escapar de ti mismo. Ni en 2D."','"Einstein lloraría. Bueno, todos lloramos."','"Si supieras lo que ibas a hacer... no lo harías."'];
+
+let state,sc,frame,level,speed,px,py,tx,ty,touchOn,hist,ex,ey,obs,parts,lastT;
+
+function reset(){
+  sc=frame=0;level=1;speed=1;
+  px=W/2;py=H/2;tx=px;ty=py;touchOn=false;
+  hist=[];for(let i=0;i<DELAY+10;i++)hist.push({x:px,y:py});
+  ex=px;ey=py;obs=[];parts=[];
+}
+
+function start(){
+  ss.classList.add('hidden');gs.classList.add('hidden');
+  reset();state='play';lastT=performance.now();
+  requestAnimationFrame(loop);
+}
+
+function die(who){
+  state='dead';
+  beep(80,.5,.3,'sawtooth');
+  burst(who==='echo'?ex:px,who==='echo'?ey:py,who==='echo'?'#ff00ff':'#00ffff');
+  goEm.textContent=sc>100?'🔥':sc>40?'💀':'😵';
+  fsEl.textContent=sc+' pts';
+  fmEl.textContent=MSGS[Math.floor(Math.random()*MSGS.length)];
+  setTimeout(()=>gs.classList.remove('hidden'),700);
+}
+
+function burst(x,y,col){
+  for(let i=0;i<10;i++){const a=Math.random()*Math.PI*2,s=1+Math.random()*5;parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,l:1,col,r:2+Math.random()*3});}
+}
+
+function spawnObs(){
+  const side=Math.floor(Math.random()*4),sz=20+Math.random()*30;
+  const sp=(1.5+level*.5+Math.random()*1.5)*speed;
+  let x,y,vx,vy;
+  if(side===0){x=Math.random()*W;y=-sz;vx=(Math.random()-.5)*sp*.5;vy=sp;}
+  else if(side===1){x=W+sz;y=Math.random()*H;vx=-sp;vy=(Math.random()-.5)*sp*.5;}
+  else if(side===2){x=Math.random()*W;y=H+sz;vx=(Math.random()-.5)*sp*.5;vy=-sp;}
+  else{x=-sz;y=Math.random()*H;vx=sp;vy=(Math.random()-.5)*sp*.5;}
+  obs.push({x,y,w:sz,h:sz,vx,vy,type:Math.random()<.5?'rect':'dia',age:0});
+}
+
+function hits(cx,cy,r,o){
+  if(o.type==='rect'){
+    const nx=Math.max(o.x-o.w/2,Math.min(o.x+o.w/2,cx)),ny=Math.max(o.y-o.h/2,Math.min(o.y+o.h/2,cy));
+    const dx=cx-nx,dy=cy-ny;return dx*dx+dy*dy<r*r;
+  }
+  return Math.abs(cx-o.x)+Math.abs(cy-o.y)<o.w/2+r;
+}
+
+function setT(cx,cy){tx=Math.max(PR,Math.min(W-PR,cx));ty=Math.max(PR,Math.min(H-PR,cy));touchOn=true;}
+cv.addEventListener('touchstart',e=>{e.preventDefault();const t=e.touches[0];setT(t.clientX,t.clientY);},{passive:false});
+cv.addEventListener('touchmove',e=>{e.preventDefault();const t=e.touches[0];setT(t.clientX,t.clientY);},{passive:false});
+cv.addEventListener('touchend',e=>{e.preventDefault();touchOn=false;},{passive:false});
+cv.addEventListener('mousemove',e=>{setT(e.clientX,e.clientY);touchOn=true;});
+cv.addEventListener('mouseleave',()=>touchOn=false);
+
+function loop(now){
+  if(state==='idle')return;
+  const dt=Math.min((now-lastT)/1000,.05);lastT=now;
+  update(dt);draw();
+  requestAnimationFrame(loop);
+}
+
+function update(dt){
+  if(state!=='play'){updParts(dt);return;}
+  frame++;
+  sc=Math.floor(frame/6);
+  level=Math.floor(sc/50)+1;
+  speed=1+(level-1)*.15;
+
+  if(touchOn){
+    const dx=tx-px,dy=ty-py,d=Math.sqrt(dx*dx+dy*dy);
+    if(d>2){const m=Math.min(220*speed*dt,d);px+=dx/d*m;py+=dy/d*m;}
+  }
+
+  hist.push({x:px,y:py});
+  if(hist.length>DELAY+20)hist.shift();
+
+  const ei=hist.length-1-DELAY;
+  if(ei>=0){ex=hist[ei].x;ey=hist[ei].y;}
+
+  const sr=Math.max(45-level*5,18);
+  if(frame%sr===0)spawnObs();
+
+  for(let i=obs.length-1;i>=0;i--){
+    const o=obs[i];o.x+=o.vx;o.y+=o.vy;o.age++;
+    if(o.x<-120||o.x>W+120||o.y<-120||o.y>H+120){obs.splice(i,1);continue;}
+    if(hits(px,py,PR,o)){burst(px,py,'#00ffff');beep(200,.1,.15);die('player');return;}
+    if(frame>DELAY&&hits(ex,ey,ER,o)){burst(ex,ey,'#ff00ff');beep(200,.1,.15);die('echo');return;}
+  }
+
+  if(sc>0&&sc%25===0&&frame%6===0)beep(600,.05,.1,'sine');
+  updParts(dt);
+
+  sEl.textContent=sc;lEl.textContent='Nv.'+level;
+  const er2=Math.min(1,frame/DELAY);
+  df.style.width=(er2*100)+'%';
+  df.style.background=er2>=1?'#ff00ff':'#ffff00';
+}
+
+function updParts(dt){
+  for(let i=parts.length-1;i>=0;i--){
+    const p=parts[i];p.x+=p.vx*(dt*60);p.y+=p.vy*(dt*60);p.l-=dt*1.5;
+    if(p.l<=0)parts.splice(i,1);
+  }
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  drawGrid();drawTrail();
+  for(const p of parts){ctx.save();ctx.globalAlpha=p.l;ctx.fillStyle=p.col;ctx.shadowColor=p.col;ctx.shadowBlur=6;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();ctx.restore();}
+  for(const o of obs)drawObs(o);
+  if(frame>10)drawEcho();
+  drawPlayer();drawVig();
+}
+
+function drawGrid(){
+  ctx.strokeStyle='rgba(0,255,65,.04)';ctx.lineWidth=1;ctx.beginPath();
+  for(let x=0;x<W;x+=60){ctx.moveTo(x,0);ctx.lineTo(x,H);}
+  for(let y=0;y<H;y+=60){ctx.moveTo(0,y);ctx.lineTo(W,y);}
+  ctx.stroke();
+}
+
+function drawTrail(){
+  const tl=30,start=hist.length-1-DELAY-tl;
+  if(start<0)return;
+  for(let i=0;i<tl;i++){const idx=start+i;if(idx<0||idx>=hist.length)continue;const p=hist[idx];ctx.save();ctx.globalAlpha=(i/tl)*.25;ctx.fillStyle='#ff00ff';ctx.beginPath();ctx.arc(p.x,p.y,3,0,Math.PI*2);ctx.fill();ctx.restore();}
+}
+
+function drawObs(o){
+  const pulse=.7+.3*Math.sin(o.age*.1);
+  ctx.save();ctx.translate(o.x,o.y);
+  if(o.type==='rect'){
+    ctx.shadowColor='#ff0040';ctx.shadowBlur=12*pulse;
+    ctx.fillStyle=`rgba(255,0,64,${.8*pulse})`;ctx.strokeStyle='#ff0040';ctx.lineWidth=2;
+    ctx.fillRect(-o.w/2,-o.h/2,o.w,o.h);ctx.strokeRect(-o.w/2,-o.h/2,o.w,o.h);
+  }else{
+    ctx.shadowColor='#ffff00';ctx.shadowBlur=10*pulse;
+    ctx.fillStyle=`rgba(255,200,0,${.7*pulse})`;ctx.strokeStyle='#ffff00';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(0,-o.h/2);ctx.lineTo(o.w/2,0);ctx.lineTo(0,o.h/2);ctx.lineTo(-o.w/2,0);ctx.closePath();ctx.fill();ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawEcho(){
+  const t=frame/60,pulse=.6+.4*Math.sin(t*4),er2=Math.min(1,frame/DELAY);
+  ctx.save();ctx.globalAlpha=er2*.9;ctx.shadowColor='#ff00ff';ctx.shadowBlur=20*pulse;
+  ctx.strokeStyle='#ff00ff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(ex,ey,ER+4*pulse,0,Math.PI*2);ctx.stroke();
+  ctx.fillStyle='#ff00ff';ctx.beginPath();ctx.arc(ex,ey,ER*.6,0,Math.PI*2);ctx.fill();
+  if(er2>=1){ctx.globalAlpha=.6;ctx.fillStyle='#ff00ff';ctx.font='9px Courier New';ctx.textAlign='center';ctx.fillText('−2s',ex,ey-ER-8);}
+  ctx.restore();
+}
+
+function drawPlayer(){
+  const t=frame/60,pulse=.7+.3*Math.sin(t*5);
+  ctx.save();ctx.shadowColor='#00ffff';ctx.shadowBlur=24*pulse;
+  ctx.strokeStyle='#00ffff';ctx.lineWidth=2;ctx.globalAlpha=.5*pulse;ctx.beginPath();ctx.arc(px,py,PR+6,0,Math.PI*2);ctx.stroke();
+  ctx.globalAlpha=1;ctx.fillStyle='#00ffff';ctx.beginPath();ctx.arc(px,py,PR,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#0a0a0a';ctx.beginPath();ctx.arc(px,py,PR*.4,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+}
+
+function drawVig(){
+  const g=ctx.createRadialGradient(W/2,H/2,H*.3,W/2,H/2,H*.9);
+  g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,'rgba(0,0,0,.5)');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+}
+
+document.getElementById('sbtn').addEventListener('click',start);
+document.getElementById('rbtn').addEventListener('click',()=>{gs.classList.add('hidden');start();});
+state='idle';
+})();
+</script>
+</body>
+</html>

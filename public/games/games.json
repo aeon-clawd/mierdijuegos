@@ -30,5 +30,13 @@
     "description": "Solo puedes actuar en el beat. Pero el ritmo es irregular y cambia. Tienes que sentirlo, no pensarlo.",
     "mechanic": "Ritmo irregular como mecánica core",
     "emoji": "🥁"
+  },
+  {
+    "id": "005-eco-temporal",
+    "title": "Eco Temporal",
+    "date": "2026-02-22",
+    "description": "Controlas a dos personajes a la vez: tú ahora, y tu eco que repite exactamente lo que hiciste hace 2 segundos. Ambos deben sobrevivir.",
+    "mechanic": "Doppelgänger temporal con delay de 2 segundos",
+    "emoji": "⏳"
   }
 ]

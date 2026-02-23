@@ -38,5 +38,13 @@
     "description": "Controlas a dos personajes a la vez: tú ahora, y tu eco que repite exactamente lo que hiciste hace 2 segundos. Ambos deben sobrevivir.",
     "mechanic": "Doppelgänger temporal con delay de 2 segundos",
     "emoji": "⏳"
+  },
+  {
+    "id": "006-latido",
+    "title": "Latido",
+    "date": "2026-02-23",
+    "description": "El tiempo se congela entre latidos. Solo puedes moverte en el instante del pulso. A medida que avanzas, el corazón se acelera.",
+    "mechanic": "Turn-based rítmico con latido cardíaco como reloj del mundo",
+    "emoji": "💓"
   }
 ]

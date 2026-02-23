@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Latido — mierdijuegos.com</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a0a;
+    color: #00ff41;
+    font-family: 'Courier New', monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100dvh;
+    overflow: hidden;
+    touch-action: none;
+  }
+  canvas { display: block; touch-action: none; }
+  #screen {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: #0a0a0a;
+    z-index: 10;
+    padding: 24px;
+    text-align: center;
+  }
+  #screen h1 { font-size: 3rem; color: #ff00ff; letter-spacing: 0.1em; margin-bottom: 8px; }
+  #screen .sub { font-size: 1rem; color: #00ffff; margin-bottom: 24px; }
+  #screen p { font-size: 0.85rem; color: #888; line-height: 1.7; max-width: 340px; margin-bottom: 28px; }
+  #screen .score-big { font-size: 2.5rem; color: #ffff00; margin-bottom: 8px; }
+  #screen .msg { font-size: 1rem; color: #ff00ff; margin-bottom: 24px; }
+  .btn {
+    background: none;
+    border: 2px solid #00ff41;
+    color: #00ff41;
+    font-family: inherit;
+    font-size: 1.1rem;
+    padding: 14px 36px;
+    cursor: pointer;
+    letter-spacing: 0.1em;
+    margin: 6px;
+    transition: all 0.15s;
+  }
+  .btn:hover, .btn:active { background: #00ff41; color: #0a0a0a; }
+  .btn.magenta { border-color: #ff00ff; color: #ff00ff; }
+  .btn.magenta:hover, .btn.magenta:active { background: #ff00ff; color: #0a0a0a; }
+  .hidden { display: none !important; }
+  #hud {
+    position: fixed; top: 0; left: 0; right: 0;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 16px;
+    background: rgba(10,10,10,0.8);
+    z-index: 5;
+    pointer-events: none;
+  }
+  #hud span { font-size: 0.85rem; }
+  #score-display { color: #ffff00; font-size: 1.1rem; }
+  #beat-label { color: #ff0040; }
+  #level-display { color: #00ffff; }
+  #ecg-container {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    height: 60px;
+    pointer-events: none;
+    z-index: 5;
+  }
+</style>
+</head>
+<body>
+
+<!-- START SCREEN -->
+<div id="screen" data-s="start">
+  <h1>💓 LATIDO</h1>
+  <div class="sub">El mundo se congela entre latidos</div>
+  <p>
+    El tiempo solo avanza cuando el corazón late.<br>
+    Solo puedes moverte en el instante del pulso.<br>
+    Entre latidos, planea tu siguiente paso.<br>
+    A medida que avanzas, el corazón se acelera.<br><br>
+    <strong style="color:#ff00ff">← → para moverse · ↑ para saltar</strong><br>
+    <strong style="color:#00ffff">En móvil: toca izquierda / derecha / arriba</strong>
+  </p>
+  <button class="btn" onclick="startGame()">▶ JUGAR</button>
+</div>
+
+<!-- GAME OVER SCREEN -->
+<div id="screen-over" class="hidden" data-s="over">
+  <h1 style="color:#ff0040">💔 PLANO</h1>
+  <div class="score-big" id="final-score">0</div>
+  <div class="msg" id="death-msg">El ECG ha mentido antes.</div>
+  <button class="btn" onclick="startGame()">↺ REINTENTAR</button><br>
+  <a href="/" class="btn magenta" style="text-decoration:none;display:inline-block;margin-top:8px">← más mierdijuegos</a>
+</div>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <span id="beat-label">💓 BPM: <span id="bpm-val">60</span></span>
+  <span id="score-display">✦ <span id="score-val">0</span></span>
+  <span id="level-display">NIVEL <span id="level-val">1</span></span>
+</div>
+
+<!-- ECG canvas -->
+<canvas id="ecg-container" style="position:fixed;bottom:0;left:0;width:100%;height:60px;pointer-events:none;z-index:5;"></canvas>
+
+<!-- GAME CANVAS -->
+<canvas id="c"></canvas>
+
+<script>
+const c = document.getElementById('c');
+const ctx = c.getContext('2d');
+const ecgCanvas = document.getElementById('ecg-container');
+const ecgCtx = ecgCanvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = c.width = window.innerWidth;
+  H = c.height = window.innerHeight - 60;
+  ecgCanvas.width = window.innerWidth;
+  ecgCanvas.height = 60;
+}
+resize();
+window.addEventListener('resize', () => { resize(); if (game) game.rebuild(); });
+
+// Audio
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function playTone(freq, type, dur, vol=0.3, delay=0) {
+  try {
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, audioCtx.currentTime + delay);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + delay + dur);
+    o.start(audioCtx.currentTime + delay);
+    o.stop(audioCtx.currentTime + delay + dur);
+  } catch(e) {}
+}
+function playHeartbeat() {
+  playTone(80, 'sine', 0.08, 0.4);
+  playTone(60, 'sine', 0.12, 0.3, 0.1);
+}
+function playJump() { playTone(440, 'square', 0.1, 0.15); }
+function playDie() {
+  playTone(200, 'sawtooth', 0.3, 0.4);
+  playTone(100, 'sawtooth', 0.5, 0.3, 0.15);
+}
+function playCoin() { playTone(880, 'sine', 0.08, 0.2); }
+
+// Game state
+let game = null;
+
+const TILE = 48;
+const PLAYER_W = 32;
+const PLAYER_H = 36;
+const COLORS = {
+  bg: '#0a0a0a',
+  ground: '#1a1a2e',
+  groundEdge: '#00ff41',
+  player: '#00ffff',
+  playerEye: '#0a0a0a',
+  enemy: '#ff0040',
+  enemyEye: '#ffff00',
+  coin: '#ffff00',
+  platform: '#16213e',
+  platformEdge: '#ff00ff',
+  pulse: '#ff0040',
+  frozen: '#334',
+};
+
+class Game {
+  constructor() {
+    this.score = 0;
+    this.level = 1;
+    this.bpm = 60;
+    this.beatInterval = 1000; // ms
+    this.lastBeat = performance.now();
+    this.nextBeatIn = this.beatInterval;
+    this.pulsePhase = 0; // 0..1 within beat
+    this.isFrozen = true; // between beats = frozen
+    this.beatWindow = 220; // ms window around beat where action is allowed
+    this.inBeatWindow = false;
+    this.actionQueued = null; // 'left','right','jump'
+    this.dead = false;
+    this.flashTimer = 0;
+
+    // ECG line
+    this.ecgPoints = [];
+    this.ecgX = 0;
+
+    // Platform layout
+    this.groundY = H - TILE;
+    this.platforms = [];
+    this.enemies = [];
+    this.coins = [];
+    this.spawnX = W + 80;
+    this.scrollX = 0; // world scroll
+    this.distance = 0;
+    this.distanceTick = 0;
+
+    // Player
+    this.px = 80; // screen position (fixed)
+    this.py = this.groundY - PLAYER_H;
+    this.pvy = 0;
+    this.onGround = true;
+    this.isJumping = false;
+    this.worldX = 0; // player world X
+    this.worldSpeed = 0; // world scroll speed per beat
+
+    this.coinCount = 0;
+    this.beatsAlive = 0;
+
+    // Build initial level
+    this.buildLevel();
+    this.setupInput();
+  }
+
+  rebuild() {
+    this.groundY = H - TILE;
+    this.py = this.groundY - PLAYER_H;
+  }
+
+  buildLevel() {
+    // Generate ahead: ground gaps, platforms, enemies, coins
+    this.worldLength = 0;
+    this.generateChunk(0, W * 3);
+  }
+
+  generateChunk(fromX, toX) {
+    const gY = this.groundY;
+    // Platforms above ground
+    let x = fromX + 120;
+    while (x < toX) {
+      const plW = 80 + Math.random() * 80;
+      const plY = gY - TILE * (1.5 + Math.random() * 2);
+      this.platforms.push({ x, y: plY, w: plW, h: 16 });
+      // Coin on platform?
+      if (Math.random() > 0.4) {
+        this.coins.push({ x: x + plW/2, y: plY - 20, wx: x + plW/2, collected: false });
+      }
+      x += plW + 100 + Math.random() * 140;
+    }
+    // Enemies on ground
+    let ex = fromX + 200;
+    while (ex < toX) {
+      if (Math.random() > 0.35) {
+        this.enemies.push({
+          wx: ex, // world X
+          wy: gY - 32,
+          w: 28, h: 32,
+          dir: Math.random() > 0.5 ? 1 : -1,
+          speed: 1 + Math.random() * 2, // tiles per beat
+          alive: true
+        });
+      }
+      ex += 180 + Math.random() * 160;
+    }
+    this.worldLength = toX;
+  }
+
+  setupInput() {
+    this._keys = {};
+    this._keydown = (e) => {
+      if (['ArrowLeft','ArrowRight','ArrowUp',' '].includes(e.key)) {
+        e.preventDefault();
+        const act = e.key === 'ArrowLeft' ? 'left' :
+                    e.key === 'ArrowRight' ? 'right' : 'jump';
+        this.queueAction(act);
+      }
+    };
+    document.addEventListener('keydown', this._keydown);
+
+    // Touch controls
+    this._touchStart = (e) => {
+      e.preventDefault();
+      const t = e.changedTouches[0];
+      const tx = t.clientX;
+      const ty = t.clientY;
+      if (ty < H * 0.5) {
+        this.queueAction('jump');
+      } else if (tx < W * 0.5) {
+        this.queueAction('left');
+      } else {
+        this.queueAction('right');
+      }
+    };
+    document.addEventListener('touchstart', this._touchStart, { passive: false });
+  }
+
+  teardownInput() {
+    document.removeEventListener('keydown', this._keydown);
+    document.removeEventListener('touchstart', this._touchStart);
+  }
+
+  queueAction(act) {
+    this.actionQueued = act;
+  }
+
+  update(now) {
+    if (this.dead) return;
+
+    const dt = now - this._lastNow;
+    this._lastNow = now;
+
+    // Beat timing
+    const sinceLastBeat = now - this.lastBeat;
+    this.pulsePhase = sinceLastBeat / this.beatInterval;
+    this.inBeatWindow = sinceLastBeat < this.beatWindow || sinceLastBeat > this.beatInterval - this.beatWindow * 0.5;
+
+    // ECG update
+    this.updateECG(sinceLastBeat);
+
+    if (sinceLastBeat >= this.beatInterval) {
+      this.onBeat(now);
+      this.lastBeat = now;
+    }
+
+    // Flash timer
+    if (this.flashTimer > 0) this.flashTimer -= dt;
+
+    // Score from beats
+    // (already counted in onBeat)
+  }
+
+  onBeat(now) {
+    if (this.dead) return;
+    this.beatsAlive++;
+
+    playHeartbeat();
+    this.flashTimer = 80;
+
+    // Execute queued action
+    if (this.actionQueued) {
+      this.executeAction(this.actionQueued);
+      this.actionQueued = null;
+    }
+
+    // Move enemies
+    this.enemies.forEach(e => {
+      if (!e.alive) return;
+      e.wx += e.dir * e.speed * TILE * 0.5;
+      // bounce
+      if (e.wx < 0) { e.dir = 1; }
+    });
+
+    // Scroll world (player moves right automatically)
+    const scrollSpeed = (2 + this.level * 0.5) * TILE * 0.5;
+    this.scrollX += scrollSpeed;
+    this.distance += scrollSpeed;
+    this.distanceTick++;
+
+    // Score per beat
+    this.score += this.level;
+    this.updateHUD();
+
+    // Level up every 20 beats
+    if (this.beatsAlive > 0 && this.beatsAlive % 20 === 0) {
+      this.levelUp();
+    }
+
+    // Generate more world
+    if (this.scrollX + W * 2 > this.worldLength) {
+      this.generateChunk(this.worldLength, this.worldLength + W * 3);
+    }
+
+    // Apply gravity (jump landing)
+    this.applyGravity();
+
+    // Check collisions
+    this.checkCollisions();
+  }
+
+  executeAction(act) {
+    if (act === 'jump' && this.onGround) {
+      this.pvy = -14;
+      this.onGround = false;
+      playJump();
+    } else if (act === 'left') {
+      // move left relative to world
+      this.worldX -= TILE;
+    } else if (act === 'right') {
+      this.worldX += TILE;
+    }
+  }
+
+  applyGravity() {
+    // Per beat: apply gravity in steps
+    const steps = 3;
+    const gravity = 1.5;
+    for (let i = 0; i < steps; i++) {
+      if (!this.onGround) {
+        this.pvy += gravity;
+        this.py += this.pvy * (1/steps);
+      }
+      // Ground check
+      const gY = this.groundY;
+      if (this.py + PLAYER_H >= gY) {
+        this.py = gY - PLAYER_H;
+        this.pvy = 0;
+        this.onGround = true;
+      }
+      // Platform checks
+      this.platforms.forEach(p => {
+        const sx = p.x - this.scrollX + this.worldX + this.px;
+        // player screen pos = this.px (fixed), platforms scroll
+        // actual player world X = this.scrollX - this.worldX (scroll offsets)
+        const playerWorldX = this.scrollX - this.worldX;
+        const relX = p.x - playerWorldX;
+        const screenX = this.px + relX;
+        if (this.pvy > 0 &&
+            this.px + PLAYER_W * 0.8 > screenX &&
+            this.px + PLAYER_W * 0.2 < screenX + p.w &&
+            this.py + PLAYER_H >= p.y &&
+            this.py + PLAYER_H <= p.y + p.h + 15) {
+          this.py = p.y - PLAYER_H;
+          this.pvy = 0;
+          this.onGround = true;
+        }
+      });
+    }
+    // Check fell off bottom
+    if (this.py > H + 50) {
+      this.die('¡Caíste al vacío!');
+    }
+  }
+
+  checkCollisions() {
+    const playerWorldX = this.scrollX - this.worldX;
+
+    // Coins
+    this.coins.forEach(coin => {
+      if (coin.collected) return;
+      const relX = coin.wx - playerWorldX;
+      const screenX = this.px + relX;
+      const dx = screenX - (this.px + PLAYER_W/2);
+      const dy = coin.y - (this.py + PLAYER_H/2);
+      if (Math.abs(dx) < 28 && Math.abs(dy) < 28) {
+        coin.collected = true;
+        this.coinCount++;
+        this.score += 50;
+        playCoin();
+      }
+    });
+
+    // Enemies
+    this.enemies.forEach(e => {
+      if (!e.alive) return;
+      const relX = e.wx - playerWorldX;
+      const screenX = this.px + relX;
+      if (screenX + e.w > this.px + 4 &&
+          screenX < this.px + PLAYER_W - 4 &&
+          e.wy < this.py + PLAYER_H - 4 &&
+          e.wy + e.h > this.py + 4) {
+        // Stomp from above?
+        if (this.pvy > 0 && this.py + PLAYER_H < e.wy + e.h * 0.5) {
+          e.alive = false;
+          this.pvy = -8;
+          this.score += 100;
+          playTone(660, 'square', 0.15, 0.2);
+        } else {
+          this.die('Un enemigo te aplastó el corazón.');
+        }
+      }
+    });
+
+    // Check if player went too far left (scrolled off screen)
+    const playerScreenX = this.px;
+    // player is always at screen px=80 but world moves
+    // if world moves right faster than player, player falls behind
+    // Actually player is fixed at 80px screen — scroll pushes world
+  }
+
+  levelUp() {
+    this.level++;
+    this.bpm = Math.min(140, 60 + (this.level - 1) * 10);
+    this.beatInterval = Math.round(60000 / this.bpm);
+    this.beatWindow = Math.max(100, 220 - (this.level - 1) * 15);
+    document.getElementById('bpm-val').textContent = this.bpm;
+    document.getElementById('level-val').textContent = this.level;
+  }
+
+  die(reason) {
+    if (this.dead) return;
+    this.dead = true;
+    playDie();
+    this.teardownInput();
+    setTimeout(() => showGameOver(this.score, reason), 800);
+  }
+
+  updateHUD() {
+    document.getElementById('score-val').textContent = this.score;
+    document.getElementById('level-val').textContent = this.level;
+    document.getElementById('bpm-val').textContent = this.bpm;
+  }
+
+  updateECG(sinceLastBeat) {
+    const x = (sinceLastBeat / this.beatInterval) * W;
+    this.ecgX = x;
+  }
+
+  drawECG() {
+    const cw = ecgCanvas.width;
+    const ch = ecgCanvas.height;
+    ecgCtx.clearRect(0, 0, cw, ch);
+
+    const phase = this.pulsePhase; // 0..1
+    const midY = ch * 0.5;
+
+    // Draw ECG waveform
+    ecgCtx.strokeStyle = this.inBeatWindow ? '#ff0040' : '#00ff41';
+    ecgCtx.lineWidth = 2;
+    ecgCtx.shadowBlur = this.inBeatWindow ? 12 : 4;
+    ecgCtx.shadowColor = ecgCtx.strokeStyle;
+    ecgCtx.beginPath();
+
+    const pts = 200;
+    for (let i = 0; i <= pts; i++) {
+      const t = i / pts;
+      const px = t * cw;
+      let py = midY;
+
+      // ECG shape: flat → small bump → big spike → valley → recovery
+      if (t < 0.12) { py = midY - 4 * Math.sin(t / 0.12 * Math.PI); }
+      else if (t < 0.25) { py = midY; }
+      else if (t < 0.30) { py = midY + 8 * ((t - 0.25) / 0.05); }
+      else if (t < 0.35) { py = midY + 8 - 56 * ((t - 0.30) / 0.05); }
+      else if (t < 0.40) { py = midY + 8 - 56 + 64 * ((t - 0.35) / 0.05); }
+      else if (t < 0.45) { py = midY + 16 - 20 * ((t - 0.40) / 0.05); }
+      else if (t < 0.55) { py = midY - 4 * Math.sin((t - 0.45) / 0.1 * Math.PI); }
+      else { py = midY; }
+
+      if (i === 0) ecgCtx.moveTo(px, py);
+      else ecgCtx.lineTo(px, py);
+    }
+    ecgCtx.stroke();
+
+    // Playhead
+    const playX = this.ecgX;
+    ecgCtx.strokeStyle = '#ffff00';
+    ecgCtx.lineWidth = 2;
+    ecgCtx.shadowBlur = 8;
+    ecgCtx.shadowColor = '#ffff00';
+    ecgCtx.beginPath();
+    ecgCtx.moveTo(playX, 0);
+    ecgCtx.lineTo(playX, ch);
+    ecgCtx.stroke();
+
+    // "ACTÚA" label during beat window
+    if (this.inBeatWindow) {
+      ecgCtx.fillStyle = '#ff0040';
+      ecgCtx.font = 'bold 11px Courier New';
+      ecgCtx.shadowBlur = 10;
+      ecgCtx.shadowColor = '#ff0040';
+      ecgCtx.fillText('▶ ACTÚA', 8, ch - 8);
+    } else {
+      ecgCtx.fillStyle = '#334';
+      ecgCtx.font = '11px Courier New';
+      ecgCtx.shadowBlur = 0;
+      ecgCtx.fillText('◼ CONGELA', 8, ch - 8);
+    }
+
+    ecgCtx.shadowBlur = 0;
+  }
+
+  draw() {
+    ctx.fillStyle = COLORS.bg;
+    ctx.fillRect(0, 0, W, H);
+
+    const playerWorldX = this.scrollX - this.worldX;
+
+    // Flash on beat
+    if (this.flashTimer > 0) {
+      const alpha = this.flashTimer / 80 * 0.15;
+      ctx.fillStyle = `rgba(255, 0, 64, ${alpha})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    // Grid lines (frozen feel)
+    if (!this.inBeatWindow) {
+      ctx.strokeStyle = 'rgba(0,255,65,0.04)';
+      ctx.lineWidth = 1;
+      for (let x = 0; x < W; x += 40) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+      }
+      for (let y = 0; y < H; y += 40) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+      }
+    }
+
+    // Ground
+    ctx.fillStyle = COLORS.ground;
+    ctx.fillRect(0, this.groundY, W, H - this.groundY);
+    ctx.fillStyle = COLORS.groundEdge;
+    ctx.fillRect(0, this.groundY, W, 2);
+
+    // Platforms
+    this.platforms.forEach(p => {
+      const relX = p.x - playerWorldX;
+      const screenX = this.px + relX;
+      if (screenX > -p.w - 50 && screenX < W + 50) {
+        ctx.fillStyle = COLORS.platform;
+        ctx.fillRect(screenX, p.y, p.w, p.h);
+        ctx.fillStyle = COLORS.platformEdge;
+        ctx.fillRect(screenX, p.y, p.w, 2);
+
+        // Neon glow under platform
+        const grad = ctx.createLinearGradient(screenX, p.y, screenX, p.y + 20);
+        grad.addColorStop(0, 'rgba(255,0,255,0.15)');
+        grad.addColorStop(1, 'rgba(255,0,255,0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(screenX, p.y + 2, p.w, 20);
+      }
+    });
+
+    // Coins
+    this.coins.forEach(coin => {
+      if (coin.collected) return;
+      const relX = coin.wx - playerWorldX;
+      const screenX = this.px + relX;
+      if (screenX > -30 && screenX < W + 30) {
+        const pulse = 0.8 + 0.2 * Math.sin(Date.now() / 200);
+        ctx.fillStyle = COLORS.coin;
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = COLORS.coin;
+        ctx.beginPath();
+        ctx.arc(screenX, coin.y, 8 * pulse, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        // ✦ symbol
+        ctx.fillStyle = '#0a0a0a';
+        ctx.font = 'bold 10px Courier New';
+        ctx.textAlign = 'center';
+        ctx.fillText('$', screenX, coin.y + 4);
+        ctx.textAlign = 'left';
+      }
+    });
+
+    // Enemies
+    this.enemies.forEach(e => {
+      if (!e.alive) return;
+      const relX = e.wx - playerWorldX;
+      const screenX = this.px + relX;
+      if (screenX > -50 && screenX < W + 50) {
+        // Body
+        ctx.fillStyle = this.inBeatWindow ? '#ff0040' : '#cc0030';
+        ctx.shadowBlur = this.inBeatWindow ? 10 : 0;
+        ctx.shadowColor = '#ff0040';
+        ctx.fillRect(screenX, e.wy, e.w, e.h);
+        ctx.shadowBlur = 0;
+        // Eyes
+        ctx.fillStyle = COLORS.enemyEye;
+        ctx.fillRect(screenX + (e.dir > 0 ? 16 : 4), e.wy + 6, 6, 6);
+        // Spikes on top
+        ctx.fillStyle = '#ff6060';
+        for (let i = 0; i < 3; i++) {
+          const sx = screenX + 4 + i * 8;
+          ctx.beginPath();
+          ctx.moveTo(sx, e.wy);
+          ctx.lineTo(sx + 4, e.wy - 8);
+          ctx.lineTo(sx + 8, e.wy);
+          ctx.fill();
+        }
+      }
+    });
+
+    // Player
+    const px = this.px;
+    const py = this.py;
+
+    // Player glow
+    ctx.shadowBlur = this.inBeatWindow ? 20 : 8;
+    ctx.shadowColor = COLORS.player;
+
+    // Body
+    ctx.fillStyle = COLORS.player;
+    ctx.fillRect(px, py, PLAYER_W, PLAYER_H);
+
+    // Eye
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = COLORS.playerEye;
+    ctx.fillRect(px + PLAYER_W - 10, py + 8, 7, 7);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(px + PLAYER_W - 8, py + 10, 3, 3);
+
+    // Heartbeat pulse ring around player (on beat)
+    if (this.flashTimer > 0) {
+      const progress = 1 - this.flashTimer / 80;
+      const r = 20 + progress * 60;
+      const alpha = (1 - progress) * 0.8;
+      ctx.strokeStyle = `rgba(255,0,64,${alpha})`;
+      ctx.lineWidth = 3;
+      ctx.shadowBlur = 15;
+      ctx.shadowColor = '#ff0040';
+      ctx.beginPath();
+      ctx.arc(px + PLAYER_W/2, py + PLAYER_H/2, r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+
+    // Action queued indicator
+    if (this.actionQueued) {
+      ctx.fillStyle = '#ffff00';
+      ctx.font = '16px Courier New';
+      ctx.shadowBlur = 8;
+      ctx.shadowColor = '#ffff00';
+      const sym = this.actionQueued === 'left' ? '◀' : this.actionQueued === 'right' ? '▶' : '▲';
+      ctx.fillText(sym, px + PLAYER_W/2 - 8, py - 10);
+      ctx.shadowBlur = 0;
+    }
+
+    // FROZEN overlay text
+    if (!this.inBeatWindow) {
+      ctx.fillStyle = 'rgba(0,100,255,0.08)';
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    // Draw ECG
+    this.drawECG();
+
+    ctx.lineWidth = 1;
+    ctx.shadowBlur = 0;
+  }
+
+  loop(now) {
+    if (!this._lastNow) this._lastNow = now;
+    this.update(now);
+    this.draw();
+    if (!this.dead) {
+      this._raf = requestAnimationFrame((t) => this.loop(t));
+    }
+  }
+
+  start() {
+    this._raf = requestAnimationFrame((t) => this.loop(t));
+  }
+
+  stop() {
+    if (this._raf) cancelAnimationFrame(this._raf);
+    this.teardownInput();
+  }
+}
+
+function showGameOver(score, reason) {
+  document.getElementById('hud').classList.add('hidden');
+  document.getElementById('final-score').textContent = score + ' pts';
+  const msgs = [
+    reason || '¿Sentiste el pulso?',
+    'El corazón no miente. Tú sí.',
+    'Plano como un ECG de piedra.',
+    'Tu ritmo cardíaco ha dejado el chat.',
+    'Causa de muerte: falta de ritmo.',
+    'El médico dice que no tenías latidos.',
+    'Se necesita un desfibrilador y más práctica.',
+  ];
+  const baseMsg = reason || msgs[Math.floor(Math.random() * msgs.length)];
+  document.getElementById('death-msg').textContent = baseMsg;
+  document.getElementById('screen-over').classList.remove('hidden');
+}
+
+function startGame() {
+  // Resume audio context
+  audioCtx.resume();
+
+  // Hide all screens
+  document.getElementById('screen').classList.add('hidden');
+  document.getElementById('screen-over').classList.add('hidden');
+  document.getElementById('hud').classList.remove('hidden');
+
+  if (game) { game.stop(); }
+  game = new Game();
+  game.start();
+}
+</script>
+</body>
+</html>

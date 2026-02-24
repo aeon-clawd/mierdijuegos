@@ -1,58 +1,66 @@
 [
-  {
-    "id": "001-espejo-invertido",
-    "title": "Espejo Invertido",
-    "date": "2026-02-17",
-    "description": "Tus controles están invertidos en un eje que rota constantemente. Tu cerebro tendrá que recalibrarse cada segundo.",
-    "mechanic": "Inversión dinámica de controles",
-    "emoji": "🪞"
-  },
-  {
-    "id": "002-memoria-ciega",
-    "title": "Memoria Ciega",
-    "date": "2026-02-18",
-    "description": "Tienes 3 segundos para memorizar el mapa. Luego oscuridad total. Llega a la meta sin chocar.",
-    "mechanic": "Navegación de memoria temporal",
-    "emoji": "🧠"
-  },
-  {
-    "id": "003-gravedad-liquida",
-    "title": "Gravedad Líquida",
-    "date": "2026-02-19",
-    "description": "Tú no controlas la bola — controlas la gravedad. Toca la pantalla y la física se dobla hacia tu dedo.",
-    "mechanic": "Control indirecto por gravedad",
-    "emoji": "🌊"
-  },
-  {
-    "id": "004-ritmo-caotico",
-    "title": "Ritmo Caótico",
-    "date": "2026-02-20",
-    "description": "Solo puedes actuar en el beat. Pero el ritmo es irregular y cambia. Tienes que sentirlo, no pensarlo.",
-    "mechanic": "Ritmo irregular como mecánica core",
-    "emoji": "🥁"
-  },
-  {
-    "id": "005-eco-temporal",
-    "title": "Eco Temporal",
-    "date": "2026-02-22",
-    "description": "Controlas a dos personajes a la vez: tú ahora, y tu eco que repite exactamente lo que hiciste hace 2 segundos. Ambos deben sobrevivir.",
-    "mechanic": "Doppelgänger temporal con delay de 2 segundos",
-    "emoji": "⏳"
-  },
-  {
-    "id": "006-latido",
-    "title": "Latido",
-    "date": "2026-02-23",
-    "description": "El tiempo se congela entre latidos. Solo puedes moverte en el instante del pulso. A medida que avanzas, el corazón se acelera.",
-    "mechanic": "Turn-based rítmico con latido cardíaco como reloj del mundo",
-    "emoji": "💓"
-  },
-  {
-    "id": "007-peso-muerto",
-    "title": "Peso Muerto",
-    "date": "2026-02-24",
-    "description": "No controlas al personaje — tú ERES la gravedad. Mueve tu dedo y la bola te persigue. Guíala al objetivo sin tocar los obstáculos.",
-    "mechanic": "El jugador es la fuente gravitacional: manipulas la física, no el avatar",
-    "emoji": "⚫"
-  }
+    {
+        "id": "001-espejo-invertido",
+        "title": "Espejo Invertido",
+        "date": "2026-02-17",
+        "description": "Tus controles están invertidos en un eje que rota constantemente. Tu cerebro tendrá que recalibrarse cada segundo.",
+        "mechanic": "Inversión dinámica de controles",
+        "emoji": "🪞"
+    },
+    {
+        "id": "002-memoria-ciega",
+        "title": "Memoria Ciega",
+        "date": "2026-02-18",
+        "description": "Tienes 3 segundos para memorizar el mapa. Luego oscuridad total. Llega a la meta sin chocar.",
+        "mechanic": "Navegación de memoria temporal",
+        "emoji": "🧠"
+    },
+    {
+        "id": "003-gravedad-liquida",
+        "title": "Gravedad Líquida",
+        "date": "2026-02-19",
+        "description": "Tú no controlas la bola — controlas la gravedad. Toca la pantalla y la física se dobla hacia tu dedo.",
+        "mechanic": "Control indirecto por gravedad",
+        "emoji": "🌊"
+    },
+    {
+        "id": "004-ritmo-caotico",
+        "title": "Ritmo Caótico",
+        "date": "2026-02-20",
+        "description": "Solo puedes actuar en el beat. Pero el ritmo es irregular y cambia. Tienes que sentirlo, no pensarlo.",
+        "mechanic": "Ritmo irregular como mecánica core",
+        "emoji": "🥁"
+    },
+    {
+        "id": "005-eco-temporal",
+        "title": "Eco Temporal",
+        "date": "2026-02-22",
+        "description": "Controlas a dos personajes a la vez: tú ahora, y tu eco que repite exactamente lo que hiciste hace 2 segundos. Ambos deben sobrevivir.",
+        "mechanic": "Doppelgänger temporal con delay de 2 segundos",
+        "emoji": "⏳"
+    },
+    {
+        "id": "006-latido",
+        "title": "Latido",
+        "date": "2026-02-23",
+        "description": "El tiempo se congela entre latidos. Solo puedes moverte en el instante del pulso. A medida que avanzas, el corazón se acelera.",
+        "mechanic": "Turn-based rítmico con latido cardíaco como reloj del mundo",
+        "emoji": "💓"
+    },
+    {
+        "id": "007-peso-muerto",
+        "title": "Peso Muerto",
+        "date": "2026-02-24",
+        "description": "No controlas al personaje — tú ERES la gravedad. Mueve tu dedo y la bola te persigue. Guíala al objetivo sin tocar los obstáculos.",
+        "mechanic": "El jugador es la fuente gravitacional: manipulas la física, no el avatar",
+        "emoji": "⚫"
+    },
+    {
+        "id": "008-tres-cuerpos",
+        "title": "Tres Cuerpos",
+        "date": "2026-02-24",
+        "description": "Dos estrellas orbitan entre sí. Tú eres el tercer cuerpo. Encuentra la órbita estable o desata el caos gravitacional. Física real computada por Wolfram.",
+        "mechanic": "Problema de los tres cuerpos real — el jugador ES el tercer cuerpo gravitacional",
+        "emoji": "🌌"
+    }
 ]

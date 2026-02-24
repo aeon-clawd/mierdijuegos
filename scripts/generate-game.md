@@ -5,6 +5,40 @@ You are generating a new game for mierdijuegos.com.
 ## Step 1: Check existing games
 Read `/home/ubuntu/clawd/mierdijuegos/public/games/games.json` to see all existing games and their mechanics. You MUST NOT repeat any mechanic that already exists.
 
+## Step 1.5: Use Wolfram for physics/math (RECOMMENDED)
+Before designing the mechanic, use Wolfram to compute real mathematical or physical phenomena that can power the game. This makes games more unique and grounded in real science.
+
+**How to use Wolfram:**
+```bash
+# Get context/ideas for a mathematical phenomenon
+bash /home/ubuntu/clawd/skills/wolfram/wolfram.sh context "interesting math phenomena for games"
+
+# Query WolframAlpha for data
+bash /home/ubuntu/clawd/skills/wolfram/wolfram.sh alpha "Lorenz attractor parameters"
+
+# Compute actual equations/trajectories with Wolfram Language
+bash /home/ubuntu/clawd/skills/wolfram/wolfram.sh eval 'NDSolve[{x'\''[t]==-10(x[t]-y[t]), ...}, {x,y,z}, {t,0,50}]'
+```
+
+**Examples of Wolfram-powered mechanics:**
+- Three-body gravitational problem (real orbital equations)
+- Strange attractors (Lorenz, Rössler) as game maps
+- Double pendulum chaos as control mechanic
+- Reaction-diffusion patterns (Turing patterns) as terrain
+- Wave interference / Fourier synthesis as level design
+- Cellular automata rules computed by Wolfram
+- Real projectile motion with drag coefficients
+- Electromagnetic field lines as paths
+- Mandelbrot/Julia set boundaries as gameplay space
+- Fluid dynamics (Navier-Stokes simplified) for movement
+
+**Use Wolfram to:**
+1. Pre-compute trajectories, parameters, or constants
+2. Validate that the physics in the game is mathematically correct
+3. Get data that makes the game feel "real" (not approximated)
+
+Not every game needs Wolfram, but when math/physics is involved, USE IT.
+
 ## Step 2: Invent a revolutionary mechanic
 The game MUST have a mechanic that feels genuinely novel. Think beyond standard game genres. Examples of the kind of innovation expected:
 - A game controlled by tilting the phone (DeviceOrientation API)
@@ -16,6 +50,9 @@ The game MUST have a mechanic that feels genuinely novel. Think beyond standard 
 - A game where gravity depends on screen color
 - A game where you play in reverse (start at the end)
 - A game where the map is your real clock time
+- A game based on REAL physics computed by Wolfram (three-body, attractors, wave equations)
+- A game where Mandelbrot zoom depth IS the difficulty
+- A game using real electromagnetic field equations
 
 DO NOT use: standard platformers, match-3, flappy bird clones, basic shooters, or any vanilla genre without a radical twist.
 

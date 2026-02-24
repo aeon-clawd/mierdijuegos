@@ -46,5 +46,13 @@
     "description": "El tiempo se congela entre latidos. Solo puedes moverte en el instante del pulso. A medida que avanzas, el corazón se acelera.",
     "mechanic": "Turn-based rítmico con latido cardíaco como reloj del mundo",
     "emoji": "💓"
+  },
+  {
+    "id": "007-peso-muerto",
+    "title": "Peso Muerto",
+    "date": "2026-02-24",
+    "description": "No controlas al personaje — tú ERES la gravedad. Mueve tu dedo y la bola te persigue. Guíala al objetivo sin tocar los obstáculos.",
+    "mechanic": "El jugador es la fuente gravitacional: manipulas la física, no el avatar",
+    "emoji": "⚫"
   }
 ]

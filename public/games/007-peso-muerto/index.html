@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no,maximum-scale=1.0">
+<title>Peso Muerto – Mierdijuegos</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0a;color:#00ff41;font-family:'Courier New',monospace;overflow:hidden;touch-action:none;width:100vw;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center}
+canvas{display:block;touch-action:none}
+#screen{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0a0a0a;z-index:10;padding:20px;text-align:center}
+#screen.hidden{display:none}
+h1{font-size:clamp(2rem,8vw,3.5rem);color:#ff00ff;text-shadow:0 0 20px #ff00ff,0 0 40px #ff00ff44;margin-bottom:12px;letter-spacing:4px}
+h2{font-size:clamp(1.2rem,5vw,2rem);color:#ffff00;text-shadow:0 0 10px #ffff0088;margin-bottom:16px}
+.desc{font-size:clamp(0.85rem,3.5vw,1.1rem);color:#00ffff;max-width:380px;line-height:1.6;margin-bottom:24px}
+.mbox{border:1px solid #00ff4144;padding:12px 20px;margin-bottom:28px;max-width:360px;font-size:clamp(0.75rem,3vw,0.95rem);color:#00ff41cc;line-height:1.5}
+.mbox strong{color:#ff00ff}
+button{background:transparent;border:2px solid #ff00ff;color:#ff00ff;font-family:'Courier New',monospace;font-size:clamp(1rem,4vw,1.3rem);padding:14px 40px;cursor:pointer;letter-spacing:3px;text-transform:uppercase;transition:all .2s;margin:6px;-webkit-tap-highlight-color:transparent}
+button:hover,button:active{background:#ff00ff22;box-shadow:0 0 20px #ff00ff88}
+button.sec{border-color:#00ffff;color:#00ffff;font-size:clamp(.8rem,3vw,1rem);padding:10px 24px}
+button.sec:hover,button.sec:active{background:#00ffff22;box-shadow:0 0 15px #00ffff88}
+.funny{font-size:clamp(1rem,4vw,1.3rem);color:#ff0040;margin-bottom:16px}
+#sval{font-size:clamp(1.5rem,6vw,2.5rem);color:#ffff00;text-shadow:0 0 15px #ffff0099}
+#hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 16px;z-index:5;pointer-events:none}
+#hud span{font-size:clamp(.8rem,3.5vw,1rem);text-shadow:0 0 8px currentColor}
+#hs{color:#ffff00}#hl{color:#ff00ff}#hv{color:#ff0040}
+</style>
+</head>
+<body>
+<div id="screen">
+  <h1>PESO<br>MUERTO</h1>
+  <div class="desc">Tú no eres el personaje.<br><strong style="color:#ff00ff">Tú eres la gravedad.</strong></div>
+  <div class="mbox">
+    Arrastra tu dedo por la pantalla.<br>
+    Todo lo que existe te siente y se acerca a ti.<br>
+    Guía la bola <strong style="color:#00ffff">cyan</strong> al objetivo <strong style="color:#00ff41">verde</strong>.<br>
+    Si la bola toca los <strong style="color:#ff0040">obstáculos rojos</strong> o sale del borde, pierdes una vida.<br><br>
+    Tú eres la fuerza invisible. No el héroe.
+  </div>
+  <button onclick="startGame()">▶ JUGAR</button>
+</div>
+<div id="gover" class="hidden" style="position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;background:#0a0a0a;z-index:10;padding:20px;text-align:center">
+  <h2>COLAPSO<br>GRAVITACIONAL</h2>
+  <div class="funny" id="fmsg"></div>
+  <div class="desc">Puntuación final:</div>
+  <div id="sval">0</div><br>
+  <button onclick="startGame()">↺ REINTENTAR</button><br>
+  <button class="sec" onclick="location.href='/'">⇐ MÁS MIERDIJUEGOS</button>
+</div>
+<div id="hud" style="display:none">
+  <span id="hs">PTS: 0</span>
+  <span id="hl">NIVEL 1</span>
+  <span id="hv">♥ ♥ ♥</span>
+</div>
+<canvas id="c"></canvas>
+<script>
+const C={G:.018,DAMP:.985,BR:14,GR:22,LIVES:3};
+let cv,cx,W,H,raf,gx=-9999,gy=-9999,ball,goal,obs,lives,score,level,active,fc=0,ac=null;
+
+function ia(){try{ac=new(window.AudioContext||window.webkitAudioContext)()}catch(e){}}
+function beep(f,d,t='sine',v=.3){
+  if(!ac)return;try{
+    const o=ac.createOscillator(),g=ac.createGain();
+    o.connect(g);g.connect(ac.destination);
+    o.frequency.value=f;o.type=t;
+    g.gain.setValueAtTime(v,ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+d);
+    o.start();o.stop(ac.currentTime+d);
+  }catch(e){}
+}
+
+function resize(){W=cv.width=window.innerWidth;H=cv.height=window.innerHeight}
+function dist(ax,ay,bx,by){const dx=ax-bx,dy=ay-by;return Math.sqrt(dx*dx+dy*dy)}
+function rr(a,b){return a+Math.random()*(b-a)}
+
+function buildLevel(l){
+  ball={x:W*.5,y:H*.5,vx:rr(-.5,.5),vy:rr(-.5,.5),r:C.BR,trail:[]};
+  const a=Math.random()*Math.PI*2,md=Math.min(W,H)*rr(.28,.38);
+  goal={x:W*.5+Math.cos(a)*md,y:H*.5+Math.sin(a)*md,r:C.GR,pulse:0};
+  obs=[];
+  const n=2+Math.min(l,8);
+  for(let i=0;i<n;i++){
+    let ox,oy,at=0;
+    do{ox=rr(W*.08,W*.92);oy=rr(H*.08,H*.92);at++}
+    while(at<50&&(dist(ox,oy,ball.x,ball.y)<120||dist(ox,oy,goal.x,goal.y)<80));
+    obs.push({x:ox,y:oy,r:rr(18+l*.5,28+l),vx:rr(-.3,.3)*(1+l*.08),vy:rr(-.3,.3)*(1+l*.08)});
+  }
+}
+
+function uhud(){
+  document.getElementById('hs').textContent='PTS: '+score;
+  document.getElementById('hl').textContent='NIVEL '+level;
+  document.getElementById('hv').textContent='♥'.repeat(lives)+'♡'.repeat(Math.max(0,C.LIVES-lives));
+}
+
+const FUNNY=['Hasta Newton te tiene lástima.','La gravedad te rechaza como a un examen.','Eres tan malo que la física lloró.','Einstein se dio la vuelta en su tumba.','Implosionado. Ni estrella enana merecías ser.','Tu órbita era un garabato en servilleta.','La fuerza no te acompaña. Ni te saluda.','Has colapsado antes que el universo. Récord.','La bola se suicidó antes que aguantarte más.'];
+
+function gameOver(){
+  active=false;beep(80,.8,'sawtooth',.4);
+  document.getElementById('hud').style.display='none';
+  document.getElementById('sval').textContent=score;
+  document.getElementById('fmsg').textContent=FUNNY[Math.floor(Math.random()*FUNNY.length)];
+  const g=document.getElementById('gover');g.style.display='flex';
+}
+
+function nextLevel(){
+  beep(660,.08);setTimeout(()=>beep(880,.12),80);setTimeout(()=>beep(1100,.2),180);
+  score+=100*level;level++;fc=0;gx=-9999;gy=-9999;buildLevel(level);uhud();
+}
+
+function loseLife(){
+  beep(200,.15,'square',.3);setTimeout(()=>beep(150,.3,'sawtooth',.2),120);
+  lives--;uhud();
+  if(lives<=0){gameOver();return;}
+  ball.x=W*.5;ball.y=H*.5;ball.vx=rr(-.5,.5);ball.vy=rr(-.5,.5);ball.trail=[];gx=-9999;gy=-9999;
+}
+
+function startGame(){
+  ia();
+  document.getElementById('screen').classList.add('hidden');
+  document.getElementById('gover').style.display='none';
+  document.getElementById('hud').style.display='flex';
+  lives=C.LIVES;score=0;level=1;fc=0;gx=-9999;gy=-9999;active=true;
+  resize();buildLevel(level);uhud();
+  if(raf)cancelAnimationFrame(raf);loop();
+}
+
+function updatePhysics(){
+  fc++;
+  if(gx>-9999){
+    const dx=gx-ball.x,dy=gy-ball.y,d=Math.sqrt(dx*dx+dy*dy)+60;
+    const f=C.G*(W*.5)/(d*1.6);
+    ball.vx+=(dx/d)*f*60;ball.vy+=(dy/d)*f*60;
+  }
+  ball.vx*=C.DAMP;ball.vy*=C.DAMP;
+  const mv=6+level*.4,sp=Math.sqrt(ball.vx*ball.vx+ball.vy*ball.vy);
+  if(sp>mv){ball.vx=(ball.vx/sp)*mv;ball.vy=(ball.vy/sp)*mv;}
+  ball.x+=ball.vx;ball.y+=ball.vy;
+  ball.trail.push({x:ball.x,y:ball.y});
+  if(ball.trail.length>24)ball.trail.shift();
+
+  for(const o of obs){
+    if(gx>-9999){
+      const dx=o.x-gx,dy=o.y-gy,d=Math.sqrt(dx*dx+dy*dy)+80;
+      const f=.003*(W*.4)/d;
+      o.vx+=(dx/d)*f*60;o.vy+=(dy/d)*f*60;
+    }
+    o.vx*=.99;o.vy*=.99;
+    const ov=2.5+level*.15,os=Math.sqrt(o.vx*o.vx+o.vy*o.vy);
+    if(os>ov){o.vx=(o.vx/os)*ov;o.vy=(o.vy/os)*ov;}
+    o.x+=o.vx;o.y+=o.vy;
+    if(o.x<o.r){o.x=o.r;o.vx=Math.abs(o.vx);}
+    if(o.x>W-o.r){o.x=W-o.r;o.vx=-Math.abs(o.vx);}
+    if(o.y<o.r){o.y=o.r;o.vy=Math.abs(o.vy);}
+    if(o.y>H-o.r){o.y=H-o.r;o.vy=-Math.abs(o.vy);}
+  }
+
+  if(ball.x<-40||ball.x>W+40||ball.y<-40||ball.y>H+40){loseLife();return;}
+  for(const o of obs){if(dist(ball.x,ball.y,o.x,o.y)<ball.r+o.r){loseLife();return;}}
+  if(dist(ball.x,ball.y,goal.x,goal.y)<ball.r+goal.r*.6){
+    score+=50+Math.floor(1000/(fc*.05+10));nextLevel();return;
+  }
+  if(fc%90===0){score+=level;uhud();}
+  goal.pulse=(goal.pulse+.08)%(Math.PI*2);
+}
+
+function draw(){
+  cx.fillStyle='#0a0a0a';cx.fillRect(0,0,W,H);
+  if(gx>-9999){
+    const gr=cx.createRadialGradient(gx,gy,0,gx,gy,Math.min(W,H)*.55);
+    gr.addColorStop(0,'rgba(255,0,255,.10)');gr.addColorStop(.4,'rgba(255,0,255,.03)');gr.addColorStop(1,'transparent');
+    cx.fillStyle=gr;cx.fillRect(0,0,W,H);
+    cx.save();
+    for(let i=1;i<=3;i++){
+      const r=18+i*16+Math.sin(fc*.04+i)*5;
+      cx.beginPath();cx.arc(gx,gy,r,0,Math.PI*2);
+      cx.strokeStyle=`rgba(255,0,255,${.35-i*.08})`;cx.lineWidth=1.5;cx.stroke();
+    }
+    cx.restore();
+  }
+  // Goal
+  const gp=1+Math.sin(goal.pulse)*.15;
+  cx.save();
+  const gg=cx.createRadialGradient(goal.x,goal.y,0,goal.x,goal.y,goal.r*2.5*gp);
+  gg.addColorStop(0,'rgba(0,255,65,.35)');gg.addColorStop(1,'transparent');
+  cx.fillStyle=gg;cx.beginPath();cx.arc(goal.x,goal.y,goal.r*2.5*gp,0,Math.PI*2);cx.fill();
+  cx.strokeStyle='#00ff41';cx.lineWidth=3;cx.shadowColor='#00ff41';cx.shadowBlur=15;
+  cx.beginPath();cx.arc(goal.x,goal.y,goal.r*gp,0,Math.PI*2);cx.stroke();
+  const cr=goal.r*.5*gp;cx.lineWidth=2;
+  cx.beginPath();cx.moveTo(goal.x-cr,goal.y);cx.lineTo(goal.x+cr,goal.y);
+  cx.moveTo(goal.x,goal.y-cr);cx.lineTo(goal.x,goal.y+cr);cx.stroke();
+  cx.restore();
+  // Obstacles
+  for(const o of obs){
+    cx.save();cx.shadowColor='#ff0040';cx.shadowBlur=20;
+    const og=cx.createRadialGradient(o.x,o.y,0,o.x,o.y,o.r*2);
+    og.addColorStop(0,'rgba(255,0,64,.25)');og.addColorStop(1,'transparent');
+    cx.fillStyle=og;cx.beginPath();cx.arc(o.x,o.y,o.r*2,0,Math.PI*2);cx.fill();
+    cx.fillStyle='rgba(255,0,64,.5)';cx.strokeStyle='#ff0040';cx.lineWidth=2.5;
+    cx.beginPath();cx.arc(o.x,o.y,o.r,0,Math.PI*2);cx.fill();cx.stroke();
+    const xr=o.r*.55;cx.strokeStyle='#ff0040cc';cx.lineWidth=2;
+    cx.beginPath();cx.moveTo(o.x-xr,o.y-xr);cx.lineTo(o.x+xr,o.y+xr);
+    cx.moveTo(o.x+xr,o.y-xr);cx.lineTo(o.x-xr,o.y+xr);cx.stroke();
+    cx.restore();
+  }
+  // Trail
+  for(let i=0;i<ball.trail.length;i++){
+    const a=i/ball.trail.length*.6,r=ball.r*(i/ball.trail.length)*.7;
+    cx.beginPath();cx.arc(ball.trail[i].x,ball.trail[i].y,r,0,Math.PI*2);
+    cx.fillStyle=`rgba(0,255,255,${a*.5})`;cx.fill();
+  }
+  // Ball
+  cx.save();cx.shadowColor='#00ffff';cx.shadowBlur=25;
+  const bg=cx.createRadialGradient(ball.x-ball.r*.3,ball.y-ball.r*.3,1,ball.x,ball.y,ball.r);
+  bg.addColorStop(0,'#aaffff');bg.addColorStop(.5,'#00ffff');bg.addColorStop(1,'#007799');
+  cx.fillStyle=bg;cx.beginPath();cx.arc(ball.x,ball.y,ball.r,0,Math.PI*2);cx.fill();
+  cx.strokeStyle='#00ffff';cx.lineWidth=2;cx.stroke();cx.restore();
+  // Arrow
+  if(gx>-9999){
+    const dx=gx-ball.x,dy=gy-ball.y,d=Math.sqrt(dx*dx+dy*dy);
+    if(d>ball.r+20){
+      const nx=dx/d,ny=dy/d,al=Math.min(d*.35,60);
+      const ax=ball.x+nx*(ball.r+8),ay=ball.y+ny*(ball.r+8);
+      cx.save();cx.globalAlpha=.4;cx.strokeStyle='#ff00ff';cx.lineWidth=2;
+      cx.beginPath();cx.moveTo(ax,ay);cx.lineTo(ax+nx*al,ay+ny*al);
+      const px=-ny,py=nx,tip={x:ax+nx*al,y:ay+ny*al};
+      cx.lineTo(tip.x-nx*8+px*5,tip.y-ny*8+py*5);cx.moveTo(tip.x,tip.y);
+      cx.lineTo(tip.x-nx*8-px*5,tip.y-ny*8-py*5);cx.stroke();cx.restore();
+    }
+  }
+  document.getElementById('hs').textContent='PTS: '+score;
+}
+
+function loop(){if(!active)return;updatePhysics();if(active)draw();raf=requestAnimationFrame(loop);}
+
+cv=document.getElementById('c');cx=cv.getContext('2d');resize();
+cv.addEventListener('touchstart',e=>{e.preventDefault();const t=e.touches[0];gx=t.clientX;gy=t.clientY},{passive:false});
+cv.addEventListener('touchmove',e=>{e.preventDefault();const t=e.touches[0];gx=t.clientX;gy=t.clientY},{passive:false});
+cv.addEventListener('touchend',e=>{e.preventDefault();gx=-9999;gy=-9999},{passive:false});
+cv.addEventListener('mousemove',e=>{if(active){gx=e.clientX;gy=e.clientY}});
+cv.addEventListener('mouseleave',()=>{gx=-9999;gy=-9999});
+window.addEventListener('resize',()=>{resize();if(active)buildLevel(level);});
+
+cx.fillStyle='#0a0a0a';cx.fillRect(0,0,W,H);
+for(let i=1;i<=6;i++){
+  cx.beginPath();cx.arc(W/2,H/2,i*Math.min(W,H)*.08,0,Math.PI*2);
+  cx.strokeStyle=`rgba(255,0,255,${.04+i*.01})`;cx.lineWidth=1;cx.stroke();
+}
+</script>
+</body>
+</html>

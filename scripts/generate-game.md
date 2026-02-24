@@ -20,24 +20,61 @@ bash /home/ubuntu/clawd/skills/wolfram/wolfram.sh alpha "Lorenz attractor parame
 bash /home/ubuntu/clawd/skills/wolfram/wolfram.sh eval 'NDSolve[{x'\''[t]==-10(x[t]-y[t]), ...}, {x,y,z}, {t,0,50}]'
 ```
 
-**Examples of Wolfram-powered mechanics:**
+**Examples of Wolfram-powered mechanics (across ALL domains):**
+
+🔬 **Physics/Math:**
 - Three-body gravitational problem (real orbital equations)
 - Strange attractors (Lorenz, Rössler) as game maps
-- Double pendulum chaos as control mechanic
-- Reaction-diffusion patterns (Turing patterns) as terrain
-- Wave interference / Fourier synthesis as level design
-- Cellular automata rules computed by Wolfram
-- Real projectile motion with drag coefficients
-- Electromagnetic field lines as paths
-- Mandelbrot/Julia set boundaries as gameplay space
-- Fluid dynamics (Navier-Stokes simplified) for movement
+- Double pendulum chaos, wave interference, Mandelbrot zoom
+
+🎵 **Music/Sound:**
+- Real musical scales and frequency ratios as gameplay (query: "frequencies of C major scale")
+- Chord consonance/dissonance scores to drive difficulty
+- Rhythm patterns from mathematical sequences (Fibonacci, prime numbers)
+
+🌍 **Geography/Countries:**
+- Real country data (population, area, GDP) as game parameters
+- Distance between real cities as level layout
+- Flag colors as game palette, country shapes as obstacles
+
+🗣️ **Language/Linguistics:**
+- Word frequency data as scoring
+- Phoneme similarities between languages as matching mechanics
+- Unicode character properties as gameplay elements
+
+🎨 **Color/Visual:**
+- Color theory computations (complementary, analogous, triadic)
+- Wavelength-to-color mapping as mechanic
+- Color blindness simulation as difficulty modifier
+
+🧬 **Science/Nature:**
+- Chemical element properties (atomic radius, electronegativity) as game parameters
+- DNA codon tables as puzzle mechanics
+- Planet data (real orbital periods, sizes) for space games
+- Animal speeds, lifespans, populations as game scaling
+
+📊 **Data/Statistics:**
+- Real statistical distributions (normal, Poisson) for enemy spawning
+- Probability calculations for risk/reward mechanics
+- Real financial data patterns as level generation
+
+🕰️ **History/Time:**
+- Historical dates and events as trivia-action hybrid
+- Calendar computations (moon phases, equinoxes) as game cycles
+
+🍕 **Food/Nutrition:**
+- Caloric values, nutrient data as resource management
+- Recipe ingredient ratios as crafting mechanics
 
 **Use Wolfram to:**
-1. Pre-compute trajectories, parameters, or constants
-2. Validate that the physics in the game is mathematically correct
-3. Get data that makes the game feel "real" (not approximated)
+1. Query REAL DATA from any domain to power game mechanics
+2. Compute mathematical relationships that make gameplay feel grounded
+3. Generate parameters that are surprising because they're TRUE
+4. Make games that teach something real without feeling educational
 
-Not every game needs Wolfram, but when math/physics is involved, USE IT.
+The magic: players interact with real-world data without knowing it. A game about "matching colors" is secretly teaching wavelength physics. A game about "feeding creatures" uses real nutritional data. This is what makes mierdijuegos unique.
+
+ALWAYS try to use Wolfram for at least one aspect of the game — even if it's just calibrating spawn rates with a real probability distribution or using real planet sizes for difficulty scaling.
 
 ## Step 2: Invent a revolutionary mechanic
 The game MUST have a mechanic that feels genuinely novel. Think beyond standard game genres. Examples of the kind of innovation expected:

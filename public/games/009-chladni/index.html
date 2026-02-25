@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Chladni — Mierdijuegos</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0a;color:#00ff41;font-family:'Courier New',monospace;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;overflow:hidden;touch-action:none}
+canvas{display:block;touch-action:none}
+#ui{position:fixed;top:0;left:0;right:0;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;background:rgba(10,10,10,.85);z-index:10;pointer-events:none;font-size:13px;letter-spacing:1px}
+#sv{color:#00ffff;font-size:17px;font-weight:bold}
+#fv{color:#ff00ff}
+#lv{color:#ff0040}
+.sc{position:fixed;inset:0;background:rgba(10,10,10,.96);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:20;padding:20px;text-align:center}
+.sc h1{font-size:2.2em;margin-bottom:8px;color:#00ffff;letter-spacing:3px}
+.sc .sub{font-size:.9em;color:#ff00ff;margin-bottom:16px;letter-spacing:2px}
+.sc p{font-size:.82em;line-height:1.7;color:#aaa;max-width:320px;margin-bottom:20px}
+.sc p em{color:#00ff41;font-style:normal}
+.sc .sb{font-size:2.8em;color:#ffff00;margin:8px 0}
+.sc .fm{font-size:.85em;color:#ff00ff;margin-bottom:18px;font-style:italic}
+.btn{background:transparent;border:2px solid #00ff41;color:#00ff41;padding:12px 32px;font-family:'Courier New',monospace;font-size:.95em;letter-spacing:3px;cursor:pointer;text-transform:uppercase}
+.btn:active{background:#00ff41;color:#0a0a0a}
+.bk{margin-top:12px;font-size:.72em;color:#555;text-decoration:none}
+.bk:hover{color:#00ff41}
+.leg{display:flex;gap:14px;margin-bottom:18px;flex-wrap:wrap;justify-content:center}
+.li{display:flex;align-items:center;gap:5px;font-size:.75em;color:#888}
+.d{width:11px;height:11px;border-radius:50%}
+</style>
+</head>
+<body>
+<div class="sc" id="ss">
+  <h1>CHLADNI</h1>
+  <div class="sub">~ patrones de arena vibrante ~</div>
+  <div class="leg">
+    <div class="li"><div class="d" style="background:#00ff41"></div>NODO seguro</div>
+    <div class="li"><div class="d" style="background:#ff0040"></div>ANTINODO peligroso</div>
+    <div class="li"><div class="d" style="background:#00ffff"></div>TÚ eres el grano</div>
+  </div>
+  <p>Eres un grano de arena sobre una placa vibratoria.<br>Las zonas <em>rojas</em> vibran y te destruyen.<br>Las zonas <em>verdes</em> son nodos estables — sobrevive en ellas.<br><br>La frecuencia cambia y el patrón se transforma.<br>Toca la pantalla para dirigirte.</p>
+  <button class="btn" id="bs">VIBRAR</button>
+  <a class="bk" href="/">← más mierdijuegos</a>
+</div>
+<div class="sc" id="gs" style="display:none">
+  <h1>☠️ DESTRUIDO</h1>
+  <div class="sub">las ondas te borraron</div>
+  <div class="sb" id="fs">0</div>
+  <div class="fm" id="fm">Ni un grano sobrevive.</div>
+  <button class="btn" id="br">REVIBRAR</button>
+  <a class="bk" href="/">← más mierdijuegos</a>
+</div>
+<div id="ui"><span>PUNTOS: <span id="sv">0</span></span><span>MODO: <span id="fv">—</span></span><span id="lv">♥♥♥</span></div>
+<canvas id="c"></canvas>
+<script>
+const c=document.getElementById('c'),ctx=c.getContext('2d');
+let W,H;
+function rsz(){W=c.width=window.innerWidth;H=c.height=window.innerHeight}
+rsz();window.addEventListener('resize',rsz);
+
+// Chladni modes — real standing wave modes for a square plate
+const MODES=[{m:1,n:2},{m:2,n:1},{m:1,n:3},{m:3,n:1},{m:2,n:3},{m:3,n:2},{m:1,n:4},{m:4,n:1},{m:2,n:4},{m:4,n:2},{m:3,n:4},{m:4,n:3}];
+const FUNNY=["Chladni creó esto en 1787. Tú no sobreviviste ni 5 segundos.","La arena siempre vuelve al nodo. Menos tú.","La física es arte. Y el arte te mató.","¿Física cuántica? No, solo física básica y ya te destruyó.","Los granos de arena protestan: 'nosotros SÍ encontramos el nodo'.","La placa sigue vibrando. Tú ya no.","Ni un grano de arena sobrevive.","Incluso la sal lo hace mejor que tú.","Las ondas no tienen piedad con los torpes."];
+
+let st='start',score=0,lives=3,lt=0;
+let tx=null,ty=null;
+let mi=0,ni=1,bT=0,mTimer=0,mDur=5000,inTrans=false,tTimer=0,tDur=1200;
+let hTimer=0,survTimer=0;
+let px,py,pvx,pvy,trail=[];
+let pcv=document.createElement('canvas'),pctx=pcv.getContext('2d');
+let dirty=true;
+
+function amp(x,y,m,n){return Math.abs(Math.sin(m*Math.PI*x)*Math.sin(n*Math.PI*y)-Math.sin(n*Math.PI*x)*Math.sin(m*Math.PI*y))}
+function blAmp(x,y,t){const m0=MODES[mi],m1=MODES[ni];return amp(x,y,m0.m,m0.n)*(1-t)+amp(x,y,m1.m,m1.n)*t}
+function getA(ppx,ppy){const mx=W*.05,my=H*.12,fw=W-mx*2,fh=H-my*2,nx=(ppx-mx)/fw,ny=(ppy-my)/fh;if(nx<0||nx>1||ny<0||ny>1)return .5;return blAmp(nx,ny,bT)}
+
+function renderPat(){
+  pcv.width=W;pcv.height=H;
+  const id=pctx.createImageData(W,H),d=id.data;
+  const mx=W*.05,my=H*.12,fw=W-mx*2,fh=H-my*2;
+  for(let py2=0;py2<H;py2++)for(let px2=0;px2<W;px2++){
+    const nx=(px2-mx)/fw,ny=(py2-my)/fh,i=(py2*W+px2)*4;
+    if(nx<0||nx>1||ny<0||ny>1){d[i]=5;d[i+1]=5;d[i+2]=5;d[i+3]=255;continue}
+    const a=blAmp(nx,ny,bT);
+    const nd=Math.max(0,((.85-a)/.2));
+    const dg=Math.max(0,((a-.65)/.35));
+    d[i]=Math.min(255,10+Math.round(dg*200));
+    d[i+1]=Math.min(255,10+Math.round(nd*190));
+    d[i+2]=Math.min(255,10+Math.round(nd*100));
+    d[i+3]=255;
+  }
+  pctx.putImageData(id,0,0);dirty=false;
+}
+
+function initP(){px=W*.5;py=H*.5;pvx=0;pvy=0;trail=[]}
+
+c.addEventListener('touchstart',e=>{e.preventDefault();tx=e.touches[0].clientX;ty=e.touches[0].clientY},{passive:false});
+c.addEventListener('touchmove',e=>{e.preventDefault();tx=e.touches[0].clientX;ty=e.touches[0].clientY},{passive:false});
+c.addEventListener('touchend',e=>{e.preventDefault();tx=null;ty=null},{passive:false});
+c.addEventListener('mousedown',e=>{tx=e.clientX;ty=e.clientY});
+c.addEventListener('mousemove',e=>{if(tx!==null){tx=e.clientX;ty=e.clientY}});
+c.addEventListener('mouseup',()=>{tx=null;ty=null});
+
+let ac;
+function gAC(){if(!ac)ac=new(window.AudioContext||window.webkitAudioContext)();return ac}
+function sndHurt(){try{const a=gAC(),o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.frequency.setValueAtTime(220,a.currentTime);o.frequency.exponentialRampToValueAtTime(55,a.currentTime+.3);g.gain.setValueAtTime(.3,a.currentTime);g.gain.exponentialRampToValueAtTime(.001,a.currentTime+.35);o.start();o.stop(a.currentTime+.35)}catch(e){}}
+
+function updUI(){document.getElementById('sv').textContent=score;document.getElementById('lv').textContent='♥'.repeat(Math.max(0,lives))+'♡'.repeat(Math.max(0,3-lives));const m=MODES[mi];document.getElementById('fv').textContent=`(${m.m},${m.n})`}
+
+function update(dt){
+  if(st!=='playing')return;
+  mTimer+=dt;
+  if(inTrans){
+    tTimer+=dt;bT=Math.min(1,tTimer/tDur);dirty=true;
+    if(tTimer>=tDur){inTrans=false;mi=ni;ni=(ni+1)%MODES.length;bT=0;mTimer=0}
+  } else if(mTimer>=mDur){inTrans=true;tTimer=0}
+
+  if(tx!==null&&ty!==null){const dx=tx-px,dy=ty-py,dist=Math.sqrt(dx*dx+dy*dy);if(dist>5){const f=480;pvx+=(dx/dist)*f*dt;pvy+=(dy/dist)*f*dt}}
+
+  const eps=4;
+  const gx=(getA(px+eps,py)-getA(px-eps,py))/(2*eps);
+  const gy=(getA(px,py+eps)-getA(px,py-eps))/(2*eps);
+  pvx-=gx*380*dt;pvy-=gy*380*dt;
+
+  const dmp=Math.pow(.88,dt*60);pvx*=dmp;pvy*=dmp;
+  const spd=Math.sqrt(pvx*pvx+pvy*pvy);if(spd>320){pvx=pvx/spd*320;pvy=pvy/spd*320}
+  px+=pvx*dt;py+=pvy*dt;
+
+  const mx=W*.05,my2=H*.12,fw=W-mx*2,fh2=H-my2*2,r=9;
+  if(px<mx+r){px=mx+r;pvx*=-.5}if(px>mx+fw-r){px=mx+fw-r;pvx*=-.5}
+  if(py<my2+r){py=my2+r;pvy*=-.5}if(py>my2+fh2-r){py=my2+fh2-r;pvy*=-.5}
+
+  trail.push({x:px,y:py});if(trail.length>22)trail.shift();
+  hTimer=Math.max(0,hTimer-dt);
+
+  const a=getA(px,py);
+  if(a>.72&&hTimer<=0){lives--;hTimer=1.5;sndHurt();updUI();if(lives<=0){gameOver();return}}
+  if(a<.35){survTimer+=dt;if(survTimer>=.1){survTimer=0;score+=(inTrans?3:1);updUI()}}else survTimer=0;
+  mDur=Math.max(2200,5000-score*4);
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  if(st!=='playing')return;
+  if(dirty)renderPat();
+  ctx.drawImage(pcv,0,0);
+  if(inTrans){const fl=Math.sin(tTimer/tDur*Math.PI)*.14;ctx.fillStyle=`rgba(255,0,255,${fl})`;ctx.fillRect(0,0,W,H)}
+  for(let i=0;i<trail.length;i++){const t=i/trail.length;ctx.beginPath();ctx.arc(trail[i].x,trail[i].y,4*t,0,Math.PI*2);ctx.fillStyle=`rgba(0,255,255,${t*.3})`;ctx.fill()}
+  const a=getA(px,py),inD=a>.65,hurt=hTimer>0;
+  if(!hurt||Math.floor(hTimer*8)%2===0){
+    ctx.save();ctx.shadowColor=hurt?'#ff0040':(inD?'#ff00ff':'#00ffff');ctx.shadowBlur=16;
+    ctx.beginPath();ctx.arc(px,py,9,0,Math.PI*2);ctx.fillStyle=hurt?'#ff0040':'#00ffff';ctx.fill();
+    ctx.shadowBlur=0;ctx.beginPath();ctx.arc(px,py,4,0,Math.PI*2);ctx.fillStyle='#0a0a0a';ctx.fill();
+    ctx.restore();
+  }
+}
+
+function gameOver(){st='gameover';document.getElementById('gs').style.display='flex';document.getElementById('fs').textContent=score;document.getElementById('fm').textContent=FUNNY[Math.floor(Math.random()*FUNNY.length)]}
+
+function startGame(){score=0;lives=3;mi=0;ni=1;bT=0;mTimer=0;inTrans=false;tTimer=0;hTimer=0;survTimer=0;mDur=5000;dirty=true;tx=null;ty=null;updUI();initP();st='playing';renderPat()}
+
+document.getElementById('bs').addEventListener('click',()=>{document.getElementById('ss').style.display='none';startGame()});
+document.getElementById('br').addEventListener('click',()=>{document.getElementById('gs').style.display='none';startGame()});
+
+function loop(ts){if(!lt)lt=ts;const dt=Math.min((ts-lt)/1000,.05);lt=ts;update(dt);draw();requestAnimationFrame(loop)}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

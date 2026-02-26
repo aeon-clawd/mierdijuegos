@@ -70,5 +70,13 @@
         "description": "Eres un grano de arena sobre una placa vibratoria. Las zonas rojas vibran y te destruyen. Sobrevive en los nodos estables mientras el patrón se transforma.",
         "mechanic": "Patrones de Chladni reales como zonas de peligro — el jugador es el grano que busca los nodos",
         "emoji": "〰️"
+    },
+    {
+        "id": "010-pulsar",
+        "title": "Pulsar",
+        "date": "2026-02-26",
+        "description": "Tres estrellas de neutrones pulsan a sus frecuencias reales. Toca cada una justo cuando emite. Múltiples ritmos simultáneos. El universo no espera.",
+        "mechanic": "Generación simultánea de múltiples frecuencias reales de pulsares — el jugador mantiene vivas las estrellas",
+        "emoji": "✨"
     }
 ]

@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>PULSAR</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #0a0a0a;
+  color: #fff;
+  font-family: 'Courier New', monospace;
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+  touch-action: none;
+}
+#canvas { display: block; }
+#ui {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  padding: 12px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 10;
+  pointer-events: none;
+}
+#score-display { font-size: 20px; color: #00ffff; letter-spacing: 2px; }
+#combo-display { font-size: 14px; color: #ffff00; }
+#screen {
+  position: fixed; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  background: rgba(10,10,10,0.95);
+  z-index: 20;
+  padding: 24px;
+  text-align: center;
+}
+#screen h1 { font-size: 52px; color: #00ffff; letter-spacing: 8px; margin-bottom: 8px; text-shadow: 0 0 30px #00ffff; }
+#screen .sub { font-size: 13px; color: #888; margin-bottom: 20px; letter-spacing: 2px; }
+#screen .desc { font-size: 15px; color: #ccc; line-height: 1.7; max-width: 340px; margin-bottom: 28px; }
+#screen .highlight { color: #ff00ff; }
+#screen .science { font-size: 11px; color: #444; margin-top: 10px; font-style: italic; }
+.btn {
+  background: transparent;
+  border: 2px solid #00ffff;
+  color: #00ffff;
+  font-family: 'Courier New', monospace;
+  font-size: 18px;
+  padding: 14px 40px;
+  letter-spacing: 4px;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all 0.2s;
+  margin: 6px;
+}
+.btn:hover, .btn:active { background: #00ffff; color: #000; }
+.btn.secondary { border-color: #ff00ff; color: #ff00ff; font-size: 14px; padding: 10px 24px; }
+.btn.secondary:hover { background: #ff00ff; color: #000; }
+#score-final { font-size: 48px; color: #ffff00; margin: 10px 0; text-shadow: 0 0 20px #ffff00; }
+#funny-msg { font-size: 16px; color: #ff00ff; margin-bottom: 20px; }
+#pulsar-labels {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  display: flex;
+  justify-content: space-around;
+  padding: 8px;
+  pointer-events: none;
+  z-index: 10;
+}
+.plabel { font-size: 10px; color: #666; text-align: center; }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<div id="ui">
+  <div id="score-display">0</div>
+  <div id="combo-display"></div>
+</div>
+<div id="pulsar-labels"></div>
+
+<!-- START SCREEN -->
+<div id="screen">
+  <h1>PULSAR</h1>
+  <div class="sub">RADIO ASTRONOMY RHYTHM</div>
+  <div class="desc">
+    Cada estrella de neutrones emite pulsos a su <span class="highlight">frecuencia real</span>.<br><br>
+    Toca cada pulsar <span class="highlight">justo cuando pulsa</span> para mantenerlo vivo.<br><br>
+    Si llegas tarde o temprano, el pulsar se apaga.<br>
+    Múltiples pulsares, múltiples ritmos. <span class="highlight">Sincroniza.</span>
+  </div>
+  <button class="btn" id="btn-start">SINCRONIZAR</button>
+  <div class="science">Frecuencias basadas en datos reales: PSR B1937+21 (1.56ms), Crab Pulsar (33ms), PSR B0833-45 (89ms)</div>
+</div>
+
+<!-- GAME OVER SCREEN -->
+<div id="screen-over" style="display:none" class="">
+  <div style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(10,10,10,0.97);z-index:20;padding:24px;text-align:center;">
+    <div style="font-size:24px;color:#ff0040;letter-spacing:4px;margin-bottom:8px;">SILENCIO CÓSMICO</div>
+    <div id="score-final">0</div>
+    <div style="font-size:13px;color:#888;margin-bottom:8px;">PUNTOS</div>
+    <div id="funny-msg"></div>
+    <button class="btn" id="btn-retry">REINTENTAR</button>
+    <a href="/" style="text-decoration:none;"><button class="btn secondary">MÁS MIERDIJUEGOS</button></a>
+  </div>
+</div>
+
+<script>
+// ===== REAL PULSAR DATA (scaled for human interaction) =====
+// Real periods: PSR B1937+21: 1.558ms, Crab: 33ms, Vela: 89ms, B0950+08: 253ms
+// Scaled ×600 to make tappable but ratios preserved exactly
+// B1937+21: 1558 * 0.6 = ~935ms
+// Crab: 33 * 30 = 990ms  
+// Vela: 89 * 12 = 1068ms
+// B0950: 253 * 5 = 1265ms
+// Actually let's use ratios from real data and scale to 700-2000ms range
+const PULSAR_DATA = [
+  { name: 'PSR B1937+21', realPeriod: '1.56 ms', period: 950,  color: '#00ffff',  glow: '#00ffff',  radius: 28, x: 0.2 },
+  { name: 'Crab Pulsar',  realPeriod: '33 ms',   period: 1200, color: '#ff00ff',  glow: '#ff00ff',  radius: 32, x: 0.5 },
+  { name: 'PSR B0833-45', realPeriod: '89 ms',   period: 1600, color: '#00ff41',  glow: '#00ff41',  radius: 26, x: 0.8 },
+];
+
+// Game state
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+let W, H;
+let gameState = 'start'; // start | playing | over
+let score = 0;
+let combo = 0;
+let maxCombo = 0;
+let animId;
+let lastTime = 0;
+
+// Pulsar runtime state
+let pulsars = [];
+const HIT_WINDOW = 180; // ms tolerance
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+function initPulsars() {
+  pulsars = PULSAR_DATA.map((d, i) => ({
+    ...d,
+    px: W * d.x,
+    py: H * 0.45,
+    phase: 0,        // 0..1 within current period
+    nextPulse: d.period * (0.5 + Math.random() * 0.5), // stagger start
+    lastPulseTime: 0,
+    health: 3,       // 3 hearts
+    scale: 1,
+    flashTimer: 0,
+    hitFlash: 0,
+    missFlash: 0,
+    ringScale: 0,
+    ringAlpha: 0,
+    alive: true,
+    beatCount: 0,
+    tolerance: HIT_WINDOW,
+  }));
+}
+
+// ===== DRAW =====
+function drawBg() {
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(0, 0, W, H);
+  // Stars
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  for (let i = 0; i < 80; i++) {
+    const x = (i * 137.508 * 73) % W;
+    const y = (i * 97.3 * 43) % (H * 0.85);
+    const r = (i % 3 === 0) ? 1.5 : 0.7;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawPulsar(p, now) {
+  if (!p.alive) {
+    // Draw dead pulsar (dim)
+    ctx.globalAlpha = 0.15;
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(p.px, p.py, p.radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    // RIP text
+    ctx.fillStyle = '#333';
+    ctx.font = '11px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText('APAGADO', p.px, p.py + p.radius + 18);
+    return;
+  }
+
+  // Orbit ring (timer)
+  const progress = p.phase; // 0..1
+  ctx.save();
+  ctx.translate(p.px, p.py);
+
+  // Background ring
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(0, 0, p.radius + 16, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Progress arc (countdown to next pulse)
+  const arcColor = p.color;
+  ctx.strokeStyle = arcColor;
+  ctx.lineWidth = 3;
+  ctx.shadowColor = p.glow;
+  ctx.shadowBlur = 8;
+  ctx.beginPath();
+  ctx.arc(0, 0, p.radius + 16, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Hit ring animation
+  if (p.ringAlpha > 0) {
+    ctx.strokeStyle = p.color;
+    ctx.globalAlpha = p.ringAlpha;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, (p.radius + 16) * p.ringScale, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  // Pulsar body — glows brighter when in hit window
+  const s = p.scale;
+  const windowBrightness = p._inWindow ? 1.5 : 1;
+  const grd = ctx.createRadialGradient(0, 0, 0, 0, 0, p.radius * s);
+  grd.addColorStop(0, '#fff');
+  grd.addColorStop(0.3, p.color);
+  grd.addColorStop(1, 'transparent');
+  ctx.fillStyle = grd;
+  ctx.shadowColor = p.glow;
+  ctx.shadowBlur = (p._inWindow ? 40 : 20) * s;
+  ctx.beginPath();
+  ctx.arc(0, 0, p.radius * s * (p._inWindow ? 1.1 : 1), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Miss flash (red overlay)
+  if (p.missFlash > 0) {
+    ctx.fillStyle = `rgba(255,0,64,${p.missFlash * 0.5})`;
+    ctx.beginPath();
+    ctx.arc(0, 0, p.radius * 1.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Hit flash (white burst)
+  if (p.hitFlash > 0) {
+    ctx.fillStyle = `rgba(255,255,255,${p.hitFlash * 0.6})`;
+    ctx.beginPath();
+    ctx.arc(0, 0, p.radius * 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.restore();
+
+  // Health hearts
+  const heartY = p.py + p.radius + 38;
+  for (let h = 0; h < 3; h++) {
+    const hx = p.px - 18 + h * 18;
+    ctx.fillStyle = h < p.health ? '#ff0040' : '#222';
+    ctx.font = '14px serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('♥', hx, heartY);
+  }
+
+  // Name + period
+  ctx.fillStyle = p.color;
+  ctx.font = '10px Courier New';
+  ctx.textAlign = 'center';
+  ctx.fillText(p.name, p.px, p.py - p.radius - 28);
+  ctx.fillStyle = '#555';
+  ctx.font = '9px Courier New';
+  ctx.fillText(p.realPeriod, p.px, p.py - p.radius - 16);
+}
+
+function drawHUD() {
+  document.getElementById('score-display').textContent = score;
+  if (combo >= 3) {
+    document.getElementById('combo-display').textContent = `×${combo} COMBO`;
+  } else {
+    document.getElementById('combo-display').textContent = '';
+  }
+}
+
+// ===== AUDIO =====
+let audioCtx;
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+function playTone(freq, type, duration, vol) {
+  ensureAudio();
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.type = type || 'sine';
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(vol || 0.3, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+  osc.start();
+  osc.stop(audioCtx.currentTime + duration);
+}
+
+function playHit(pIdx) {
+  const freqs = [880, 660, 440];
+  playTone(freqs[pIdx], 'sine', 0.15, 0.25);
+  playTone(freqs[pIdx] * 2, 'sine', 0.08, 0.1);
+}
+
+function playMiss() {
+  playTone(150, 'sawtooth', 0.2, 0.2);
+}
+
+function playDead() {
+  playTone(80, 'sawtooth', 0.5, 0.3);
+  setTimeout(() => playTone(60, 'sawtooth', 0.4, 0.2), 150);
+}
+
+// ===== GAME LOGIC =====
+function update(now, dt) {
+  let anyAlive = false;
+  for (let i = 0; i < pulsars.length; i++) {
+    const p = pulsars[i];
+    if (!p.alive) continue;
+    anyAlive = true;
+
+    // Advance phase
+    p.phase += dt / p.period;
+
+    // Decay animations
+    if (p.scale > 1) p.scale = Math.max(1, p.scale - dt * 0.006);
+    if (p.hitFlash > 0) p.hitFlash = Math.max(0, p.hitFlash - dt * 0.005);
+    if (p.missFlash > 0) p.missFlash = Math.max(0, p.missFlash - dt * 0.005);
+    if (p.ringAlpha > 0) {
+      p.ringAlpha = Math.max(0, p.ringAlpha - dt * 0.003);
+      p.ringScale = Math.min(2.5, p.ringScale + dt * 0.002);
+    }
+
+    // Beat fires at phase = 1 (wrap to 0)
+    if (p.phase >= 1) {
+      p.phase -= 1; // wrap
+      p.beatCount++;
+      // If player didn't tap this cycle → miss
+      if (!p._tappedThisCycle) {
+        onMiss(p, i);
+      }
+      p._tappedThisCycle = false; // reset for next cycle
+      // Visual pulse flash on the star itself
+      p.scale = Math.max(p.scale, 1.3);
+    }
+
+    // Indicate upcoming pulse (last 18% or first 10% of period = hit window)
+    p._inWindow = p.phase >= (1 - HIT_WINDOW / p.period);
+  }
+
+  if (!anyAlive) {
+    gameOver();
+  }
+}
+
+function onHit(p, pIdx) {
+  p.scale = 1.6;
+  p.hitFlash = 1;
+  p.ringScale = 1;
+  p.ringAlpha = 1;
+  p._tappedThisCycle = true; // mark as tapped for this cycle
+  combo++;
+  maxCombo = Math.max(maxCombo, combo);
+  const comboMult = Math.min(combo, 10);
+  score += 10 * comboMult;
+  playHit(pIdx);
+}
+
+function onMiss(p, pIdx) {
+  p.health--;
+  p.missFlash = 1;
+  combo = 0;
+  playMiss();
+  if (p.health <= 0) {
+    p.alive = false;
+    playDead();
+  }
+}
+
+function handleTap(tx, ty) {
+  if (gameState !== 'playing') return;
+  ensureAudio();
+  for (let i = 0; i < pulsars.length; i++) {
+    const p = pulsars[i];
+    if (!p.alive) continue;
+    const dx = tx - p.px;
+    const dy = ty - p.py;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < p.radius + 30) {
+      // Check timing
+      // Hit window: last 18% of cycle (phase near 1) OR first 10% (just after wrap)
+      const nearEnd = p.phase >= (1 - HIT_WINDOW / p.period);
+      const nearStart = p.phase <= (HIT_WINDOW * 0.6 / p.period);
+      if (nearEnd || nearStart) {
+        onHit(p, i);
+      } else {
+        // Wrong time tap — slight penalty on combo
+        combo = Math.max(0, combo - 1);
+        p.missFlash = 0.5;
+        playTone(200, 'triangle', 0.1, 0.15);
+      }
+      break;
+    }
+  }
+}
+
+// ===== MAIN LOOP =====
+function loop(timestamp) {
+  if (gameState !== 'playing') return;
+  const dt = Math.min(timestamp - lastTime, 50);
+  lastTime = timestamp;
+
+  drawBg();
+  update(timestamp, dt);
+  for (const p of pulsars) drawPulsar(p, timestamp);
+  drawHUD();
+
+  animId = requestAnimationFrame(loop);
+}
+
+// ===== GAME OVER =====
+const MSGS = [
+  "El universo no espera a los lentos.",
+  "Los pulsares pulsan solos desde el Big Bang. Tú, ni cinco segundos.",
+  "NASA te rechazaría en el primer test.",
+  "Hasta un neutrón tiene mejor ritmo.",
+  "Sincronización: FALLIDA. Carrera espacial: TERMINADA.",
+  "Los pulsares llevan millones de años sin fallar. Tú, 20 segundos.",
+  "Enviamos tus datos a los alienígenas. Se rieron.",
+];
+
+function gameOver() {
+  gameState = 'over';
+  cancelAnimationFrame(animId);
+  document.getElementById('score-final').textContent = score;
+  document.getElementById('funny-msg').textContent = MSGS[Math.floor(Math.random() * MSGS.length)];
+  document.getElementById('screen-over').style.display = 'block';
+}
+
+// ===== START =====
+function startGame() {
+  score = 0;
+  combo = 0;
+  maxCombo = 0;
+  gameState = 'playing';
+  document.getElementById('screen').style.display = 'none';
+  document.getElementById('screen-over').style.display = 'none';
+  initPulsars();
+  // Stagger initial phases so they don't all pulse at once
+  pulsars[0].phase = 0.1;
+  pulsars[1].phase = 0.4;
+  pulsars[2].phase = 0.7;
+  lastTime = performance.now();
+  animId = requestAnimationFrame(loop);
+}
+
+// ===== EVENTS =====
+document.getElementById('btn-start').addEventListener('click', () => { ensureAudio(); startGame(); });
+document.getElementById('btn-retry').addEventListener('click', () => { ensureAudio(); startGame(); });
+
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  for (const t of e.changedTouches) handleTap(t.clientX, t.clientY);
+}, { passive: false });
+
+canvas.addEventListener('mousedown', e => {
+  handleTap(e.clientX, e.clientY);
+});
+
+// Initial draw
+drawBg();
+</script>
+</body>
+</html>

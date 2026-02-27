@@ -78,5 +78,13 @@
         "description": "Tres estrellas de neutrones pulsan a sus frecuencias reales. Toca cada una justo cuando emite. Múltiples ritmos simultáneos. El universo no espera.",
         "mechanic": "Generación simultánea de múltiples frecuencias reales de pulsares — el jugador mantiene vivas las estrellas",
         "emoji": "✨"
+    },
+    {
+        "id": "011-refraccion",
+        "title": "Refracción",
+        "date": "2026-02-27",
+        "description": "Eres un fotón. Apunta y dispara — la Ley de Snell doblará tu trayectoria en cada frontera entre materiales reales. Cuidado con la reflexión total interna.",
+        "mechanic": "Puntería de rayo de luz con refracción real (Ley de Snell) — el jugador ajusta el ángulo y observa cómo la física lo desvía",
+        "emoji": "🔦"
     }
 ]

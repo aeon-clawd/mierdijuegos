@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Refracción — Mierdijuegos</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0a0a; color: #fff; font-family: 'Courier New', monospace; overflow: hidden; touch-action: none; }
+  canvas { display: block; }
+  #ui {
+    position: fixed; top: 0; left: 0; right: 0;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 16px; z-index: 10;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.7), transparent);
+  }
+  #score { font-size: 1.4em; color: #00ff41; text-shadow: 0 0 8px #00ff41; }
+  #level { font-size: 1em; color: #00ffff; }
+  #shots-left { font-size: 1em; color: #ffff00; }
+  #overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.92);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 20; gap: 18px; padding: 24px; text-align: center;
+  }
+  .hidden { display: none !important; }
+  h1 { font-size: 2.4em; color: #00ffff; text-shadow: 0 0 20px #00ffff; letter-spacing: 4px; }
+  h2 { font-size: 1.8em; color: #ff00ff; text-shadow: 0 0 16px #ff00ff; }
+  .subtitle { font-size: 0.9em; color: #888; max-width: 360px; line-height: 1.6; }
+  .material-legend {
+    display: flex; flex-direction: column; gap: 6px;
+    background: rgba(255,255,255,0.05); border: 1px solid #333;
+    border-radius: 8px; padding: 14px; max-width: 300px;
+  }
+  .mat-row { display: flex; align-items: center; gap: 10px; font-size: 0.8em; }
+  .mat-swatch { width: 16px; height: 16px; border-radius: 3px; flex-shrink: 0; }
+  .mat-name { color: #fff; flex: 1; text-align: left; }
+  .mat-n { color: #ffff00; font-weight: bold; }
+  .score-display { font-size: 2.2em; color: #ffff00; text-shadow: 0 0 12px #ffff00; }
+  .funny { font-size: 1em; color: #ff00ff; max-width: 340px; line-height: 1.5; }
+  button {
+    background: #00ff41; color: #000; border: none; padding: 14px 32px;
+    font-size: 1.1em; font-family: 'Courier New', monospace; font-weight: bold;
+    border-radius: 4px; cursor: pointer; letter-spacing: 2px;
+    transition: transform 0.1s, box-shadow 0.1s;
+    text-transform: uppercase;
+  }
+  button:active { transform: scale(0.96); }
+  .btn-retry { background: #ff00ff; color: #000; }
+  a.back-link { color: #555; font-size: 0.85em; text-decoration: none; margin-top: 4px; }
+  a.back-link:hover { color: #00ffff; }
+  #aim-hint {
+    position: fixed; bottom: 16px; left: 0; right: 0; text-align: center;
+    color: #555; font-size: 0.8em; z-index: 10; pointer-events: none;
+  }
+  #total-internal { 
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    color: #ff0040; font-size: 1.3em; font-weight: bold;
+    text-shadow: 0 0 20px #ff0040; z-index: 15; pointer-events: none;
+    opacity: 0; transition: opacity 0.3s;
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <div id="score">★ 0</div>
+  <div id="level">Nivel 1</div>
+  <div id="shots-left">🔦 3</div>
+</div>
+<div id="aim-hint">Arrastra para apuntar · Suelta para disparar</div>
+<div id="total-internal">REFLEXIÓN TOTAL</div>
+
+<!-- START SCREEN -->
+<div id="overlay-start" id="overlay">
+  <h1>REFRACCIÓN</h1>
+  <p class="subtitle">Eres un fotón. La pantalla es un prisma de capas reales.<br>
+  Apunta y dispara — la <strong style="color:#00ffff">Ley de Snell</strong> doblará tu trayectoria en cada frontera.<br>
+  Llega al objetivo. Cuidado con la <strong style="color:#ff0040">reflexión total interna</strong>.</p>
+  <div class="material-legend">
+    <div class="mat-row"><div class="mat-swatch" style="background:#1a2a1a"></div><span class="mat-name">Aire</span><span class="mat-n">n = 1.00</span></div>
+    <div class="mat-row"><div class="mat-swatch" style="background:#1a1a3a"></div><span class="mat-name">Agua</span><span class="mat-n">n = 1.33</span></div>
+    <div class="mat-row"><div class="mat-swatch" style="background:#2a1a2a"></div><span class="mat-name">Vidrio</span><span class="mat-n">n = 1.52</span></div>
+    <div class="mat-row"><div class="mat-swatch" style="background:#2a1a1a"></div><span class="mat-name">Rubí</span><span class="mat-n">n = 1.76</span></div>
+    <div class="mat-row"><div class="mat-swatch" style="background:#2a2a1a"></div><span class="mat-name">Diamante</span><span class="mat-n">n = 2.42</span></div>
+  </div>
+  <button id="btn-start">DISPARAR</button>
+</div>
+
+<!-- GAME OVER SCREEN -->
+<div id="overlay-end" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.92);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:20;gap:18px;padding:24px;text-align:center;">
+  <h2>ABSORBIDO</h2>
+  <div class="score-display" id="final-score">★ 0</div>
+  <p class="funny" id="funny-msg"></p>
+  <button class="btn-retry" id="btn-retry">REINTENTAR</button>
+  <a class="back-link" href="/">← más mierdijuegos</a>
+</div>
+
+<script>
+// ─── Real refractive indices (Wolfram Alpha verified) ───
+const MATERIALS = [
+  { name: 'Aire',     n: 1.000, color: '#0d1a0d', border: '#1a3a1a' },
+  { name: 'Agua',     n: 1.333, color: '#0a0a1f', border: '#1a1a4a' },
+  { name: 'Vidrio',   n: 1.520, color: '#1a0a1f', border: '#3a1a4a' },
+  { name: 'Rubí',     n: 1.760, color: '#1f0a0a', border: '#4a1a1a' },
+  { name: 'Diamante', n: 2.418, color: '#1a1a0a', border: '#3a3a1a' },
+];
+
+const MATERIAL_COLORS = {
+  'Aire':     { ray: '#00ff41', glow: '#00ff41' },
+  'Agua':     { ray: '#00aaff', glow: '#00aaff' },
+  'Vidrio':   { ray: '#ff00ff', glow: '#ff00ff' },
+  'Rubí':     { ray: '#ff3a3a', glow: '#ff0040' },
+  'Diamante': { ray: '#ffff00', glow: '#ffff00' },
+};
+
+const FUNNY_MSGS = [
+  "La luz viaja a 299,792 km/s... tú no vas ni a 5.",
+  "Einstein lloraría. Pero con dignidad.",
+  "Snell tenía razón. Tú, no.",
+  "Ni el universo pudo contigo.",
+  "Tu fotón fue absorbido por el universo oscuro.",
+  "Reflexión total: 1 — Tú: 0.",
+  "La física no perdona. Tú tampoco aprenderás.",
+  "Maxwell te saludaría... si pudiera aguantar la risa.",
+  "Excelente. Brillante. Literalmente en ninguno de los dos casos.",
+];
+
+// ─── Canvas setup ───
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', () => { resize(); if (gameState === 'playing') buildLevel(); });
+
+// ─── Game state ───
+let gameState = 'start'; // start | aiming | shooting | win | over
+let score = 0;
+let level = 1;
+let shotsLeft = 3;
+let layers = [];
+let target = null;
+let emitter = null;
+let aimAngle = null;
+let aimStart = null;
+let isAiming = false;
+let rayPath = [];
+let shootAnim = null;
+let particles = [];
+let winFlash = 0;
+let totalInternalEl = document.getElementById('total-internal');
+let totalInternalTimer = 0;
+
+// ─── Level generation ───
+// Level = stack of horizontal material bands + a target
+function buildLevel() {
+  // Number of layers increases with level
+  const numLayers = Math.min(2 + Math.floor(level * 0.7), 6);
+
+  // Pick materials — always start from air, vary others
+  let mats = [MATERIALS[0]]; // top = air always for first few levels
+  // Shuffle middle materials
+  let pool = [...MATERIALS];
+  for (let i = 0; i < numLayers - 1; i++) {
+    let idx = Math.floor(Math.random() * pool.length);
+    mats.push(pool[idx]);
+    // Avoid consecutive duplicates
+    if (mats.length >= 2 && mats[mats.length-1].name === mats[mats.length-2].name) {
+      pool.splice(idx, 1);
+      i--; mats.pop();
+      if (pool.length === 0) { mats.push(MATERIALS[0]); break; }
+    }
+  }
+
+  // Assign Y bands
+  const topMargin = 80;
+  const bottomMargin = 60;
+  const usable = H - topMargin - bottomMargin;
+  const layerH = usable / mats.length;
+
+  layers = mats.map((m, i) => ({
+    mat: m,
+    y: topMargin + i * layerH,
+    h: layerH,
+  }));
+
+  // Emitter: always top-left area
+  emitter = { x: 40, y: topMargin + 20 };
+
+  // Target: bottom-right area, random within bottom 40% of screen
+  const targetY = topMargin + usable * (0.6 + Math.random() * 0.35);
+  const targetX = W * (0.55 + Math.random() * 0.35);
+  target = { x: targetX, y: targetY, r: Math.max(18, 28 - level * 1.5), hit: false };
+}
+
+// ─── Snell's law ray tracing ───
+// Returns array of {x1,y1,x2,y2,mat} segments, or null if total internal reflection causes bounce-off
+function traceRay(startX, startY, angle) {
+  // angle: radians from vertical (0 = straight down, + = right, - = left)
+  let segments = [];
+  let x = startX;
+  let y = startY;
+  let dx = Math.sin(angle);
+  let dy = Math.cos(angle);
+  // ensure going downward
+  if (dy < 0) dy = -dy;
+  let currentMat = getMatAt(y);
+  let MAX_SEGS = 40;
+  let reflectCount = 0;
+
+  for (let s = 0; s < MAX_SEGS; s++) {
+    // Find next boundary crossing
+    let nextBoundaryY = null;
+    let nextMat = null;
+    let crossingDir = null; // 'down' or 'up'
+
+    if (dy > 0) {
+      // Going down — find next layer boundary below
+      for (let i = 0; i < layers.length; i++) {
+        const layerBottom = layers[i].y + layers[i].h;
+        if (layerBottom > y + 0.5 && layerBottom <= H) {
+          nextBoundaryY = layerBottom;
+          nextMat = getMatAt(layerBottom + 1);
+          crossingDir = 'down';
+          break;
+        }
+      }
+      if (nextBoundaryY === null) {
+        // Goes off bottom
+        const t = (H - y) / dy;
+        segments.push({ x1:x, y1:y, x2:x+dx*t, y2:H, mat: currentMat });
+        break;
+      }
+    } else {
+      // Going up — find next layer boundary above
+      for (let i = layers.length - 1; i >= 0; i--) {
+        const layerTop = layers[i].y;
+        if (layerTop < y - 0.5 && layerTop >= 0) {
+          nextBoundaryY = layerTop;
+          nextMat = getMatAt(layerTop - 1);
+          crossingDir = 'up';
+          break;
+        }
+      }
+      if (nextBoundaryY === null) {
+        // Goes off top
+        const t = (0 - y) / dy;
+        segments.push({ x1:x, y1:y, x2:x+dx*Math.abs(t), y2:0, mat: currentMat });
+        break;
+      }
+    }
+
+    // Travel to boundary
+    const t = (nextBoundaryY - y) / dy;
+    const bx = x + dx * t;
+    const by = nextBoundaryY;
+    segments.push({ x1:x, y1:y, x2:bx, y2:by, mat: currentMat });
+    x = bx; y = by;
+
+    // Apply Snell's law
+    const n1 = currentMat.n;
+    const n2 = nextMat ? nextMat.n : 1.0;
+    const sinTheta1 = Math.abs(dx); // sin of angle from normal (vertical boundary normal)
+    const sinTheta2 = (n1 / n2) * sinTheta1;
+
+    if (sinTheta2 > 1.0) {
+      // Total internal reflection
+      reflectCount++;
+      dy = -dy; // Reflect
+      // dx stays the same
+      if (reflectCount > 5) break;
+    } else {
+      const theta2 = Math.asin(sinTheta2);
+      dx = Math.sign(dx) * Math.sin(theta2);
+      dy = Math.sign(dy) * Math.cos(theta2);
+      currentMat = nextMat || MATERIALS[0];
+    }
+
+    // Off-screen horizontal
+    if (x < -10 || x > W + 10) break;
+  }
+
+  return segments;
+}
+
+function getMatAt(y) {
+  for (let i = layers.length - 1; i >= 0; i--) {
+    if (y >= layers[i].y) return layers[i].mat;
+  }
+  return MATERIALS[0];
+}
+
+// Check if ray hits target
+function checkRayHitsTarget(segs, tgt) {
+  for (const seg of segs) {
+    // Check distance from point to segment
+    const dx = seg.x2 - seg.x1;
+    const dy = seg.y2 - seg.y1;
+    const len2 = dx*dx + dy*dy;
+    if (len2 === 0) continue;
+    let t = ((tgt.x - seg.x1)*dx + (tgt.y - seg.y1)*dy) / len2;
+    t = Math.max(0, Math.min(1, t));
+    const px = seg.x1 + t*dx;
+    const py = seg.y1 + t*dy;
+    const dist = Math.hypot(px - tgt.x, py - tgt.y);
+    if (dist <= tgt.r + 3) return true;
+  }
+  return false;
+}
+
+// ─── Shooting animation ───
+let animT = 0;
+let animSegs = [];
+let animCallback = null;
+
+function shootRay(segs, onDone) {
+  animT = 0;
+  animSegs = segs;
+  animCallback = onDone;
+  gameState = 'shooting';
+}
+
+// ─── Particle system ───
+function spawnParticles(x, y, color, count) {
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 1 + Math.random() * 4;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 1.0,
+      decay: 0.02 + Math.random() * 0.03,
+      color,
+      r: 2 + Math.random() * 3,
+    });
+  }
+}
+
+function updateParticles() {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx; p.y += p.vy;
+    p.vy += 0.1;
+    p.life -= p.decay;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ─── Draw layers ───
+function drawLayers() {
+  for (const layer of layers) {
+    ctx.fillStyle = layer.mat.color;
+    ctx.fillRect(0, layer.y, W, layer.h);
+    // Label
+    ctx.font = '11px Courier New';
+    ctx.fillStyle = layer.mat.border;
+    ctx.fillText(`${layer.mat.name} (n=${layer.mat.n.toFixed(3)})`, 8, layer.y + 18);
+    // Border
+    ctx.strokeStyle = layer.mat.border;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(0, layer.y);
+    ctx.lineTo(W, layer.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+}
+
+// ─── Draw target ───
+function drawTarget() {
+  if (!target || target.hit) return;
+  const pulse = 0.6 + 0.4 * Math.sin(Date.now() / 300);
+  ctx.save();
+  ctx.strokeStyle = '#00ff41';
+  ctx.shadowColor = '#00ff41';
+  ctx.shadowBlur = 16 * pulse;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(target.x, target.y, target.r, 0, Math.PI*2);
+  ctx.stroke();
+  // Inner dot
+  ctx.fillStyle = `rgba(0,255,65,${0.2 * pulse})`;
+  ctx.beginPath();
+  ctx.arc(target.x, target.y, target.r, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+
+  // Cross hair
+  ctx.strokeStyle = '#00ff41';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(target.x - target.r, target.y);
+  ctx.lineTo(target.x + target.r, target.y);
+  ctx.moveTo(target.x, target.y - target.r);
+  ctx.lineTo(target.x, target.y + target.r);
+  ctx.stroke();
+}
+
+// ─── Draw emitter ───
+function drawEmitter() {
+  if (!emitter) return;
+  ctx.save();
+  ctx.shadowColor = '#ffff00';
+  ctx.shadowBlur = 14;
+  ctx.fillStyle = '#ffff00';
+  ctx.beginPath();
+  ctx.arc(emitter.x, emitter.y, 10, 0, Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle = '#0a0a0a';
+  ctx.font = 'bold 12px Courier New';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('γ', emitter.x, emitter.y);
+  ctx.restore();
+}
+
+// ─── Draw aim guide ───
+function drawAimGuide() {
+  if (!isAiming || aimAngle === null) return;
+  const segs = traceRay(emitter.x, emitter.y, aimAngle);
+  drawRaySegments(segs, 0.35, true);
+
+  // Draw angle indicator
+  const arrowLen = 50;
+  const ax = emitter.x + Math.sin(aimAngle) * arrowLen;
+  const ay = emitter.y + Math.cos(aimAngle) * arrowLen;
+  ctx.save();
+  ctx.strokeStyle = '#ffff00';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([4,4]);
+  ctx.globalAlpha = 0.7;
+  ctx.beginPath();
+  ctx.moveTo(emitter.x, emitter.y);
+  ctx.lineTo(ax, ay);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+function drawRaySegments(segs, alpha, dashed) {
+  for (const seg of segs) {
+    const mc = MATERIAL_COLORS[seg.mat.name] || { ray: '#ffffff' };
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = mc.ray;
+    ctx.shadowColor = mc.glow;
+    ctx.shadowBlur = 8;
+    ctx.lineWidth = 2.5;
+    if (dashed) ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.moveTo(seg.x1, seg.y1);
+    ctx.lineTo(seg.x2, seg.y2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+}
+
+// ─── Draw shoot animation ───
+function drawShootAnimation() {
+  if (gameState !== 'shooting') return;
+  // Compute total length
+  let totalLen = 0;
+  const segLens = animSegs.map(s => {
+    const l = Math.hypot(s.x2-s.x1, s.y2-s.y1);
+    totalLen += l;
+    return l;
+  });
+
+  const speed = 12; // px per frame
+  animT += speed;
+  if (animT >= totalLen) {
+    // Done — draw all
+    drawRaySegments(animSegs, 0.9, false);
+    if (animCallback) { animCallback(); animCallback = null; }
+    return;
+  }
+
+  // Draw partial ray
+  let drawn = 0;
+  for (let i = 0; i < animSegs.length; i++) {
+    const seg = animSegs[i];
+    const sl = segLens[i];
+    if (drawn + sl <= animT) {
+      drawRaySegments([seg], 0.9, false);
+      drawn += sl;
+    } else {
+      const frac = (animT - drawn) / sl;
+      const partSeg = {
+        x1: seg.x1, y1: seg.y1,
+        x2: seg.x1 + (seg.x2-seg.x1)*frac,
+        y2: seg.y1 + (seg.y2-seg.y1)*frac,
+        mat: seg.mat
+      };
+      drawRaySegments([partSeg], 0.9, false);
+      // Particle at tip
+      const mc = MATERIAL_COLORS[seg.mat.name] || { glow:'#fff' };
+      spawnParticles(partSeg.x2, partSeg.y2, mc.glow, 2);
+      break;
+    }
+  }
+}
+
+// ─── UI updates ───
+function updateUI() {
+  document.getElementById('score').textContent = `★ ${score}`;
+  document.getElementById('level').textContent = `Nivel ${level}`;
+  document.getElementById('shots-left').textContent = `🔦 ${shotsLeft}`;
+}
+
+// ─── Input handling ───
+let touchStartX, touchStartY;
+
+function getAimAngle(clientX, clientY) {
+  if (!emitter) return 0;
+  const dx = clientX - emitter.x;
+  const dy = clientY - emitter.y;
+  // Angle from vertical
+  return Math.atan2(dx, Math.abs(dy));
+}
+
+canvas.addEventListener('mousedown', e => {
+  if (gameState !== 'aiming') return;
+  isAiming = true;
+  aimAngle = getAimAngle(e.clientX, e.clientY);
+});
+
+canvas.addEventListener('mousemove', e => {
+  if (!isAiming) return;
+  aimAngle = getAimAngle(e.clientX, e.clientY);
+});
+
+canvas.addEventListener('mouseup', e => {
+  if (!isAiming) return;
+  isAiming = false;
+  fireShot();
+});
+
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  if (gameState !== 'aiming') return;
+  const t = e.touches[0];
+  touchStartX = t.clientX; touchStartY = t.clientY;
+  isAiming = true;
+  aimAngle = getAimAngle(t.clientX, t.clientY);
+}, { passive: false });
+
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if (!isAiming) return;
+  const t = e.touches[0];
+  aimAngle = getAimAngle(t.clientX, t.clientY);
+}, { passive: false });
+
+canvas.addEventListener('touchend', e => {
+  e.preventDefault();
+  if (!isAiming) return;
+  isAiming = false;
+  fireShot();
+}, { passive: false });
+
+function fireShot() {
+  if (gameState !== 'aiming' || shotsLeft <= 0) return;
+  shotsLeft--;
+  updateUI();
+
+  const segs = traceRay(emitter.x, emitter.y, aimAngle);
+
+  // Check for total internal reflection warning
+  let hasTIR = false;
+  for (let i = 0; i < segs.length; i++) {
+    const seg = segs[i];
+    // Check if next segment reverses vertical direction
+    if (i+1 < segs.length) {
+      const d1 = seg.y2 - seg.y1;
+      const d2 = segs[i+1].y2 - segs[i+1].y1;
+      if (d1 * d2 < 0) { hasTIR = true; break; }
+    }
+  }
+
+  if (hasTIR) {
+    showTIR();
+  }
+
+  shootRay(segs, () => {
+    // Check hit
+    const hit = checkRayHitsTarget(segs, target);
+    if (hit) {
+      onTargetHit(segs);
+    } else if (shotsLeft <= 0) {
+      setTimeout(onGameOver, 600);
+    } else {
+      gameState = 'aiming';
+    }
+  });
+}
+
+function showTIR() {
+  totalInternalEl.style.opacity = '1';
+  if (totalInternalTimer) clearTimeout(totalInternalTimer);
+  totalInternalTimer = setTimeout(() => {
+    totalInternalEl.style.opacity = '0';
+  }, 1200);
+}
+
+function onTargetHit(segs) {
+  // Score based on shots remaining + level
+  const bonus = (shotsLeft + 1) * level * 10;
+  score += bonus;
+  target.hit = true;
+  spawnParticles(target.x, target.y, '#00ff41', 40);
+  winFlash = 1.0;
+  updateUI();
+  // Next level after delay
+  setTimeout(() => {
+    level++;
+    shotsLeft = Math.max(2, 4 - Math.floor(level / 3));
+    buildLevel();
+    gameState = 'aiming';
+    updateUI();
+  }, 1200);
+}
+
+function onGameOver() {
+  gameState = 'over';
+  document.getElementById('final-score').textContent = `★ ${score}`;
+  const msg = FUNNY_MSGS[Math.floor(Math.random() * FUNNY_MSGS.length)];
+  document.getElementById('funny-msg').textContent = msg;
+  const el = document.getElementById('overlay-end');
+  el.style.display = 'flex';
+}
+
+// ─── Start / Retry ───
+document.getElementById('btn-start').addEventListener('click', () => {
+  document.getElementById('overlay-start').classList.add('hidden');
+  startGame();
+});
+
+document.getElementById('btn-retry').addEventListener('click', () => {
+  document.getElementById('overlay-end').style.display = 'none';
+  startGame();
+});
+
+function startGame() {
+  score = 0; level = 1; shotsLeft = 3;
+  particles = []; animSegs = []; rayPath = [];
+  buildLevel();
+  gameState = 'aiming';
+  updateUI();
+}
+
+// ─── Main loop ───
+let persistedSegs = [];
+
+function loop() {
+  requestAnimationFrame(loop);
+  ctx.clearRect(0, 0, W, H);
+
+  // Background
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(0, 0, W, H);
+
+  drawLayers();
+  drawTarget();
+  drawEmitter();
+  drawAimGuide();
+
+  if (gameState === 'shooting') {
+    drawShootAnimation();
+  }
+
+  // Win flash
+  if (winFlash > 0) {
+    ctx.fillStyle = `rgba(0,255,65,${winFlash * 0.15})`;
+    ctx.fillRect(0, 0, W, H);
+    winFlash -= 0.04;
+  }
+
+  updateParticles();
+  drawParticles();
+}
+
+loop();
+document.getElementById('overlay-start').style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:20;gap:18px;padding:24px;text-align:center;';
+</script>
+</body>
+</html>

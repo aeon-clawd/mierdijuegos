@@ -434,23 +434,30 @@ function drawEmitter() {
 // ─── Draw aim guide ───
 function drawAimGuide() {
   if (!isAiming || aimAngle === null) return;
-  const segs = traceRay(emitter.x, emitter.y, aimAngle);
-  drawRaySegments(segs, 0.35, true);
-
-  // Draw angle indicator
-  const arrowLen = 50;
+  // Only show direction arrow — NOT the full refracted path
+  const arrowLen = 60;
   const ax = emitter.x + Math.sin(aimAngle) * arrowLen;
   const ay = emitter.y + Math.cos(aimAngle) * arrowLen;
   ctx.save();
   ctx.strokeStyle = '#ffff00';
   ctx.lineWidth = 2;
-  ctx.setLineDash([4,4]);
-  ctx.globalAlpha = 0.7;
+  ctx.setLineDash([6, 4]);
+  ctx.globalAlpha = 0.6;
   ctx.beginPath();
   ctx.moveTo(emitter.x, emitter.y);
   ctx.lineTo(ax, ay);
   ctx.stroke();
   ctx.setLineDash([]);
+  // Arrowhead
+  const headLen = 10;
+  const angle = Math.atan2(ay - emitter.y, ax - emitter.x);
+  ctx.fillStyle = '#ffff00';
+  ctx.beginPath();
+  ctx.moveTo(ax, ay);
+  ctx.lineTo(ax - headLen * Math.cos(angle - 0.4), ay - headLen * Math.sin(angle - 0.4));
+  ctx.lineTo(ax - headLen * Math.cos(angle + 0.4), ay - headLen * Math.sin(angle + 0.4));
+  ctx.closePath();
+  ctx.fill();
   ctx.restore();
 }
 

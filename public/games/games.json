@@ -86,5 +86,13 @@
         "description": "Eres un fotón. Apunta y dispara — la Ley de Snell doblará tu trayectoria en cada frontera entre materiales reales. Cuidado con la reflexión total interna.",
         "mechanic": "Puntería de rayo de luz con refracción real (Ley de Snell) — el jugador ajusta el ángulo y observa cómo la física lo desvía",
         "emoji": "🔦"
+    },
+    {
+        "id": "012-efecto-doppler",
+        "title": "Efecto Doppler",
+        "date": "2026-02-28",
+        "description": "Eres una fuente de sonido. Tu velocidad cambia la frecuencia que perciben los oyentes. Ajusta tu velocidad exacta para que cada oído escuche su nota musical.",
+        "mechanic": "Velocidad del jugador = frecuencia observada via Ley de Doppler real — el jugador sintoniza notas musicales con su movimiento",
+        "emoji": "〰️"
     }
 ]

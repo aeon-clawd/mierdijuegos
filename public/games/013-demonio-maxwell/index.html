@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Demonio de Maxwell</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0a;color:#fff;font-family:'Courier New',monospace;overflow:hidden;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center}
+canvas{display:block;touch-action:none}
+#ui{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 16px;background:rgba(0,0,0,0.8);z-index:10;font-size:12px;display:none}
+.ub{display:flex;flex-direction:column;align-items:center;gap:2px}
+.ul{font-size:9px;color:#555;text-transform:uppercase;letter-spacing:1px}
+.uv{font-size:14px;font-weight:bold}
+#sc1{position:fixed;inset:0;background:#0a0a0a;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px;text-align:center;z-index:20}
+#sc2{position:fixed;inset:0;background:#0a0a0a;display:none;flex-direction:column;align-items:center;justify-content:center;padding:28px;text-align:center;z-index:20}
+h1{font-size:1.9em;margin-bottom:10px}
+p{color:#aaa;font-size:.82em;line-height:1.6;margin-bottom:16px;max-width:320px}
+.btn{background:transparent;border:2px solid #00ff41;color:#00ff41;padding:12px 28px;font-family:'Courier New',monospace;font-size:.95em;cursor:pointer;letter-spacing:2px;text-transform:uppercase}
+.btn:active{background:#00ff41;color:#000}
+.sci{background:#111;border:1px solid #222;border-radius:6px;padding:10px;margin:10px 0;font-size:.72em;color:#777;text-align:left;max-width:300px}
+a.bk{color:#555;font-size:.78em;text-decoration:none;margin-top:14px}
+a.bk:hover{color:#00ff41}
+</style>
+</head>
+<body>
+<div id="ui">
+  <div class="ub"><span class="ul">Vidas</span><span class="uv" id="lv">❤️❤️❤️</span></div>
+  <div class="ub"><span class="ul">Puntos</span><span class="uv" id="sc" style="color:#00ff41">0</span></div>
+  <div class="ub"><span class="ul">Info</span><span class="uv" id="en" style="color:#00ffff">████████</span></div>
+</div>
+<canvas id="c"></canvas>
+
+<div id="sc1">
+  <div style="font-size:2.2em;margin-bottom:6px">😈</div>
+  <h1 style="color:#ff00ff">Demonio<br>de Maxwell</h1>
+  <div class="sci">
+    <b style="color:#00ffff">Física real (Wolfram N₂ 300K):</b><br>
+    v<sub>mp</sub>=422 m/s · v<sub>avg</sub>=476 m/s · v<sub>rms</sub>=517 m/s<br>
+    T ∝ v² — las partículas muestran su temperatura real
+  </div>
+  <p>Abre la puerta central en el momento exacto. Deja pasar las <b style="color:#ff4444">rápidas (🔥)</b> a la derecha y las <b style="color:#4488ff">lentas (❄)</b> a la izquierda. Cada decisión consume tu reserva de <b style="color:#00ffff">información</b>.</p>
+  <button class="btn" onclick="init()">JUGAR</button>
+  <div style="font-size:.68em;color:#444;margin-top:8px">Toca la puerta para abrirla · 2ª ley: intentando romperla</div>
+</div>
+
+<div id="sc2">
+  <div style="font-size:2em">💀</div>
+  <h2 style="color:#ff0040;margin:8px 0">ENTROPÍA MÁXIMA</h2>
+  <div id="omsg" style="color:#ff00ff;font-size:.88em;margin:8px 0"></div>
+  <div id="fsco" style="font-size:2.4em;color:#00ff41;margin:6px 0"></div>
+  <div id="fst" style="font-size:.75em;color:#555;margin:6px 0"></div>
+  <button class="btn" style="border-color:#ff00ff;color:#ff00ff;margin-top:14px" onclick="init()">REINTENTAR</button>
+  <a class="bk" href="/">← más mierdijuegos</a>
+</div>
+
+<script>
+const V_MP=422,V_AVG=476,V_RMS=517,SCALE=3,M=4.65e-26,K=1.38e-23;
+const cvs=document.getElementById('c'),ctx=cvs.getContext('2d');
+let W,H,GX,GY,GB,particles=[],lives,score,info,gOpen,gTimer,running;
+let spawnT,level,correct,wrong,flashT,flashC,doorPulse,_ef=0,_lr=0,last=0;
+let audioCtx;
+
+function ia(){if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();}
+function beep(f,t,d,v=.12){if(!audioCtx)return;const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.connect(g);g.connect(audioCtx.destination);o.type=t||'sine';o.frequency.value=f;g.gain.setValueAtTime(v,audioCtx.currentTime);g.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+d);o.start();o.stop(audioCtx.currentTime+d);}
+
+function resize(){W=cvs.width=window.innerWidth;H=cvs.height=window.innerHeight-42;cvs.style.marginTop='42px';GX=W/2;GY=H/2;GB=Math.min(W*.04,16);}
+
+function sampleSpeed(){
+  const vmp=V_MP;let v;
+  do{v=vmp*Math.sqrt(-2*Math.log(Math.random()+1e-10))*Math.abs(Math.cos(Math.random()*Math.PI));}while(v<=0);
+  return Math.max(vmp*.3,Math.min(vmp*3.5,v));
+}
+
+function spawn(){
+  const side=Math.random()<.5?-1:1;
+  const spd=sampleSpeed()/SCALE;
+  const ang=side===-1?Math.random()*Math.PI*.7-Math.PI*.35:Math.PI+Math.random()*Math.PI*.7-Math.PI*.35;
+  const vx=Math.cos(ang)*spd,vy=(Math.random()-.5)*spd*.4;
+  const x=side===-1?Math.random()*(GX-60)+10:GX+60+Math.random()*(W-GX-70);
+  const y=Math.random()*(H-80)+40;
+  const isHot=spd>V_AVG/SCALE*.9;
+  return{x,y,vx,vy,spd,isHot,side,r:5+Math.random()*3,
+    hue:isHot?0+(Math.random()-.5)*45:220+(Math.random()-.5)*40,
+    sat:80+Math.random()*20,passed:false,ph:Math.random()*Math.PI*2};
+}
+
+function init(){
+  document.getElementById('sc1').style.display='none';
+  document.getElementById('sc2').style.display='none';
+  document.getElementById('ui').style.display='flex';
+  ia();particles=[];lives=3;score=0;info=8;gOpen=false;gTimer=0;
+  spawnT=0;level=1;correct=0;wrong=0;flashT=0;_ef=0;_lr=0;running=true;
+  for(let i=0;i<8;i++)particles.push(spawn());
+  ui();requestAnimationFrame(loop);
+}
+
+function ui(){
+  document.getElementById('lv').textContent='❤️'.repeat(lives)+'🖤'.repeat(3-lives);
+  document.getElementById('sc').textContent=score;
+  const b=Math.max(0,Math.min(8,info));
+  document.getElementById('en').textContent='█'.repeat(b)+'░'.repeat(8-b);
+}
+
+function loop(ts){
+  if(!running)return;
+  const dt=Math.min((ts-last)/1000,.05);last=ts;
+  update(dt);draw();requestAnimationFrame(loop);
+}
+
+function update(dt){
+  spawnT-=dt;
+  if(spawnT<=0&&particles.length<14+level*2){particles.push(spawn());spawnT=Math.max(.5,2-level*.1);}
+  if(gOpen){gTimer-=dt;if(gTimer<=0){gOpen=false;doorPulse=.4;}}
+  if(doorPulse>0)doorPulse-=dt*3;
+  if(flashT>0)flashT-=dt;
+
+  for(const p of particles){
+    p.x+=p.vx*dt*60;p.y+=p.vy*dt*60;p.ph+=dt*4;
+    if(p.x-p.r<0){p.x=p.r;p.vx=Math.abs(p.vx);}
+    if(p.y-p.r<40){p.y=40+p.r;p.vy=Math.abs(p.vy);}
+    if(p.y+p.r>H){p.y=H-p.r;p.vy=-Math.abs(p.vy);}
+    if(p.x+p.r>W){p.x=W-p.r;p.vx=-Math.abs(p.vx);}
+    const near=Math.abs(p.x-GX)<GB+p.r+4;
+    if(near&&!p.passed){
+      if(gOpen){
+        const ok=(p.vx>0&&p.isHot)||(p.vx<0&&!p.isHot);
+        if(ok){score+=10+level;correct++;flashT=.18;flashC='#00ff41';beep(660,'sine',.15,.09);p.passed=true;}
+        else{wrong++;lives--;flashT=.35;flashC='#ff0040';beep(120,'sawtooth',.3,.14);p.passed=true;ui();if(lives<=0){over();return;}}
+      }else{
+        if(p.vx>0&&p.x+p.r>GX-GB){p.vx=-Math.abs(p.vx);p.x=GX-GB-p.r;}
+        else if(p.vx<0&&p.x-p.r<GX+GB){p.vx=Math.abs(p.vx);p.x=GX+GB+p.r;}
+      }
+    }
+    if(Math.abs(p.x-GX)>80)p.passed=false;
+  }
+
+  level=1+Math.floor(score/100);
+  const dr=.05+level*.008;
+  _ef+=dr*dt;
+  if(_ef>=1){_ef-=1;info=Math.max(0,info-1);ui();
+    if(info<=0){lives--;info=5;flashT=.5;flashC='#ff00ff';beep(80,'sawtooth',.5,.18);ui();if(lives<=0){over();return;}}}
+  if(correct>0&&correct%5===0&&correct!==_lr){_lr=correct;info=Math.min(8,info+2);ui();beep(880,'sine',.2,.09);}
+  ui();
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  if(flashT>0){ctx.fillStyle=flashC+'18';ctx.fillRect(0,0,W,H);}
+
+  ctx.strokeStyle='#2a2a2a';ctx.lineWidth=1;ctx.setLineDash([5,8]);
+  ctx.beginPath();ctx.moveTo(GX,0);ctx.lineTo(GX,gOpen?GY-30:H);ctx.stroke();
+  if(!gOpen){ctx.beginPath();ctx.moveTo(GX,GY+30);ctx.lineTo(GX,H);ctx.stroke();}
+  ctx.setLineDash([]);
+
+  ctx.font='bold 10px Courier New';ctx.textAlign='center';
+  ctx.fillStyle='#4488ff33';ctx.fillText('❄ FRÍO',GX*.5,H*.1);
+  ctx.fillStyle='#ff444433';ctx.fillText('🔥 CALOR',GX+(W-GX)*.5,H*.1);
+
+  const hp=particles.filter(p=>p.x>GX),cp=particles.filter(p=>p.x<GX);
+  const tR=hp.length?Math.round(hp.reduce((s,p)=>s+p.spd*p.spd,0)/hp.length*M/(2*K/3)):300;
+  const tL=cp.length?Math.round(cp.reduce((s,p)=>s+p.spd*p.spd,0)/cp.length*M/(2*K/3)):300;
+  ctx.font='9px Courier New';
+  ctx.fillStyle='#4488ffaa';ctx.fillText(`T=${Math.min(9999,Math.max(1,tL))}K`,GX*.5,H*.18);
+  ctx.fillStyle='#ff4444aa';ctx.fillText(`T=${Math.min(9999,Math.max(1,tR))}K`,GX+(W-GX)*.5,H*.18);
+
+  const gc=gOpen?'#00ff41':doorPulse>0?'#ff00ff':'#ffff00';
+  const gg=gOpen?14:doorPulse>0?doorPulse*18:6;
+  ctx.shadowBlur=gg;ctx.shadowColor=gc;ctx.strokeStyle=gc;ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(GX,0);ctx.lineTo(GX,GY-30);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(GX,GY+30);ctx.lineTo(GX,H);ctx.stroke();
+
+  if(gOpen){
+    ctx.font='bold 13px Courier New';ctx.fillStyle='#00ff41';ctx.shadowBlur=10;ctx.shadowColor='#00ff41';
+    ctx.fillText('▶▶',GX,GY+4);
+  }else{
+    ctx.fillStyle=gc;ctx.beginPath();ctx.arc(GX,GY,11,0,Math.PI*2);ctx.fill();
+    ctx.font='bold 11px Courier New';ctx.fillStyle='#000';ctx.shadowBlur=0;ctx.fillText('⚡',GX,GY+4);
+  }
+  ctx.shadowBlur=0;
+
+  for(const p of particles){
+    const pulse=.86+.14*Math.sin(p.ph),r=p.r*pulse;
+    const col=`hsl(${p.hue},${p.sat}%,60%)`,glow=`hsl(${p.hue},100%,70%)`;
+    ctx.shadowBlur=10;ctx.shadowColor=glow;
+    ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fillStyle=col;ctx.fill();
+    ctx.strokeStyle=glow;ctx.lineWidth=1;ctx.stroke();
+    ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x-p.vx*.28,p.y-p.vy*.28);
+    ctx.strokeStyle=glow+'88';ctx.lineWidth=1.5;ctx.stroke();
+    ctx.shadowBlur=0;
+  }
+
+  if(score===0&&!gOpen){ctx.font='10px Courier New';ctx.fillStyle='#ffffff33';ctx.textAlign='center';ctx.fillText('↑ toca la puerta ↑',GX,GY-38);}
+}
+
+function over(){
+  running=false;document.getElementById('ui').style.display='none';
+  const msgs=['La entropía siempre gana, demonio.','Landauer tenía razón: la información tiene coste.','El universo te ha cobrado la factura.','No puedes engañar a la termodinámica.','La 2ª ley: 1, Tú: 0.','¡Imposible! Y sin embargo, así es la física.'];
+  document.getElementById('omsg').textContent=msgs[Math.floor(Math.random()*msgs.length)];
+  document.getElementById('fsco').textContent=`${score} pts`;
+  document.getElementById('fst').textContent=`✅ ${correct} correctas  ❌ ${wrong} errores`;
+  const s=document.getElementById('sc2');s.style.display='flex';
+}
+
+function tg(x,y){
+  if(!running)return;
+  const ay=y-42;
+  if(Math.abs(x-GX)<55&&Math.abs(ay-GY)<85){
+    gOpen=!gOpen;gTimer=gOpen?.75:0;doorPulse=.4;ia();beep(gOpen?440:280,'square',.1,.07);
+  }
+}
+
+cvs.addEventListener('touchstart',e=>{e.preventDefault();const t=e.touches[0];tg(t.clientX,t.clientY);},{passive:false});
+cvs.addEventListener('mousedown',e=>tg(e.clientX,e.clientY));
+window.addEventListener('resize',()=>{resize();});
+resize();draw();
+</script>
+</body>
+</html>

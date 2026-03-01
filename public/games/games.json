@@ -94,5 +94,13 @@
         "description": "Eres una fuente de sonido. Tu velocidad cambia la frecuencia que perciben los oyentes. Ajusta tu velocidad exacta para que cada oído escuche su nota musical.",
         "mechanic": "Velocidad del jugador = frecuencia observada via Ley de Doppler real — el jugador sintoniza notas musicales con su movimiento",
         "emoji": "〰️"
+    },
+    {
+        "id": "013-demonio-maxwell",
+        "title": "Demonio de Maxwell",
+        "date": "2026-03-01",
+        "description": "Eres el demonio que viola la 2ª ley: abre la puerta en el momento exacto para separar partículas rápidas (calor) de lentas (frío). Pero cada decisión consume tu reserva de información.",
+        "mechanic": "Ordenamiento termodinámico en tiempo real — el jugador es Maxwell's Demon separando distribución Maxwell-Boltzmann real (N₂ 300K), con entropía de información como recurso finito",
+        "emoji": "😈"
     }
 ]

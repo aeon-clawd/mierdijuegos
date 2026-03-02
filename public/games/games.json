@@ -102,5 +102,13 @@
         "description": "Eres el demonio que viola la 2ª ley: abre la puerta en el momento exacto para separar partículas rápidas (calor) de lentas (frío). Pero cada decisión consume tu reserva de información.",
         "mechanic": "Ordenamiento termodinámico en tiempo real — el jugador es Maxwell's Demon separando distribución Maxwell-Boltzmann real (N₂ 300K), con entropía de información como recurso finito",
         "emoji": "😈"
+    },
+    {
+        "id": "014-automata",
+        "title": "Autómata",
+        "date": "2026-03-02",
+        "description": "Las plataformas son generadas por la Regla 30 de Wolfram — el autómata celular más caótico del universo, matemáticamente indistinguible del ruido aleatorio. Sobrevive sobre las celdas vivas mientras el caos sube.",
+        "mechanic": "Plataformas generadas en tiempo real por la Regla 30 de Wolfram — el jugador surfea el autómata celular más impredecible de la matemática",
+        "emoji": "🤖"
     }
 ]

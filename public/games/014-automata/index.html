@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Autómata - Mierdijuegos</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a0a;
+    color: #00ff41;
+    font-family: 'Courier New', monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    overflow: hidden;
+    touch-action: none;
+  }
+  canvas { display: block; touch-action: none; }
+  #ui {
+    position: fixed; top: 0; left: 0; right: 0;
+    display: flex; justify-content: space-between;
+    padding: 8px 14px;
+    font-size: 14px;
+    z-index: 10;
+    background: linear-gradient(rgba(10,10,10,0.9), transparent);
+  }
+  #ui span { color: #00ff41; text-shadow: 0 0 8px #00ff41; }
+  #screen {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: rgba(10,10,10,0.96);
+    z-index: 20;
+    text-align: center;
+    padding: 24px;
+  }
+  #screen h1 { font-size: 2.4em; color: #00ff41; text-shadow: 0 0 20px #00ff41; margin-bottom: 12px; }
+  #screen .sub { font-size: 0.85em; color: #00ff41aa; margin-bottom: 6px; }
+  #screen p { font-size: 0.95em; color: #ccc; max-width: 320px; margin-bottom: 20px; line-height: 1.5; }
+  #screen .rule-box {
+    background: #111; border: 1px solid #00ff4144;
+    border-radius: 8px; padding: 12px 16px;
+    margin-bottom: 20px; max-width: 320px;
+    font-size: 0.8em; color: #00ff4199; text-align: left;
+  }
+  .rule-vis {
+    display: flex; gap: 4px; align-items: center;
+    margin: 6px 0; font-size: 1em;
+  }
+  .cell-icon {
+    width: 18px; height: 18px; border: 1px solid #00ff4144;
+    display: inline-block;
+  }
+  .alive { background: #00ff41; }
+  .dead { background: #0a0a0a; }
+  btn {
+    display: inline-block;
+    background: #00ff41; color: #0a0a0a;
+    border: none; padding: 14px 32px;
+    font-size: 1.1em; font-family: 'Courier New', monospace;
+    font-weight: bold; cursor: pointer; border-radius: 4px;
+    margin: 6px;
+  }
+  #over-msg { color: #ff00ff; font-size: 1.1em; margin-bottom: 14px; text-shadow: 0 0 10px #ff00ff; }
+  #over-score { color: #ffff00; font-size: 1.6em; font-weight: bold; margin-bottom: 10px; }
+  #ctrl {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    display: flex; height: 80px; z-index: 10;
+  }
+  #ctrl-left, #ctrl-right {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    font-size: 2em; opacity: 0.3; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #ctrl-left:active, #ctrl-right:active { opacity: 0.7; background: rgba(0,255,65,0.1); }
+  a.back { color: #00ffff; font-size: 0.85em; text-decoration: none; margin-top: 10px; display: block; }
+</style>
+</head>
+<body>
+
+<div id="ui">
+  <span>GENERACIÓN: <b id="gen-count">0</b></span>
+  <span>PUNTOS: <b id="score-ui">0</b></span>
+  <span>NIVEL: <b id="level-ui">1</b></span>
+</div>
+
+<canvas id="c"></canvas>
+
+<div id="ctrl">
+  <div id="ctrl-left">◀</div>
+  <div id="ctrl-right">▶</div>
+</div>
+
+<!-- START SCREEN -->
+<div id="screen">
+  <div class="sub">mierdijuegos.com</div>
+  <h1>AUTÓMATA</h1>
+  <p>Las plataformas son generadas por la <strong style="color:#00ff41">Regla 30 de Wolfram</strong> — el autómata celular más caótico del universo. Cada fila emerge de la anterior con tres simples reglas. El resultado es indistinguible del ruido aleatorio.</p>
+  <div class="rule-box">
+    <b style="color:#00ff41">Regla 30:</b><br>
+    <div style="margin-top:6px;font-size:0.9em;color:#aaa">
+      Cada celda mira a sí misma y sus dos vecinas:<br>
+      <span style="color:#00ff41">■■■ → □ &nbsp; ■■□ → □ &nbsp; ■□■ → □ &nbsp; ■□□ → ■</span><br>
+      <span style="color:#00ff41">□■■ → ■ &nbsp; □■□ → ■ &nbsp; □□■ → ■ &nbsp; □□□ → □</span>
+    </div>
+  </div>
+  <p style="font-size:0.85em;color:#aaa">Sobrevive sobre las celdas <span style="color:#00ff41">vivas (verdes)</span>. Si pisas el vacío, caes. Las filas suben. Aprende el patrón... o muere en el caos.</p>
+  <btn id="btn-start" onclick="startGame()">INICIAR</btn>
+</div>
+
+<!-- GAME OVER SCREEN -->
+<div id="screen-over" style="display:none">
+  <div class="sub">mierdijuegos.com</div>
+  <h1>CAÍSTE</h1>
+  <div id="over-score"></div>
+  <div id="over-msg"></div>
+  <btn onclick="startGame()">REINTENTAR</btn>
+  <a href="/" class="back">← más mierdijuegos</a>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H, COLS, ROWS, CELL, offsetX, playerX, playerY;
+let grid = [], score = 0, gen = 0, level = 1, alive = false;
+let scrollAcc = 0, speed = 0.6;
+let keys = {left: false, right: false};
+let moveTimer = 0, moveCooldown = 8;
+let touchLeftActive = false, touchRightActive = false;
+
+// Rule 30: new cell = left XOR (center OR right)
+function rule30(left, center, right) {
+  const idx = (left << 2) | (center << 1) | right;
+  return (30 >> idx) & 1;
+}
+
+function nextRow(row) {
+  const n = row.length;
+  const next = new Array(n);
+  for (let i = 0; i < n; i++) {
+    const l = row[(i - 1 + n) % n];
+    const c = row[i];
+    const r = row[(i + 1) % n];
+    next[i] = rule30(l, c, r);
+  }
+  return next;
+}
+
+function initGrid() {
+  grid = [];
+  // Start with single 1 in center — classic Rule 30 seed
+  const seed = new Array(COLS).fill(0);
+  seed[Math.floor(COLS / 2)] = 1;
+  grid.push(seed);
+  // Pre-generate enough rows
+  for (let i = 1; i < ROWS + 40; i++) {
+    grid.push(nextRow(grid[grid.length - 1]));
+  }
+}
+
+function resize() {
+  W = Math.min(window.innerWidth, 480);
+  H = window.innerHeight;
+  canvas.width = W;
+  canvas.height = H;
+  COLS = 21; // odd number for symmetry
+  CELL = Math.floor(W / COLS);
+  offsetX = Math.floor((W - COLS * CELL) / 2);
+  ROWS = Math.floor((H - 80) / CELL) + 2;
+}
+
+function startGame() {
+  document.getElementById('screen').style.display = 'none';
+  document.getElementById('screen-over').style.display = 'none';
+  resize();
+  initGrid();
+  // Player starts at top-center on a live cell
+  playerX = Math.floor(COLS / 2);
+  playerY = 2; // row index from top of visible area
+  score = 0; gen = 0; level = 1; alive = true;
+  scrollAcc = 0; speed = 0.6;
+  moveTimer = 0;
+  updateUI();
+  requestAnimationFrame(loop);
+}
+
+function updateUI() {
+  document.getElementById('gen-count').textContent = gen;
+  document.getElementById('score-ui').textContent = score;
+  document.getElementById('level-ui').textContent = level;
+}
+
+// Visual row index: gridRow = viewTop + visualRow
+let viewTop = 0; // which grid row is at the TOP of screen
+let subPixel = 0; // sub-pixel scroll offset (0..CELL)
+
+function getGridRow(visualRow) {
+  return viewTop + visualRow;
+}
+
+function ensureGridRows(needed) {
+  while (grid.length <= needed + 10) {
+    grid.push(nextRow(grid[grid.length - 1]));
+    gen++;
+  }
+}
+
+let lastTime = 0;
+function loop(ts) {
+  if (!alive) return;
+  const dt = Math.min(ts - lastTime, 50);
+  lastTime = ts;
+
+  // Scroll: subPixel increases, when >= CELL → shift viewTop
+  speed = 0.6 + (level - 1) * 0.25;
+  scrollAcc += speed * (dt / 16.67);
+  while (scrollAcc >= CELL) {
+    scrollAcc -= CELL;
+    viewTop++;
+    playerY--; // player stays at same visual row as grid moves up
+    // Ensure we have rows
+    ensureGridRows(viewTop + ROWS + 10);
+    score++;
+    if (score % 80 === 0) { level++; }
+  }
+
+  // Handle movement
+  moveTimer--;
+  if (moveTimer <= 0) {
+    let moved = false;
+    if (keys.left || touchLeftActive) {
+      playerX = Math.max(0, playerX - 1);
+      moved = true;
+    } else if (keys.right || touchRightActive) {
+      playerX = Math.min(COLS - 1, playerX + 1);
+      moved = true;
+    }
+    if (moved) moveTimer = moveCooldown;
+  }
+
+  // Player's visual Y position (in pixels from top)
+  const playerVisualRow = playerY;
+  const playerGridRow = getGridRow(playerVisualRow);
+
+  // Check if player is on a dead cell
+  ensureGridRows(playerGridRow + 5);
+  if (playerGridRow >= 0 && playerGridRow < grid.length) {
+    const cell = grid[playerGridRow][playerX];
+    if (cell === 0) {
+      gameOver();
+      return;
+    }
+  }
+
+  // Player fell off bottom
+  if (playerVisualRow >= ROWS - 1) {
+    gameOver();
+    return;
+  }
+
+  // Keep player from going off top
+  if (playerVisualRow < 1) {
+    playerY = 1;
+  }
+
+  draw(scrollAcc);
+  updateUI();
+  requestAnimationFrame(loop);
+}
+
+function draw(scroll) {
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(0, 0, W, H);
+
+  const topPad = 36; // px below UI bar
+
+  // Draw grid rows
+  for (let vr = -1; vr < ROWS + 2; vr++) {
+    const gr = getGridRow(vr);
+    if (gr < 0 || gr >= grid.length) continue;
+    const row = grid[gr];
+    const y = topPad + vr * CELL - scroll;
+
+    for (let c = 0; c < COLS; c++) {
+      const x = offsetX + c * CELL;
+      if (row[c] === 1) {
+        // alive cell: green with subtle glow
+        const brightness = 0.7 + 0.3 * Math.sin(gr * 0.3 + c * 0.5);
+        ctx.fillStyle = `rgba(0, ${Math.floor(200 + 55 * brightness)}, ${Math.floor(40 + 20 * brightness)}, 0.85)`;
+        ctx.fillRect(x + 1, y + 1, CELL - 2, CELL - 2);
+        // border glow
+        ctx.strokeStyle = `rgba(0,255,65,${0.3 + 0.2 * brightness})`;
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(x + 1, y + 1, CELL - 2, CELL - 2);
+      } else {
+        // dead cell: very dark grid lines
+        ctx.fillStyle = '#111';
+        ctx.fillRect(x, y, CELL, CELL);
+        ctx.strokeStyle = '#1a1a1a';
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(x, y, CELL, CELL);
+      }
+    }
+  }
+
+  // Draw player
+  const px = offsetX + playerX * CELL + CELL / 2;
+  const py = topPad + playerY * CELL - scroll + CELL / 2;
+
+  // Glow
+  const grd = ctx.createRadialGradient(px, py, 0, px, py, CELL * 0.8);
+  grd.addColorStop(0, 'rgba(255, 0, 255, 0.6)');
+  grd.addColorStop(1, 'rgba(255, 0, 255, 0)');
+  ctx.fillStyle = grd;
+  ctx.fillRect(px - CELL, py - CELL, CELL * 2, CELL * 2);
+
+  // Player diamond
+  const r = CELL * 0.4;
+  ctx.beginPath();
+  ctx.moveTo(px, py - r);
+  ctx.lineTo(px + r, py);
+  ctx.lineTo(px, py + r);
+  ctx.lineTo(px - r, py);
+  ctx.closePath();
+  ctx.fillStyle = '#ff00ff';
+  ctx.fill();
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Preview line: show the NEXT visible row below player with a dotted outline
+  const previewRow = getGridRow(playerVisualRow + 1);
+  if (previewRow >= 0 && previewRow < grid.length) {
+    const row = grid[previewRow];
+    const y = topPad + (playerVisualRow + 1) * CELL - scroll;
+    for (let c = 0; c < COLS; c++) {
+      if (row[c] === 0) {
+        const x = offsetX + c * CELL;
+        ctx.fillStyle = 'rgba(255,0,64,0.18)';
+        ctx.fillRect(x + 1, y + 1, CELL - 2, CELL - 2);
+      }
+    }
+  }
+
+  // Footer gradient (hide bottom controls area)
+  const grad = ctx.createLinearGradient(0, H - 120, 0, H);
+  grad.addColorStop(0, 'rgba(10,10,10,0)');
+  grad.addColorStop(1, 'rgba(10,10,10,0.95)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, H - 120, W, 120);
+}
+
+function gameOver() {
+  alive = false;
+  const msgs = [
+    "La entropía siempre gana.",
+    "El caos no tiene favoritos.",
+    "Wolfram predijo tu derrota.",
+    "Eres menos predecible que Rule 30. Casi.",
+    "Paso 10.000: la autopista aparece. Tú no llegaste.",
+    "El orden emerge del caos. Tú, no tanto.",
+    "30 en binario: 00011110. ¿Lo ves ahora?",
+    "La Regla 30 se usó para generar tu mala suerte.",
+    "Stephen Wolfram está decepcionado.",
+    "No toda celda vive. Tú tampoco."
+  ];
+  document.getElementById('over-score').textContent = `${score} generaciones sobrevividas`;
+  document.getElementById('over-msg').textContent = msgs[Math.floor(Math.random() * msgs.length)];
+  document.getElementById('screen-over').style.display = 'flex';
+  document.getElementById('screen-over').style.flexDirection = 'column';
+  document.getElementById('screen-over').style.alignItems = 'center';
+  document.getElementById('screen-over').style.justifyContent = 'center';
+}
+
+// Keyboard
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = true;
+  if (e.key === 'ArrowRight' || e.key === 'd') keys.right = true;
+});
+document.addEventListener('keyup', e => {
+  if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = false;
+  if (e.key === 'ArrowRight' || e.key === 'd') keys.right = false;
+});
+
+// Touch controls
+const ctrlL = document.getElementById('ctrl-left');
+const ctrlR = document.getElementById('ctrl-right');
+ctrlL.addEventListener('touchstart', e => { e.preventDefault(); touchLeftActive = true; }, {passive:false});
+ctrlL.addEventListener('touchend', e => { e.preventDefault(); touchLeftActive = false; }, {passive:false});
+ctrlR.addEventListener('touchstart', e => { e.preventDefault(); touchRightActive = true; }, {passive:false});
+ctrlR.addEventListener('touchend', e => { e.preventDefault(); touchRightActive = false; }, {passive:false});
+
+// Swipe on canvas
+let touchStartX = 0;
+canvas.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, {passive:true});
+canvas.addEventListener('touchmove', e => {
+  const dx = e.touches[0].clientX - touchStartX;
+  if (Math.abs(dx) > 10) {
+    touchLeftActive = dx < 0;
+    touchRightActive = dx > 0;
+  }
+}, {passive:true});
+canvas.addEventListener('touchend', e => {
+  touchLeftActive = false;
+  touchRightActive = false;
+}, {passive:true});
+
+window.addEventListener('resize', () => {
+  if (alive) { resize(); }
+});
+</script>
+</body>
+</html>

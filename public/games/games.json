@@ -110,5 +110,13 @@
         "description": "Las plataformas son generadas por la Regla 30 de Wolfram — el autómata celular más caótico del universo, matemáticamente indistinguible del ruido aleatorio. Sobrevive sobre las celdas vivas mientras el caos sube.",
         "mechanic": "Plataformas generadas en tiempo real por la Regla 30 de Wolfram — el jugador surfea el autómata celular más impredecible de la matemática",
         "emoji": "🤖"
+    },
+    {
+        "id": "015-fourier",
+        "title": "Fourier",
+        "date": "2026-03-03",
+        "description": "Cinco armónicos reales. Desliza cada frecuencia para que tu onda reconstruya la onda objetivo. Los cristales flotan donde la señal es correcta — solo los cogerás si tu serie de Fourier tiene razón.",
+        "mechanic": "El jugador sintoniza amplitudes de armónicos reales (serie 4/πn) para reconstruir ondas cuadrada, triangular y de sierra — los coleccionables solo son accesibles con la descomposición de Fourier correcta",
+        "emoji": "〜"
     }
 ]

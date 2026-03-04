@@ -118,5 +118,13 @@
         "description": "Cinco armónicos reales. Desliza cada frecuencia para que tu onda reconstruya la onda objetivo. Los cristales flotan donde la señal es correcta — solo los cogerás si tu serie de Fourier tiene razón.",
         "mechanic": "El jugador sintoniza amplitudes de armónicos reales (serie 4/πn) para reconstruir ondas cuadrada, triangular y de sierra — los coleccionables solo son accesibles con la descomposición de Fourier correcta",
         "emoji": "〜"
+    },
+    {
+        "id": "016-morfogenesis",
+        "title": "Morfogénesis",
+        "date": "2026-03-04",
+        "description": "Siembra química V en un lienzo vivo. Las ecuaciones de Turing de Gray-Scott generan patrones reales de coral y leopardo. Recoge cristales que solo florecen en la zona dulce de la reacción — sin dejar que V devore todo el U.",
+        "mechanic": "Simulación Gray-Scott de reacción-difusión en tiempo real (Dᵤ=0.16, D_v=0.08, F=0.035, k=0.060) — el jugador siembra el catalizador V y recoge cristales que emergen en el borde caótico entre orden y colapso químico",
+        "emoji": "🧬"
     }
 ]

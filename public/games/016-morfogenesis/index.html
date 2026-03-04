@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Morfogénesis - Mierdijuegos</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0a;color:#fff;font-family:'Courier New',monospace;overflow:hidden;touch-action:none;width:100vw;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center}
+#hud{position:fixed;top:0;left:0;width:100%;display:flex;justify-content:space-between;align-items:center;padding:10px 16px;background:rgba(0,0,0,0.7);z-index:10;font-size:13px}
+.hud-item{display:flex;flex-direction:column;align-items:center;gap:2px}
+.hud-label{color:#666;font-size:10px;text-transform:uppercase;letter-spacing:1px}
+.hud-val{font-size:16px;font-weight:bold}
+#score-v{color:#ff00ff}
+#life-v{color:#00ff41}
+#time-v{color:#00ffff}
+canvas{display:block;cursor:crosshair;image-rendering:pixelated;image-rendering:crisp-edges}
+#overlay{position:fixed;inset:0;background:rgba(0,0,0,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:20;padding:24px;text-align:center}
+#overlay h1{font-size:2.2em;color:#ff00ff;margin-bottom:8px;letter-spacing:2px}
+#overlay .subtitle{font-size:0.85em;color:#888;margin-bottom:18px;letter-spacing:1px}
+#overlay .desc{font-size:0.9em;color:#ccc;max-width:340px;line-height:1.6;margin-bottom:8px}
+.chemical{font-size:0.8em;color:#666;margin-bottom:20px;max-width:340px;line-height:1.5}
+.chemical span{color:#ffff00}
+.btn{background:transparent;border:2px solid #ff00ff;color:#ff00ff;padding:14px 32px;font-size:1em;font-family:inherit;cursor:pointer;letter-spacing:2px;text-transform:uppercase;transition:all 0.2s;margin:6px;border-radius:2px}
+.btn:hover,.btn:active{background:#ff00ff;color:#000}
+.btn.secondary{border-color:#444;color:#666;font-size:0.75em;padding:8px 16px}
+.btn.secondary:hover{border-color:#888;color:#fff;background:transparent}
+#overlay .score-big{font-size:3em;color:#ff00ff;margin:16px 0}
+#overlay .msg{font-size:1em;color:#ffff00;margin-bottom:20px}
+#bar-wrap{width:100%;max-width:200px;height:8px;background:#222;border-radius:4px;margin-top:4px;overflow:hidden}
+#life-bar{height:100%;background:linear-gradient(90deg,#00ff41,#ffff00,#ff0040);border-radius:4px;transition:width 0.1s}
+#brush-hint{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);color:#333;font-size:11px;letter-spacing:1px;pointer-events:none}
+</style>
+</head>
+<body>
+
+<div id="hud">
+  <div class="hud-item">
+    <span class="hud-label">Cristales</span>
+    <span class="hud-val" id="score-v">0</span>
+  </div>
+  <div class="hud-item">
+    <span class="hud-label">U vivo</span>
+    <div id="bar-wrap"><div id="life-bar" style="width:100%"></div></div>
+  </div>
+  <div class="hud-item">
+    <span class="hud-label">Tiempo</span>
+    <span class="hud-val" id="time-v">60</span>
+  </div>
+</div>
+
+<canvas id="c"></canvas>
+<div id="brush-hint">TOCA para sembrar V • La química hace el resto</div>
+
+<div id="overlay" id="start">
+  <h1>Morfogénesis</h1>
+  <div class="subtitle">Ecuaciones de Turing — Gray &amp; Scott, 1984</div>
+  <div class="desc">
+    Dos sustancias químicas reales reaccionan en tiempo real según las ecuaciones de Turing que explican las manchas del leopardo y las rayas del pez.
+  </div>
+  <div class="chemical">
+    <span>∂U/∂t = Dᵤ∇²U − UV² + F(1−U)</span><br>
+    <span>∂V/∂t = D_v∇²V + UV² − (F+k)V</span><br><br>
+    Siembra <span style="color:#ff8800">química V</span> para generar patrones.<br>
+    Recoge <span style="color:#00ffff">cristales</span> que aparecen en la <span>zona dulce</span> (V=0.3–0.5).<br>
+    Si <span style="color:#00ff41">U</span> se agota, todo muere. Si <span style="color:#ff8800">V</span> lo invade, también.
+  </div>
+  <button class="btn" id="start-btn">▶ SEMBRAR</button>
+  <br>
+  <a href="/" style="color:#333;font-size:0.75em;text-decoration:none;margin-top:12px">← más mierdijuegos</a>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const overlay = document.getElementById('overlay');
+
+// --- GRID SETUP ---
+const N = 100; // grid size
+const CELL = Math.min(Math.floor(Math.min(window.innerWidth, window.innerHeight * 0.85) / N), 6);
+const W = N * CELL, H = N * CELL;
+canvas.width = W; canvas.height = H;
+
+// HUD refs
+const scoreEl = document.getElementById('score-v');
+const lifeBar = document.getElementById('life-bar');
+const timeEl = document.getElementById('time-v');
+
+// Gray-Scott Turing pattern params: coral/spots regime
+const Du = 0.16, Dv = 0.08, F = 0.035, k = 0.060;
+const dt = 1.0;
+
+let U = new Float32Array(N * N);
+let V = new Float32Array(N * N);
+let U2 = new Float32Array(N * N);
+let V2 = new Float32Array(N * N);
+
+let gameState = 'start'; // start | playing | gameover
+let score = 0;
+let timeLeft = 60;
+let crystals = [];
+let lastTime = 0;
+let timerAcc = 0;
+let paintQueue = [];
+let brushRadius = 3;
+let stepAcc = 0;
+
+function idx(x, y) {
+  return ((y + N) % N) * N + ((x + N) % N);
+}
+
+function initGrid() {
+  // Fill U=1, V=0 everywhere
+  U.fill(1.0);
+  V.fill(0.0);
+  // Seed a few random spots of V to kickstart the reaction
+  for (let i = 0; i < 8; i++) {
+    const cx = 5 + Math.floor(Math.random() * (N - 10));
+    const cy = 5 + Math.floor(Math.random() * (N - 10));
+    for (let dy = -2; dy <= 2; dy++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        const ii = idx(cx + dx, cy + dy);
+        U[ii] = 0.5;
+        V[ii] = 0.25;
+      }
+    }
+  }
+}
+
+function stepGrayScott(steps) {
+  for (let s = 0; s < steps; s++) {
+    for (let y = 0; y < N; y++) {
+      for (let x = 0; x < N; x++) {
+        const i = y * N + x;
+        const u = U[i], v = V[i];
+        // Laplacian (5-point stencil, wrapped)
+        const lapU = U[idx(x-1,y)] + U[idx(x+1,y)] + U[idx(x,y-1)] + U[idx(x,y+1)] - 4*u;
+        const lapV = V[idx(x-1,y)] + V[idx(x+1,y)] + V[idx(x,y-1)] + V[idx(x,y+1)] - 4*v;
+        const uvv = u * v * v;
+        U2[i] = u + dt * (Du * lapU - uvv + F * (1 - u));
+        V2[i] = v + dt * (Dv * lapV + uvv - (F + k) * v);
+        // clamp
+        if (U2[i] < 0) U2[i] = 0; if (U2[i] > 1) U2[i] = 1;
+        if (V2[i] < 0) V2[i] = 0; if (V2[i] > 1) V2[i] = 1;
+      }
+    }
+    // swap
+    let tmp = U; U = U2; U2 = tmp;
+    tmp = V; V = V2; V2 = tmp;
+  }
+}
+
+function applyBrush(gx, gy) {
+  for (let dy = -brushRadius; dy <= brushRadius; dy++) {
+    for (let dx = -brushRadius; dx <= brushRadius; dx++) {
+      if (dx*dx + dy*dy <= brushRadius*brushRadius) {
+        const ii = idx(gx+dx, gy+dy);
+        U[ii] = Math.max(0, U[ii] - 0.5);
+        V[ii] = Math.min(1, V[ii] + 0.5);
+      }
+    }
+  }
+}
+
+// --- CRYSTAL SPAWNING ---
+function spawnCrystals() {
+  // Crystals appear at cells where V is in sweet spot 0.3–0.5
+  // Scan a random sample
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const x = Math.floor(Math.random() * N);
+    const y = Math.floor(Math.random() * N);
+    const v = V[idx(x, y)];
+    if (v > 0.28 && v < 0.52 && crystals.length < 8) {
+      // check not too close to existing
+      let ok = true;
+      for (const c of crystals) {
+        if (Math.abs(c.gx - x) < 5 && Math.abs(c.gy - y) < 5) { ok = false; break; }
+      }
+      if (ok) {
+        crystals.push({ gx: x, gy: y, px: x * CELL + CELL/2, py: y * CELL + CELL/2, life: 8.0 + Math.random()*4 });
+      }
+    }
+  }
+}
+
+function updateCrystals(dt_s) {
+  for (let i = crystals.length - 1; i >= 0; i--) {
+    crystals[i].life -= dt_s;
+    if (crystals[i].life <= 0) crystals.splice(i, 1);
+  }
+}
+
+// --- RENDER ---
+const imageData = ctx.createImageData(W, H);
+const pixels = imageData.data;
+
+function render() {
+  // Draw grid - map U/V to color
+  // Color scheme: U high = blue-ish, V high = orange/magenta
+  // Background (#0a0a0a) when both near 0 (shouldn't happen much)
+  for (let y = 0; y < N; y++) {
+    for (let x = 0; x < N; x++) {
+      const i = y * N + x;
+      const u = U[i], v = V[i];
+      // Color: lerp from deep blue (high U, low V) to magenta/orange (high V)
+      const r = Math.floor(v * 255 * 1.0);
+      const g = Math.floor(u * v * 80 + v * 30);
+      const b = Math.floor(u * 180 * (1 - v * 0.7));
+      // pixel base
+      const px0 = (y * CELL) * W * 4 + x * CELL * 4;
+      for (let cy = 0; cy < CELL; cy++) {
+        for (let cx = 0; cx < CELL; cx++) {
+          const pi = px0 + cy * W * 4 + cx * 4;
+          pixels[pi] = r;
+          pixels[pi+1] = g;
+          pixels[pi+2] = b;
+          pixels[pi+3] = 255;
+        }
+      }
+    }
+  }
+  ctx.putImageData(imageData, 0, 0);
+
+  // Draw crystals
+  const now = performance.now() / 1000;
+  for (const c of crystals) {
+    const pulse = 0.7 + 0.3 * Math.sin(now * 5 + c.gx);
+    const lifeRatio = Math.min(c.life / 4, 1);
+    ctx.save();
+    ctx.globalAlpha = lifeRatio * pulse;
+    ctx.strokeStyle = '#00ffff';
+    ctx.lineWidth = 2;
+    const sz = CELL * 2.5;
+    ctx.beginPath();
+    ctx.moveTo(c.px, c.py - sz);
+    ctx.lineTo(c.px + sz * 0.6, c.py);
+    ctx.lineTo(c.px, c.py + sz);
+    ctx.lineTo(c.px - sz * 0.6, c.py);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.globalAlpha = lifeRatio * pulse * 0.4;
+    ctx.fillStyle = '#00ffff';
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+// --- U HEALTH ---
+function measureUHealth() {
+  let sum = 0;
+  for (let i = 0; i < N * N; i++) sum += U[i];
+  return sum / (N * N); // avg U: starts near 1, drops as V spreads
+}
+
+// --- TOUCH/MOUSE ---
+function getGridPos(ex, ey) {
+  const rect = canvas.getBoundingClientRect();
+  const gx = Math.floor((ex - rect.left) / CELL);
+  const gy = Math.floor((ey - rect.top) / CELL);
+  return { gx, gy };
+}
+
+let painting = false;
+canvas.addEventListener('mousedown', e => { painting = true; const p = getGridPos(e.clientX, e.clientY); applyBrush(p.gx, p.gy); });
+canvas.addEventListener('mousemove', e => { if (!painting || gameState !== 'playing') return; const p = getGridPos(e.clientX, e.clientY); applyBrush(p.gx, p.gy); });
+canvas.addEventListener('mouseup', () => { painting = false; });
+canvas.addEventListener('touchstart', e => { e.preventDefault(); painting = true; const t = e.touches[0]; const p = getGridPos(t.clientX, t.clientY); applyBrush(p.gx, p.gy); }, {passive: false});
+canvas.addEventListener('touchmove', e => { e.preventDefault(); if (gameState !== 'playing') return; const t = e.touches[0]; const p = getGridPos(t.clientX, t.clientY); applyBrush(p.gx, p.gy); }, {passive: false});
+canvas.addEventListener('touchend', () => { painting = false; });
+
+// Crystal collection check
+function checkCollect() {
+  if (!painting) return;
+  // already handled: on each brush stroke check proximity to crystals
+}
+
+canvas.addEventListener('touchstart', collectNear, {passive: false});
+canvas.addEventListener('mousedown', collectNear);
+canvas.addEventListener('touchmove', e => { if(e.touches[0]) collectNearXY(e.touches[0].clientX, e.touches[0].clientY); }, {passive: false});
+canvas.addEventListener('mousemove', e => { if(painting) collectNearXY(e.clientX, e.clientY); });
+
+function collectNear(e) {
+  const src = e.touches ? e.touches[0] : e;
+  collectNearXY(src.clientX, src.clientY);
+}
+function collectNearXY(cx, cy) {
+  if (gameState !== 'playing') return;
+  const rect = canvas.getBoundingClientRect();
+  const px = cx - rect.left, py = cy - rect.top;
+  for (let i = crystals.length - 1; i >= 0; i--) {
+    const c = crystals[i];
+    const dx = c.px - px, dy = c.py - py;
+    if (dx*dx + dy*dy < (CELL * 4) * (CELL * 4)) {
+      // Check V is still in sweet spot
+      const v = V[idx(c.gx, c.gy)];
+      score++;
+      scoreEl.textContent = score;
+      crystals.splice(i, 1);
+      playCollect();
+    }
+  }
+}
+
+// --- AUDIO ---
+let audioCtx;
+function getAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+function playCollect() {
+  try {
+    const ac = getAudio();
+    const o = ac.createOscillator();
+    const g = ac.createGain();
+    o.connect(g); g.connect(ac.destination);
+    o.frequency.setValueAtTime(880, ac.currentTime);
+    o.frequency.exponentialRampToValueAtTime(1760, ac.currentTime + 0.1);
+    g.gain.setValueAtTime(0.3, ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.2);
+    o.start(); o.stop(ac.currentTime + 0.2);
+  } catch(e) {}
+}
+function playDie() {
+  try {
+    const ac = getAudio();
+    const o = ac.createOscillator();
+    const g = ac.createGain();
+    o.type = 'sawtooth';
+    o.connect(g); g.connect(ac.destination);
+    o.frequency.setValueAtTime(200, ac.currentTime);
+    o.frequency.exponentialRampToValueAtTime(40, ac.currentTime + 0.8);
+    g.gain.setValueAtTime(0.4, ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.8);
+    o.start(); o.stop(ac.currentTime + 0.8);
+  } catch(e) {}
+}
+
+// --- GAME LOOP ---
+let spawnTimer = 0;
+
+function loop(ts) {
+  if (gameState !== 'playing') { requestAnimationFrame(loop); return; }
+  const dt_ms = Math.min(ts - lastTime, 50);
+  lastTime = ts;
+  const dt_s = dt_ms / 1000;
+
+  // Simulate (more steps = faster chemistry)
+  stepAcc += dt_ms;
+  if (stepAcc > 16) {
+    stepGrayScott(4);
+    stepAcc = 0;
+  }
+
+  // Timer
+  timerAcc += dt_s;
+  if (timerAcc >= 1) {
+    timerAcc -= 1;
+    timeLeft--;
+    timeEl.textContent = timeLeft;
+  }
+
+  // Spawn crystals
+  spawnTimer += dt_s;
+  if (spawnTimer > 2.5) {
+    spawnTimer = 0;
+    spawnCrystals();
+  }
+  updateCrystals(dt_s);
+
+  const uHealth = measureUHealth();
+  lifeBar.style.width = (uHealth * 100).toFixed(1) + '%';
+  let vSum = 0;
+  for (let i = 0; i < N*N; i++) vSum += V[i];
+  const avgV = vSum / (N * N);
+  if (uHealth < 0.12 || avgV > 0.55 || timeLeft <= 0) {
+    endGame(uHealth < 0.12 || avgV > 0.55 ? 'consumed' : 'time');
+    return;
+  }
+
+  render();
+  requestAnimationFrame(loop);
+}
+
+function endGame(reason) {
+  gameState = 'gameover';
+  playDie();
+
+  const msgs = {
+    consumed: [
+      "V devoró hasta el último átomo de U. La entropía gana siempre.",
+      "La química no perdona. El caos se ha impuesto.",
+      "Turing predijo que esto pasaría. Tú le diste la razón.",
+      "El patrón te ha consumido. Hermoso, pero fatal."
+    ],
+    time: [
+      "El tiempo se agotó. La reacción sigue sin ti.",
+      "60 segundos en el cosmos químico. No está mal.",
+      "La química nunca para, aunque tú sí.",
+    ]
+  };
+  const arr = msgs[reason] || msgs.time;
+  const msg = arr[Math.floor(Math.random() * arr.length)];
+
+  overlay.innerHTML = `
+    <h1>Reacción Completa</h1>
+    <div class="subtitle">MORFOGÉNESIS — ECUACIONES DE TURING</div>
+    <div class="score-big">💎 ${score}</div>
+    <div class="msg">${msg}</div>
+    <button class="btn" onclick="startGame()">↺ REPETIR</button>
+    <br>
+    <a href="/" style="color:#444;font-size:0.75em;text-decoration:none;margin-top:16px">← más mierdijuegos</a>
+  `;
+  overlay.style.display = 'flex';
+}
+
+function startGame() {
+  score = 0;
+  timeLeft = 60;
+  timerAcc = 0;
+  spawnTimer = 0;
+  crystals = [];
+  scoreEl.textContent = '0';
+  timeEl.textContent = '60';
+  lifeBar.style.width = '100%';
+  initGrid();
+  gameState = 'playing';
+  overlay.style.display = 'none';
+  lastTime = performance.now();
+  requestAnimationFrame(loop);
+}
+
+// Start button
+document.getElementById('start-btn').addEventListener('click', startGame);
+
+// Init render a static preview
+initGrid();
+render();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Lissajous — Sintonía</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a0a;
+    color: #fff;
+    font-family: 'Courier New', monospace;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    height: 100vh; overflow: hidden;
+    touch-action: none;
+  }
+  canvas { display: block; }
+  #ui {
+    position: fixed; top: 0; left: 0; right: 0;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 14px;
+    font-size: 14px;
+    z-index: 10;
+    pointer-events: none;
+  }
+  #score-display { color: #00ff41; font-size: 16px; font-weight: bold; }
+  #ratio-display { color: #00ffff; font-size: 18px; font-weight: bold; letter-spacing: 2px; }
+  #timer-display { color: #ff00ff; font-size: 16px; font-weight: bold; }
+  #screen {
+    position: fixed; inset: 0;
+    background: #0a0a0a;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center; padding: 24px;
+    z-index: 20;
+  }
+  #screen h1 { color: #00ffff; font-size: clamp(2rem, 7vw, 3rem); margin-bottom: 8px; letter-spacing: 4px; }
+  #screen .subtitle { color: #ff00ff; font-size: 1rem; margin-bottom: 20px; }
+  #screen p { color: #aaa; font-size: 0.85rem; line-height: 1.7; max-width: 320px; margin-bottom: 28px; }
+  #screen em { color: #00ff41; font-style: normal; }
+  button {
+    background: transparent; border: 2px solid #00ffff; color: #00ffff;
+    padding: 12px 32px; font-family: inherit; font-size: 1rem;
+    cursor: pointer; letter-spacing: 2px; text-transform: uppercase;
+    transition: all 0.2s;
+  }
+  button:hover, button:active { background: #00ffff; color: #0a0a0a; }
+  #controls {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    display: flex; height: 80px;
+    z-index: 10;
+    pointer-events: auto;
+  }
+  .ctrl-zone {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    font-size: 1.8rem; user-select: none;
+    border: 1px solid rgba(255,255,255,0.04);
+    background: rgba(255,255,255,0.02);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .ctrl-zone:active { background: rgba(0,255,255,0.08); }
+  #ctrl-a-down { color: #ff00ff; }
+  #ctrl-a-up   { color: #ff00ff; }
+  #ctrl-b-down { color: #ffff00; }
+  #ctrl-b-up   { color: #ffff00; }
+  .label-a { color: #ff00ff; }
+  .label-b { color: #ffff00; }
+  #final-score { color: #00ff41; font-size: 2.5rem; margin: 12px 0; }
+  #funny { color: #ff00ff; font-size: 0.9rem; margin-bottom: 24px; }
+  #back-link { color: #555; font-size: 0.8rem; margin-top: 16px; text-decoration: none; }
+  #back-link:hover { color: #00ffff; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<!-- START SCREEN -->
+<div id="screen" id="start-screen">
+  <h1>LISSAJOUS</h1>
+  <div class="subtitle">Sintonía</div>
+  <p>
+    Eres un punto atrapado en una curva de Lissajous: <em>x = sin(a·t + δ), y = sin(b·t)</em><br><br>
+    Los cristales flotan en posiciones que solo puedes alcanzar con la <em>frecuencia correcta</em>.<br><br>
+    Ajusta <span class="label-a">A</span> y <span class="label-b">B</span> para sintonizar la curva y recoger los cristales.<br><br>
+    <em>Tienes 45 segundos. La física no negocia.</em>
+  </p>
+  <button id="btn-start">SINTONIZAR</button>
+</div>
+
+<!-- GAME OVER SCREEN -->
+<div id="gameover-screen" class="hidden">
+  <h1>GAME OVER</h1>
+  <div id="final-score">0</div>
+  <div id="funny"></div>
+  <button id="btn-retry">REINTENTAR</button>
+  <br>
+  <a href="/" id="back-link">← más mierdijuegos</a>
+</div>
+
+<!-- HUD -->
+<div id="ui" class="hidden">
+  <div id="score-display">0 pts</div>
+  <div id="ratio-display"><span class="label-a">A</span>:<span class="label-b">B</span> = <span id="ratio-val">1:1</span></div>
+  <div id="timer-display">45s</div>
+</div>
+
+<!-- CANVAS -->
+<canvas id="c"></canvas>
+
+<!-- CONTROLS -->
+<div id="controls" class="hidden">
+  <div class="ctrl-zone" id="ctrl-a-down">A −</div>
+  <div class="ctrl-zone" id="ctrl-a-up">A +</div>
+  <div class="ctrl-zone" id="ctrl-b-down">B −</div>
+  <div class="ctrl-zone" id="ctrl-b-up">B +</div>
+</div>
+
+<script>
+// ---- CONFIG ----
+const MAX_A = 7, MIN_A = 1;
+const MAX_B = 7, MIN_B = 1;
+const CRYSTAL_RADIUS = 18;
+const TOTAL_TIME = 45;
+const TRAIL_SAMPLES = 800;
+
+// Funny messages
+const FUNNIES = [
+  "Tu señal era ruido blanco.",
+  "Ni Lissajous te quería.",
+  "La física no perdona la desafinación.",
+  "Armónico incorrecto = vida incorrecta.",
+  "Hasta las ondas se rieron de ti.",
+  "Calculaste mal. Como siempre.",
+  "La sinusoide lloró por ti.",
+  "Ni a:b = 1:1 te salvó.",
+];
+
+// ---- STATE ----
+let canvas, ctx, W, H;
+let gameState = 'start'; // start | playing | gameover
+let freqA = 1, freqB = 1;
+let phase = Math.PI / 4;
+let t = 0;
+let score = 0;
+let timeLeft = TOTAL_TIME;
+let lastTimestamp = 0;
+let crystals = [];
+let trail = [];
+let animId;
+let trailIndex = 0;
+let audioCtx;
+
+// ---- SETUP ----
+function resize() {
+  canvas = document.getElementById('c');
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = W;
+  canvas.height = H;
+  ctx = canvas.getContext('2d');
+}
+
+function lissajousPoint(time) {
+  const cx = W / 2, cy = H / 2;
+  const rx = Math.min(W, H) * 0.38;
+  const ry = Math.min(W, H) * 0.38;
+  return {
+    x: cx + rx * Math.sin(freqA * time + phase),
+    y: cy + ry * Math.sin(freqB * time)
+  };
+}
+
+// Returns the (normalized) lissajous curve as array of points for given a, b
+function buildCurve(a, b, ph, samples = 400) {
+  const pts = [];
+  const cx = W/2, cy = H/2;
+  const r = Math.min(W, H) * 0.38;
+  const period = 2 * Math.PI * (a === b ? 1 : 1 / gcd(a, b));
+  for (let i = 0; i <= samples; i++) {
+    const tt = (i / samples) * period * Math.max(a, b);
+    pts.push({
+      x: cx + r * Math.sin(a * tt + ph),
+      y: cy + r * Math.sin(b * tt)
+    });
+  }
+  return pts;
+}
+
+function gcd(a, b) { return b === 0 ? a : gcd(b, a % b); }
+
+// ---- CRYSTAL GENERATION ----
+// Each crystal is at a point ON a specific Lissajous curve (a,b,phase)
+function spawnCrystal() {
+  // Pick a random valid (a, b) pair — not trivially equal to current
+  const pairs = [
+    [1,1],[1,2],[2,1],[1,3],[3,1],[2,3],[3,2],[1,4],[4,1],[3,4],[4,3],[2,5],[5,2],[3,5],[5,3],[1,6],[6,1],[5,4],[4,5],[5,6],[6,5]
+  ];
+  // Filter to give variety; prefer ones differing from current
+  const shuffled = pairs.sort(() => Math.random() - 0.5);
+  const [a, b] = shuffled[0];
+
+  // Pick a random point along that curve
+  const ph = phase;
+  const period = 2 * Math.PI * Math.max(a, b);
+  const tt = Math.random() * period;
+  const cx = W/2, cy = H/2;
+  const r = Math.min(W,H) * 0.38;
+  const px = cx + r * Math.sin(a * tt + ph);
+  const py = cy + r * Math.sin(b * tt);
+
+  return { x: px, y: py, a, b, ph, tt, life: 1.0, points: a * b + Math.abs(a - b) * 2 + 5 };
+}
+
+function initCrystals() {
+  crystals = [];
+  for (let i = 0; i < 3; i++) crystals.push(spawnCrystal());
+}
+
+// ---- AUDIO ----
+function playTone(freq, type='sine', duration=0.15, volume=0.2) {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    osc.start(); osc.stop(audioCtx.currentTime + duration);
+  } catch(e) {}
+}
+
+function playCollect() {
+  playTone(880, 'sine', 0.2, 0.25);
+  setTimeout(() => playTone(1320, 'sine', 0.15, 0.2), 80);
+}
+
+function playChange(a, b) {
+  // Frequency based on ratio a/b — Lissajous IS music
+  const base = 220;
+  playTone(base * a / b, 'sawtooth', 0.12, 0.15);
+}
+
+// ---- DRAW ----
+function drawBackground() {
+  ctx.fillStyle = 'rgba(10,10,10,0.35)';
+  ctx.fillRect(0, 0, W, H);
+}
+
+function drawGhostCurves() {
+  // Draw faint ghost of each crystal's target curve
+  for (const crys of crystals) {
+    const pts = buildCurve(crys.a, crys.b, crys.ph, 300);
+    ctx.save();
+    ctx.globalAlpha = 0.06 * crys.life;
+    ctx.strokeStyle = crystalColor(crys);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 0; i < pts.length; i++) {
+      if (i === 0) ctx.moveTo(pts[i].x, pts[i].y);
+      else ctx.lineTo(pts[i].x, pts[i].y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function crystalColor(crys) {
+  const colors = ['#00ffff','#ff00ff','#ffff00','#00ff41','#ff0040','#ff8800'];
+  return colors[(crys.a * 3 + crys.b * 7) % colors.length];
+}
+
+function drawCurrentCurve() {
+  // Draw the trail as the actual path being traced
+  if (trail.length < 2) return;
+  ctx.save();
+  ctx.lineWidth = 2;
+  const len = trail.length;
+  for (let i = 1; i < len; i++) {
+    const alpha = (i / len) * 0.9;
+    const hue = (freqA * 40 + freqB * 60) % 360;
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = `hsl(${hue},100%,65%)`;
+    ctx.lineWidth = i > len - 20 ? 2.5 : 1.5;
+    ctx.beginPath();
+    ctx.moveTo(trail[i-1].x, trail[i-1].y);
+    ctx.lineTo(trail[i].x, trail[i].y);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawPlayer(pos) {
+  ctx.save();
+  const hue = (freqA * 40 + freqB * 60) % 360;
+  const grd = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, 12);
+  grd.addColorStop(0, `hsl(${hue},100%,80%)`);
+  grd.addColorStop(1, 'transparent');
+  ctx.fillStyle = grd;
+  ctx.beginPath(); ctx.arc(pos.x, pos.y, 12, 0, Math.PI*2); ctx.fill();
+
+  ctx.strokeStyle = `hsl(${hue},100%,70%)`;
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(pos.x, pos.y, 6, 0, Math.PI*2); ctx.stroke();
+  ctx.restore();
+}
+
+function drawCrystals(pos) {
+  for (const crys of crystals) {
+    const color = crystalColor(crys);
+    ctx.save();
+    ctx.globalAlpha = 0.7 + 0.3 * Math.sin(t * 3 + crys.a);
+    // Outer glow
+    const grd = ctx.createRadialGradient(crys.x, crys.y, 0, crys.x, crys.y, CRYSTAL_RADIUS * 2);
+    grd.addColorStop(0, color + 'aa');
+    grd.addColorStop(1, 'transparent');
+    ctx.fillStyle = grd;
+    ctx.beginPath(); ctx.arc(crys.x, crys.y, CRYSTAL_RADIUS * 2, 0, Math.PI*2); ctx.fill();
+
+    // Diamond shape
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    const s = CRYSTAL_RADIUS * 0.7;
+    ctx.beginPath();
+    ctx.moveTo(crys.x, crys.y - s);
+    ctx.lineTo(crys.x + s, crys.y);
+    ctx.lineTo(crys.x, crys.y + s);
+    ctx.lineTo(crys.x - s, crys.y);
+    ctx.closePath();
+    ctx.stroke();
+
+    // Ratio label
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = color;
+    ctx.font = 'bold 11px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${crys.a}:${crys.b}`, crys.x, crys.y + CRYSTAL_RADIUS * 2.5);
+
+    ctx.restore();
+
+    // Collision check
+    const dx = pos.x - crys.x, dy = pos.y - crys.y;
+    if (dx*dx + dy*dy < CRYSTAL_RADIUS * CRYSTAL_RADIUS) {
+      score += crys.points;
+      document.getElementById('score-display').textContent = score + ' pts';
+      playCollect();
+      // Replace this crystal
+      const idx = crystals.indexOf(crys);
+      crystals[idx] = spawnCrystal();
+    }
+  }
+}
+
+function drawRatioHint() {
+  // Show faint label of current a:b on curve
+  ctx.save();
+  ctx.globalAlpha = 0.3;
+  ctx.fillStyle = '#00ffff';
+  ctx.font = '12px Courier New';
+  ctx.textAlign = 'center';
+  ctx.fillText(`sin(${freqA}·t + π/4) × sin(${freqB}·t)`, W/2, H - 90);
+  ctx.restore();
+}
+
+// ---- GAME LOOP ----
+function gameLoop(ts) {
+  if (gameState !== 'playing') return;
+
+  const dt = Math.min((ts - lastTimestamp) / 1000, 0.05);
+  lastTimestamp = ts;
+
+  t += dt * 1.2; // speed of traversal
+  timeLeft -= dt;
+
+  if (timeLeft <= 0) {
+    timeLeft = 0;
+    endGame();
+    return;
+  }
+
+  // Update timer display
+  document.getElementById('timer-display').textContent = Math.ceil(timeLeft) + 's';
+
+  // Update player position
+  const pos = lissajousPoint(t);
+
+  // Update trail
+  trail.push({x: pos.x, y: pos.y});
+  if (trail.length > TRAIL_SAMPLES) trail.shift();
+
+  // Draw
+  drawBackground();
+  drawGhostCurves();
+  drawCurrentCurve();
+  drawCrystals(pos);
+  drawPlayer(pos);
+  drawRatioHint();
+
+  animId = requestAnimationFrame(gameLoop);
+}
+
+// ---- CONTROLS ----
+function changeFreq(which, delta) {
+  if (which === 'a') {
+    freqA = Math.max(MIN_A, Math.min(MAX_A, freqA + delta));
+  } else {
+    freqB = Math.max(MIN_B, Math.min(MAX_B, freqB + delta));
+  }
+  // Reset trail when ratio changes
+  trail = [];
+  document.getElementById('ratio-val').textContent = freqA + ':' + freqB;
+  playChange(freqA, freqB);
+}
+
+function setupControls() {
+  const zones = {
+    'ctrl-a-down': ['a', -1],
+    'ctrl-a-up':   ['a', +1],
+    'ctrl-b-down': ['b', -1],
+    'ctrl-b-up':   ['b', +1],
+  };
+  for (const [id, [which, delta]] of Object.entries(zones)) {
+    const el = document.getElementById(id);
+    el.addEventListener('touchstart', e => { e.preventDefault(); changeFreq(which, delta); }, { passive: false });
+    el.addEventListener('mousedown', e => { e.preventDefault(); changeFreq(which, delta); });
+  }
+}
+
+// ---- GAME STATE ----
+function startGame() {
+  freqA = 1; freqB = 2;
+  t = 0; score = 0; timeLeft = TOTAL_TIME;
+  trail = [];
+  initCrystals();
+  gameState = 'playing';
+  document.getElementById('screen').classList.add('hidden');
+  document.getElementById('gameover-screen').classList.add('hidden');
+  document.getElementById('ui').classList.remove('hidden');
+  document.getElementById('controls').classList.remove('hidden');
+  document.getElementById('ratio-val').textContent = freqA + ':' + freqB;
+  document.getElementById('score-display').textContent = '0 pts';
+  document.getElementById('timer-display').textContent = TOTAL_TIME + 's';
+  lastTimestamp = performance.now();
+  if (animId) cancelAnimationFrame(animId);
+  animId = requestAnimationFrame(gameLoop);
+}
+
+function endGame() {
+  gameState = 'gameover';
+  if (animId) cancelAnimationFrame(animId);
+  document.getElementById('ui').classList.add('hidden');
+  document.getElementById('controls').classList.add('hidden');
+  document.getElementById('final-score').textContent = score + ' pts';
+  document.getElementById('funny').textContent = FUNNIES[Math.floor(Math.random() * FUNNIES.length)];
+  const gs = document.getElementById('gameover-screen');
+  gs.classList.remove('hidden');
+  // Style the gameover screen consistently
+  gs.style.cssText = '';
+}
+
+// ---- INIT ----
+window.addEventListener('DOMContentLoaded', () => {
+  resize();
+  setupControls();
+
+  document.getElementById('btn-start').addEventListener('click', startGame);
+  document.getElementById('btn-retry').addEventListener('click', startGame);
+
+  window.addEventListener('resize', () => {
+    resize();
+    if (gameState === 'playing') { trail = []; initCrystals(); }
+  });
+});
+</script>
+</body>
+</html>

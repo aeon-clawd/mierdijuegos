@@ -126,5 +126,13 @@
         "description": "Siembra química V en un lienzo vivo. Las ecuaciones de Turing de Gray-Scott generan patrones reales de coral y leopardo. Recoge cristales que solo florecen en la zona dulce de la reacción — sin dejar que V devore todo el U.",
         "mechanic": "Simulación Gray-Scott de reacción-difusión en tiempo real (Dᵤ=0.16, D_v=0.08, F=0.035, k=0.060) — el jugador siembra el catalizador V y recoge cristales que emergen en el borde caótico entre orden y colapso químico",
         "emoji": "🧬"
+    },
+    {
+        "id": "017-lissajous",
+        "title": "Lissajous — Sintonía",
+        "date": "2026-03-05",
+        "description": "Eres un punto atrapado en una curva de Lissajous. Los cristales flotan en posiciones solo alcanzables con la frecuencia correcta. Ajusta A y B para sintonizar la curva y coleccionarlos.",
+        "mechanic": "El jugador controla los enteros a:b de x=sin(a·t+δ), y=sin(b·t) — la curva cambia de forma y el punto la recorre; los cristales solo son alcanzables sintonizando la frecuencia correcta",
+        "emoji": "〰️"
     }
 ]

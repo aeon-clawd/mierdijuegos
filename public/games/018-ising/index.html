@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Ising — Transición de Fase</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #0a0a0a;
+  color: #00ff41;
+  font-family: 'Courier New', monospace;
+  overflow: hidden;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+canvas { display: block; touch-action: none; }
+#ui {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  padding: 8px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(0,0,0,0.7);
+  z-index: 10;
+  font-size: 13px;
+}
+#temp-bar-container {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  padding: 10px 14px 14px;
+  background: rgba(0,0,0,0.7);
+  z-index: 10;
+}
+#temp-label {
+  font-size: 11px;
+  margin-bottom: 4px;
+  display: flex;
+  justify-content: space-between;
+}
+#temp-track {
+  width: 100%;
+  height: 28px;
+  background: #111;
+  border: 1px solid #333;
+  border-radius: 4px;
+  position: relative;
+  cursor: pointer;
+}
+#temp-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.05s;
+}
+#temp-thumb {
+  position: absolute;
+  top: -4px;
+  width: 18px;
+  height: 36px;
+  background: #fff;
+  border-radius: 4px;
+  transform: translateX(-50%);
+  cursor: grab;
+  border: 2px solid #555;
+}
+#tc-marker {
+  position: absolute;
+  top: -6px;
+  width: 2px;
+  height: 40px;
+  background: #ffff00;
+  opacity: 0.8;
+}
+#tc-label {
+  position: absolute;
+  top: -20px;
+  font-size: 10px;
+  color: #ffff00;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.screen {
+  position: fixed; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.92);
+  z-index: 100;
+  padding: 24px;
+  text-align: center;
+}
+.screen h1 { font-size: 2em; color: #00ffff; margin-bottom: 12px; }
+.screen h2 { font-size: 1.6em; color: #ff00ff; margin-bottom: 12px; }
+.screen p { font-size: 0.9em; line-height: 1.6; color: #aaa; max-width: 340px; margin-bottom: 16px; }
+.screen .science { font-size: 0.78em; color: #555; max-width: 340px; margin-bottom: 20px; }
+.btn {
+  padding: 14px 32px;
+  background: none;
+  border: 2px solid #00ff41;
+  color: #00ff41;
+  font-family: 'Courier New', monospace;
+  font-size: 1em;
+  cursor: pointer;
+  border-radius: 4px;
+  margin: 6px;
+  text-decoration: none;
+  display: inline-block;
+}
+.btn:hover { background: #00ff41; color: #000; }
+.btn.secondary { border-color: #555; color: #555; font-size: 0.85em; }
+.btn.secondary:hover { background: #555; color: #000; }
+#score-display { color: #ffff00; }
+#temp-val { color: #00ffff; }
+#phase-display { font-size: 11px; }
+</style>
+</head>
+<body>
+
+<!-- Start screen -->
+<div class="screen" id="start-screen">
+  <h1>⚛️ Ising</h1>
+  <h2 style="font-size:1.1em;color:#00ff41">Transición de Fase</h2>
+  <p>Eres una partícula cayendo por una red de espines magnéticos.<br>
+  Controla la <strong style="color:#00ffff">temperatura</strong> para abrir caminos.<br>
+  Muy frío = todo bloqueado. Muy caliente = caos puro.<br>
+  Solo en la <strong style="color:#ffff00">temperatura crítica Tc</strong> emergen los caminos fractales.</p>
+  <p class="science">Modelo de Ising 2D — temperatura crítica real: kT/J ≈ 2.269 (solución exacta de Onsager, 1944)</p>
+  <p style="font-size:0.82em;color:#777">Arrastra la barra inferior para cambiar la temperatura. Toca la pantalla para guiar la partícula.</p>
+  <button class="btn" id="start-btn">INICIAR</button>
+</div>
+
+<!-- Game over screen -->
+<div class="screen" id="gameover-screen" style="display:none">
+  <h1 id="go-emoji">💀</h1>
+  <h2>COLISIÓN</h2>
+  <p id="go-message">...</p>
+  <p style="color:#ffff00;font-size:1.4em" id="go-score">0 pts</p>
+  <p class="science" id="go-phase">Temperatura final: —</p>
+  <button class="btn" id="retry-btn">REINTENTAR</button>
+  <a href="/" class="btn secondary">← más mierdijuegos</a>
+</div>
+
+<!-- Game UI -->
+<div id="ui" style="display:none">
+  <span>ISING</span>
+  <span id="score-display">0 pts</span>
+  <span id="temp-val">T = 0.00</span>
+</div>
+<canvas id="canvas"></canvas>
+<div id="temp-bar-container" style="display:none">
+  <div id="temp-label">
+    <span style="color:#4488ff">❄️ Frío (bloqueado)</span>
+    <span id="phase-display">— fase —</span>
+    <span style="color:#ff4444">🔥 Calor (caos)</span>
+  </div>
+  <div id="temp-track">
+    <div id="temp-fill"></div>
+    <div id="tc-marker"><span id="tc-label">Tc</span></div>
+    <div id="temp-thumb"></div>
+  </div>
+</div>
+
+<script>
+const TC = 2.269; 
+const T_MIN = 0.3;
+const T_MAX = 5.0;
+const T_RANGE = T_MAX - T_MIN;
+const CELL = 18;   
+const COLS = 22;   
+const ROWS = 32;   
+const SCROLL_SPEED = 0.6; 
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const startScreen = document.getElementById('start-screen');
+const gameoverScreen = document.getElementById('gameover-screen');
+const ui = document.getElementById('ui');
+const tempBarContainer = document.getElementById('temp-bar-container');
+const scoreDisplay = document.getElementById('score-display');
+const tempValDisplay = document.getElementById('temp-val');
+const phaseDisplay = document.getElementById('phase-display');
+const tempTrack = document.getElementById('temp-track');
+const tempFill = document.getElementById('temp-fill');
+const tempThumb = document.getElementById('temp-thumb');
+const tcMarker = document.getElementById('tc-marker');
+
+let audioCtx;
+function initAudio() {
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+function playTone(freq, type='sine', vol=0.15, dur=0.12) {
+  if (!audioCtx) return;
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.connect(g); g.connect(audioCtx.destination);
+  o.type = type; o.frequency.value = freq;
+  g.gain.setValueAtTime(vol, audioCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+  o.start(); o.stop(audioCtx.currentTime + dur);
+}
+function playCrystalSound() {
+  playTone(880, 'sine', 0.2, 0.3);
+  setTimeout(() => playTone(1320, 'sine', 0.1, 0.2), 60);
+}
+function playDeathSound() {
+  playTone(180, 'sawtooth', 0.3, 0.4);
+  setTimeout(() => playTone(120, 'sawtooth', 0.2, 0.6), 100);
+}
+function playPhaseShiftSound(t) {
+  const freq = 200 + (t / T_MAX) * 800;
+  playTone(freq, 'triangle', 0.08, 0.15);
+}
+
+function isingRowProbability(T) {
+  
+  
+  
+  
+  if (T >= TC * 0.98) {
+    
+    const excess = (T - TC) / TC;
+    return 0.5 + 0.1 * Math.min(excess, 1.5); 
+  } else {
+    
+    const ratio = T / TC;
+    
+    const mag = Math.pow(Math.max(0, 1 - ratio), 0.125);
+    
+    
+    return 0.5 - 0.45 * mag;
+  }
+}
+
+function generateRow(T, prevRow) {
+  const row = new Array(COLS);
+  const p = isingRowProbability(T);
+  
+  
+  
+  let xi = 1;
+  if (Math.abs(T - TC) > 0.05) {
+    xi = Math.min(8, 0.3 / Math.abs(T - TC));
+  } else {
+    xi = 8; 
+  }
+  
+  
+  row[0] = Math.random() < p ? 1 : -1;
+  for (let c = 1; c < COLS; c++) {
+    
+    const neighborBias = row[c-1] * (1 / xi) * 0.4;
+    const adjustedP = Math.max(0.05, Math.min(0.95, p + neighborBias));
+    row[c] = Math.random() < adjustedP ? 1 : -1;
+  }
+  
+  
+  if (Math.abs(T - TC) < 0.2) {
+    
+    let openCount = row.filter(x => x === 1).length;
+    if (openCount < 3) {
+      const forceOpen = Math.floor(Math.random() * COLS);
+      row[forceOpen] = 1;
+      if (forceOpen > 0) row[forceOpen - 1] = 1;
+    }
+  }
+  
+  return row;
+}
+
+let state = 'start';
+let temperature = TC; 
+let grid = []; 
+let player = { x: 0, y: 0, vx: 0, vy: 0, r: 7 };
+let score = 0;
+let frameCount = 0;
+let scrollOffset = 0;
+let particles = []; 
+let touchX = null, touchY = null;
+let lastTouchX = null;
+
+function initGrid() {
+  grid = [];
+  
+  for (let r = 0; r < ROWS + 5; r++) {
+    const rowData = generateRow(temperature, null);
+    
+    const crystals = rowData.map((s, i) => s === 1 && Math.random() < 0.12);
+    grid.push({ row: rowData, crystals, y: r * CELL });
+  }
+}
+
+function addGridRow() {
+  const lastY = grid[grid.length - 1].y;
+  const rowData = generateRow(temperature, null);
+  const crystals = rowData.map((s, i) => s === 1 && Math.random() < 0.12);
+  grid.push({ row: rowData, crystals, y: lastY + CELL });
+  
+  if (grid[0].y < scrollOffset - CELL * 3) {
+    grid.shift();
+  }
+}
+
+function updatePlayer() {
+  const W = canvas.width;
+  const H = canvas.height;
+  
+  
+  player.vy += 0.18;
+  
+  
+  if (touchX !== null) {
+    const dx = touchX - player.x;
+    player.vx += dx * 0.04;
+  }
+  
+  
+  player.vx *= 0.88;
+  player.vy *= 0.96;
+  
+  
+  player.vx = Math.max(-4, Math.min(4, player.vx));
+  player.vy = Math.max(-5, Math.min(8, player.vy));
+  
+  player.x += player.vx;
+  player.y += player.vy;
+  
+  
+  if (player.x < player.r) { player.x = player.r; player.vx = Math.abs(player.vx) * 0.5; }
+  if (player.x > W - player.r) { player.x = W - player.r; player.vx = -Math.abs(player.vx) * 0.5; }
+  
+  
+  for (const gridRow of grid) {
+    const screenY = gridRow.y - scrollOffset;
+    if (screenY > H || screenY + CELL < 0) continue;
+    
+    for (let c = 0; c < COLS; c++) {
+      if (gridRow.row[c] === -1) {
+        
+        const cellX = c * CELL;
+        const cellY = screenY;
+        
+        
+        const nearX = Math.max(cellX, Math.min(player.x, cellX + CELL));
+        const nearY = Math.max(cellY, Math.min(player.y, cellY + CELL));
+        const dx = player.x - nearX;
+        const dy = player.y - nearY;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        
+        if (dist < player.r) {
+          
+          spawnDeathParticles();
+          playDeathSound();
+          endGame();
+          return;
+        }
+      }
+      
+      
+      if (gridRow.crystals[c]) {
+        const cellX = c * CELL + CELL/2;
+        const cellY = screenY + CELL/2;
+        const dx = player.x - cellX;
+        const dy = player.y - cellY;
+        if (Math.sqrt(dx*dx+dy*dy) < player.r + 8) {
+          gridRow.crystals[c] = false;
+          score += 10;
+          playCrystalSound();
+          scoreDisplay.textContent = score + ' pts';
+          spawnCrystalParticles(cellX, cellY);
+        }
+      }
+    }
+  }
+  
+  
+  if (player.y < player.r + 50) {
+    player.y = player.r + 50;
+    player.vy = Math.abs(player.vy) * 0.3;
+  }
+}
+
+function spawnDeathParticles() {
+  for (let i = 0; i < 20; i++) {
+    const angle = (i / 20) * Math.PI * 2;
+    const speed = 2 + Math.random() * 4;
+    particles.push({
+      x: player.x, y: player.y,
+      vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+      life: 1, maxLife: 1,
+      color: '#ff0040', size: 3 + Math.random() * 3,
+      type: 'death'
+    });
+  }
+}
+
+function spawnCrystalParticles(x, y) {
+  for (let i = 0; i < 8; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 1 + Math.random() * 3;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed - 1,
+      life: 1, maxLife: 0.7,
+      color: '#ffff00', size: 2 + Math.random() * 2,
+      type: 'crystal'
+    });
+  }
+}
+
+function updateParticles() {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx; p.y += p.vy;
+    p.vy += 0.1;
+    p.life -= 0.04;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+function getSpinColor(spin, T) {
+  if (spin === -1) {
+    
+    const cold = T < TC ? Math.max(0, (TC - T) / TC) : 0;
+    const r = Math.floor(20 + cold * 20);
+    const g = Math.floor(20 + cold * 40);
+    const b = Math.floor(80 + cold * 100);
+    return `rgb(${r},${g},${b})`;
+  } else {
+    return null; 
+  }
+}
+
+function getOpenGlow(T) {
+  
+  const dist = Math.abs(T - TC) / TC;
+  if (dist < 0.15) {
+    const intensity = 1 - dist / 0.15;
+    const r = Math.floor(0 + 255 * intensity * 0.3);
+    const g = Math.floor(100 * intensity);
+    const b = Math.floor(180 * intensity);
+    return `rgba(${r},${g},${b},${0.15 * intensity})`;
+  }
+  return null;
+}
+
+function render() {
+  const W = canvas.width;
+  const H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+  
+  
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(0, 0, W, H);
+  
+  
+  const openGlow = getOpenGlow(temperature);
+  for (const gridRow of grid) {
+    const screenY = gridRow.y - scrollOffset;
+    if (screenY > H + CELL || screenY < -CELL) continue;
+    
+    for (let c = 0; c < COLS; c++) {
+      const cellX = c * CELL;
+      const cellY = screenY;
+      
+      if (gridRow.row[c] === -1) {
+        
+        const color = getSpinColor(-1, temperature);
+        ctx.fillStyle = color;
+        ctx.fillRect(cellX, cellY, CELL - 1, CELL - 1);
+        
+        
+        ctx.fillStyle = 'rgba(255,255,255,0.15)';
+        ctx.beginPath();
+        ctx.arc(cellX + CELL/2, cellY + CELL/2, 2, 0, Math.PI*2);
+        ctx.fill();
+      } else if (openGlow) {
+        
+        ctx.fillStyle = openGlow;
+        ctx.fillRect(cellX, cellY, CELL - 1, CELL - 1);
+      }
+      
+      
+      if (gridRow.crystals[c]) {
+        const cx = cellX + CELL/2;
+        const cy = cellY + CELL/2;
+        const pulse = 0.8 + 0.2 * Math.sin(frameCount * 0.1 + c);
+        const size = 5 * pulse;
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(frameCount * 0.03);
+        ctx.strokeStyle = '#ffff00';
+        ctx.lineWidth = 1.5;
+        ctx.globalAlpha = 0.9;
+        
+        ctx.beginPath();
+        ctx.moveTo(0, -size); ctx.lineTo(size*0.6, 0);
+        ctx.lineTo(0, size); ctx.lineTo(-size*0.6, 0);
+        ctx.closePath();
+        ctx.stroke();
+        
+        ctx.fillStyle = 'rgba(255,255,0,0.3)';
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+  }
+  
+  
+  const phaseY = canvas.height * 0.3; 
+  
+  
+  for (const p of particles) {
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  
+  
+  if (state === 'playing') {
+    const nearCritical = Math.abs(temperature - TC) < 0.3;
+    const glow = nearCritical ? 15 : 8;
+    const grad = ctx.createRadialGradient(player.x, player.y, 0, player.x, player.y, glow);
+    grad.addColorStop(0, nearCritical ? '#ffffff' : '#00ffff');
+    grad.addColorStop(0.4, nearCritical ? '#00ffff' : '#0088ff');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, glow, 0, Math.PI*2);
+    ctx.fill();
+    
+    
+    ctx.fillStyle = nearCritical ? '#ffffff' : '#00ffff';
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, player.r, 0, Math.PI*2);
+    ctx.fill();
+    
+    
+    if (nearCritical) {
+      ctx.strokeStyle = 'rgba(0,255,255,0.3)';
+      ctx.lineWidth = 1;
+      for (let ring = 1; ring <= 3; ring++) {
+        ctx.globalAlpha = 0.3 - ring * 0.08;
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, player.r + ring * 8, 0, Math.PI*2);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+  
+  
+  ctx.fillStyle = 'rgba(0,255,65,0.4)';
+  const progressH = Math.min(H, (score / 500) * H);
+  ctx.fillRect(W - 3, H - progressH, 3, progressH);
+}
+
+function getTcPosition() {
+  return (TC - T_MIN) / T_RANGE;
+}
+
+function updateTempBar() {
+  const pct = (temperature - T_MIN) / T_RANGE;
+  const pctStr = (pct * 100).toFixed(1) + '%';
+  
+  
+  let color;
+  const dist = Math.abs(temperature - TC) / TC;
+  if (dist < 0.15) {
+    
+    const i = 1 - dist / 0.15;
+    color = `linear-gradient(to right, #1144aa, ${100*pct*0.9}%, #ffffaa ${100*pct}%, #333 ${100*pct+1}%)`;
+  } else if (temperature < TC) {
+    color = `linear-gradient(to right, #0022cc, ${100*pct}%, #111 ${100*pct+1}%)`;
+  } else {
+    color = `linear-gradient(to right, #441100, ${100*pct}%, #111 ${100*pct+1}%)`;
+  }
+  
+  tempFill.style.background = color;
+  tempFill.style.width = pctStr;
+  tempThumb.style.left = pctStr;
+  
+  
+  const tcPct = getTcPosition() * 100;
+  tcMarker.style.left = tcPct.toFixed(1) + '%';
+  
+  
+  const tStr = temperature.toFixed(2);
+  tempValDisplay.textContent = `T = ${tStr}`;
+  
+  const dist2 = Math.abs(temperature - TC);
+  let phaseText;
+  if (dist2 < 0.15) {
+    phaseText = '⚡ FASE CRÍTICA';
+    phaseDisplay.style.color = '#ffff00';
+  } else if (temperature < TC) {
+    const coldness = ((TC - temperature) / TC * 100).toFixed(0);
+    phaseText = `❄️ FASE ORDENADA`;
+    phaseDisplay.style.color = '#4488ff';
+  } else {
+    phaseText = `🔥 FASE DESORDENADA`;
+    phaseDisplay.style.color = '#ff4444';
+  }
+  phaseDisplay.textContent = phaseText;
+  
+  
+  if (dist2 < 0.15 && state === 'playing') {
+    score += 1;
+    scoreDisplay.textContent = score + ' pts';
+  }
+}
+
+let dragging = false;
+function getTrackPct(clientX) {
+  const rect = tempTrack.getBoundingClientRect();
+  return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+}
+function setTempFromPct(pct) {
+  const newT = T_MIN + pct * T_RANGE;
+  const oldT = temperature;
+  temperature = newT;
+  
+  
+  if (Math.sign(oldT - TC) !== Math.sign(newT - TC)) {
+    playPhaseShiftSound(newT);
+  }
+  
+  updateTempBar();
+}
+
+tempTrack.addEventListener('mousedown', e => { dragging = true; setTempFromPct(getTrackPct(e.clientX)); });
+document.addEventListener('mousemove', e => { if (dragging) setTempFromPct(getTrackPct(e.clientX)); });
+document.addEventListener('mouseup', () => { dragging = false; });
+tempTrack.addEventListener('touchstart', e => { e.preventDefault(); dragging = true; setTempFromPct(getTrackPct(e.touches[0].clientX)); }, {passive:false});
+document.addEventListener('touchmove', e => { if (dragging) { e.preventDefault(); setTempFromPct(getTrackPct(e.touches[0].clientX)); } }, {passive:false});
+document.addEventListener('touchend', () => { dragging = false; });
+
+canvas.addEventListener('mousemove', e => {
+  if (state !== 'playing') return;
+  const rect = canvas.getBoundingClientRect();
+  touchX = e.clientX - rect.left;
+});
+canvas.addEventListener('touchmove', e => {
+  if (state !== 'playing') return;
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  
+  const t = e.touches[0];
+  if (t.clientY < canvas.getBoundingClientRect().bottom - 70) {
+    touchX = t.clientX - rect.left;
+  }
+}, {passive:false});
+canvas.addEventListener('touchend', () => { touchX = null; });
+canvas.addEventListener('mouseleave', () => { touchX = null; });
+
+let lastTime = 0;
+function gameLoop(ts) {
+  if (state !== 'playing') return;
+  frameCount++;
+  
+  
+  scrollOffset += SCROLL_SPEED;
+  
+  
+  while (grid.length > 0 && grid[grid.length-1].y - scrollOffset < canvas.height + CELL * 3) {
+    addGridRow();
+  }
+  
+  
+  if (frameCount % 600 === 0) {
+    
+    
+  }
+  
+  updatePlayer();
+  updateParticles();
+  updateTempBar();
+  render();
+  
+  requestAnimationFrame(gameLoop);
+}
+
+function resizeCanvas() {
+  const W = Math.min(window.innerWidth, 420);
+  const H = window.innerHeight - 90; 
+  canvas.width = COLS * CELL;
+  canvas.height = H;
+  canvas.style.width = canvas.width + 'px';
+  canvas.style.height = H + 'px';
+}
+
+function startGame() {
+  if (!audioCtx) initAudio();
+  resizeCanvas();
+  
+  state = 'playing';
+  score = 0;
+  frameCount = 0;
+  scrollOffset = 0;
+  particles = [];
+  touchX = null;
+  temperature = TC; 
+  
+  const W = canvas.width;
+  player = {
+    x: W / 2,
+    y: 60,
+    vx: 0, vy: 0,
+    r: 7
+  };
+  
+  initGrid();
+  updateTempBar();
+  
+  startScreen.style.display = 'none';
+  gameoverScreen.style.display = 'none';
+  ui.style.display = 'flex';
+  tempBarContainer.style.display = 'block';
+  scoreDisplay.textContent = '0 pts';
+  
+  requestAnimationFrame(gameLoop);
+}
+
+function endGame() {
+  state = 'gameover';
+  
+  const messages = [
+    'Las leyes de la termodinámica no negocian.',
+    'El orden te aplastó. La entropía ríe.',
+    'Entre el frío y el caos, no encontraste el camino.',
+    'Tc = 2.269. La naturaleza no redondea.',
+    'Lars Onsager lo resolvió exactamente en 1944. Tú... no tanto.',
+    'Las fluctuaciones cuánticas te recuerdan quién manda aquí.',
+    'Cerca del borde del orden. Tan cerca...',
+  ];
+  
+  document.getElementById('go-emoji').textContent = score > 100 ? '✨' : '💀';
+  document.getElementById('go-message').textContent = messages[Math.floor(Math.random() * messages.length)];
+  document.getElementById('go-score').textContent = score + ' pts';
+  document.getElementById('go-phase').textContent = `Temperatura final: T = ${temperature.toFixed(2)} (Tc = ${TC})`;
+  
+  ui.style.display = 'none';
+  tempBarContainer.style.display = 'none';
+  gameoverScreen.style.display = 'flex';
+}
+
+document.getElementById('start-btn').addEventListener('click', startGame);
+document.getElementById('retry-btn').addEventListener('click', startGame);
+
+window.addEventListener('resize', () => {
+  if (state === 'playing') resizeCanvas();
+});
+
+const tcPct = getTcPosition() * 100;
+tcMarker.style.left = tcPct.toFixed(1) + '%';
+</script>
+</body>
+</html>

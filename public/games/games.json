@@ -134,5 +134,13 @@
         "description": "Eres un punto atrapado en una curva de Lissajous. Los cristales flotan en posiciones solo alcanzables con la frecuencia correcta. Ajusta A y B para sintonizar la curva y coleccionarlos.",
         "mechanic": "El jugador controla los enteros a:b de x=sin(a·t+δ), y=sin(b·t) — la curva cambia de forma y el punto la recorre; los cristales solo son alcanzables sintonizando la frecuencia correcta",
         "emoji": "〰️"
+    },
+    {
+        "id": "018-ising",
+        "title": "Ising — Transición de Fase",
+        "date": "2026-03-06",
+        "description": "Eres una partícula cayendo por una red de espines magnéticos. Controla la temperatura: muy frío = todo bloqueado, muy caliente = caos puro. Solo en la temperatura crítica Tc = 2.269 emergen los caminos fractales.",
+        "mechanic": "El jugador controla la temperatura termodinámica de un lattice de Ising 2D — la red cambia entre fase ordenada y desordenada con correlaciones espaciales reales; en Tc (solución exacta de Onsager 1944) emergen caminos fractales percolantes",
+        "emoji": "⚛️"
     }
 ]

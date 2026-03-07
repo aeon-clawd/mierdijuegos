@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Bloqueo Mareal</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a0a;
+    color: #fff;
+    font-family: 'Courier New', monospace;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    touch-action: none;
+  }
+  canvas { display: block; }
+  #ui {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 12px 16px;
+    pointer-events: none;
+    z-index: 10;
+  }
+  .stat { font-size: 13px; line-height: 1.6; }
+  .stat span { display: block; }
+  .label { color: #555; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
+  .val { color: #00ffff; font-size: 16px; font-weight: bold; }
+  #health-bar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: 6px;
+    background: #111;
+    z-index: 10;
+  }
+  #health-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #ff0040, #ffff00, #00ff41);
+    background-size: 200% 100%;
+    transition: width 0.1s;
+  }
+  #sync-bar {
+    position: fixed;
+    bottom: 6px; left: 50%; transform: translateX(-50%);
+    width: 200px;
+    height: 8px;
+    background: #111;
+    border-radius: 4px;
+    z-index: 10;
+  }
+  #sync-fill {
+    height: 100%;
+    border-radius: 4px;
+    background: #ff00ff;
+    transition: width 0.05s, background 0.1s;
+    margin: 0 auto;
+  }
+  #sync-label {
+    position: fixed;
+    bottom: 18px; left: 50%; transform: translateX(-50%);
+    font-size: 10px;
+    color: #555;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    z-index: 10;
+    white-space: nowrap;
+  }
+
+  /* Screens */
+  .screen {
+    position: fixed;
+    inset: 0;
+    background: rgba(10,10,10,0.95);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 24px;
+    z-index: 100;
+  }
+  .screen.hidden { display: none; }
+  .screen h1 { font-size: 2.2em; color: #00ffff; margin-bottom: 8px; letter-spacing: 2px; }
+  .screen .subtitle { color: #ff00ff; font-size: 0.85em; margin-bottom: 20px; letter-spacing: 1px; }
+  .screen p { color: #aaa; font-size: 0.82em; line-height: 1.7; max-width: 340px; margin-bottom: 8px; }
+  .screen p strong { color: #00ff41; }
+  .screen .score-big { font-size: 3em; color: #ffff00; margin: 12px 0; }
+  .screen .funny { color: #ff00ff; font-size: 0.85em; font-style: italic; margin-bottom: 20px; }
+  button {
+    background: none;
+    border: 2px solid #00ffff;
+    color: #00ffff;
+    font-family: 'Courier New', monospace;
+    font-size: 1em;
+    padding: 12px 32px;
+    cursor: pointer;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin: 6px;
+    transition: all 0.15s;
+  }
+  button:hover, button:active { background: #00ffff22; }
+  .back-link {
+    color: #333;
+    font-size: 0.75em;
+    text-decoration: none;
+    margin-top: 16px;
+    letter-spacing: 1px;
+  }
+  .back-link:hover { color: #666; }
+  .mechanic-pill {
+    display: inline-block;
+    border: 1px solid #ff00ff44;
+    color: #ff00ff;
+    font-size: 0.7em;
+    padding: 3px 10px;
+    border-radius: 20px;
+    margin-bottom: 16px;
+    letter-spacing: 1px;
+  }
+  .moon-icon { font-size: 3em; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+
+<!-- Start Screen -->
+<div id="start-screen" class="screen">
+  <div class="moon-icon">🌙</div>
+  <h1>BLOQUEO MAREAL</h1>
+  <div class="subtitle">Sincronización orbital real</div>
+  <div class="mechanic-pill">⚙️ TIDAL LOCKING · LUNA REAL</div>
+  <p>Eres la Luna. Tu cara debe <strong>siempre mirar al planeta</strong> — igual que la Luna real mira siempre a la Tierra.</p>
+  <p>Desliza <strong>izquierda/derecha</strong> para ajustar tu velocidad de rotación. Si giras demasiado rápido o lento, te desincronizas y pierdes estabilidad.</p>
+  <p>La órbita se vuelve más <strong>elíptica</strong> — cerca del planeta debes girar más rápido, lejos más lento. Como la Luna de verdad.</p>
+  <p>Recoge los <strong>cristales de energía</strong> que flotan en el espacio.</p>
+  <button id="btn-start">▶ ORBITAR</button>
+  <a href="/" class="back-link">← más mierdijuegos</a>
+</div>
+
+<!-- Game Over Screen -->
+<div id="gameover-screen" class="screen hidden">
+  <div class="moon-icon">🌑</div>
+  <h1>DESORBITADO</h1>
+  <div class="score-big" id="final-score">0</div>
+  <div class="funny" id="funny-msg"></div>
+  <button id="btn-retry">↺ REINTENTAR</button>
+  <a href="/" class="back-link">← más mierdijuegos</a>
+</div>
+
+<!-- Game UI -->
+<div id="ui" class="hidden">
+  <div class="stat">
+    <span class="label">Cristales</span>
+    <span class="val" id="ui-score">0</span>
+  </div>
+  <div class="stat" style="text-align:right">
+    <span class="label">Desviación</span>
+    <span class="val" id="ui-deviation">0°</span>
+  </div>
+</div>
+<div id="health-bar" class="hidden">
+  <div id="health-fill" style="width:100%; background-position: 100% 0%"></div>
+</div>
+<div id="sync-label" class="hidden">SINCRONIZACIÓN MAREAL</div>
+<div id="sync-bar" class="hidden">
+  <div id="sync-fill" style="width:0%"></div>
+</div>
+
+<canvas id="c"></canvas>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+// Resize
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// Real physics constants (scaled for gameplay)
+// Moon: sidereal period = 27.3217 days, orbital period = 27.3217 days (tidally locked)
+// Angular velocity = 2π / 27.3217 days — we scale to game time
+const MOON_REAL_PERIOD_DAYS = 27.3217;
+const GAME_ORBIT_PERIOD_SEC = 20; // 20 seconds = one orbit
+const BASE_ORBITAL_ANGULAR_VEL = (2 * Math.PI) / GAME_ORBIT_PERIOD_SEC; // rad/s
+
+// Game state
+let state = 'start';
+let score = 0;
+let health = 100;
+let lastTime = 0;
+
+// Moon/orbital physics
+let orbitAngle = 0;       // where moon is in orbit (radians)
+let moonSpin = 0;         // moon's own rotation angle (radians, absolute)
+let spinRate = BASE_ORBITAL_ANGULAR_VEL; // player-controlled spin rate (rad/s)
+let eccentricity = 0.1;   // orbit eccentricity (grows over time)
+let time = 0;
+
+// Input
+let dragActive = false;
+let dragStartX = 0;
+let lastDragX = 0;
+let spinDelta = 0; // input spin adjustment
+
+// Crystals
+let crystals = [];
+let gemTimer = 0;
+const GEM_INTERVAL = 3.5;
+
+// Particles
+let particles = [];
+
+// Funny messages
+const MSGS = [
+  "Tu cara oscura se quedó helada. Como mi ex.",
+  "NASA ha cancelado tu contrato de luna.",
+  "El planeta te manda a freír espárragos.",
+  "Gravedad: 1 — Tú: 0. Como siempre.",
+  "La marea te ha vencido. Era de esperar.",
+  "Órbitaste hasta el caos. Bien hecho.",
+  "Kepler llora en el más allá.",
+  "Giraste mal. La física no perdona.",
+  "Newton te manda un abrazo. Muy fuerte. Fatal.",
+];
+
+// Orbit: using Kepler's equation for elliptical orbit
+// r = a(1-e²)/(1+e·cos(θ)) — real ellipse formula
+function getOrbitalRadius(angle, a, e) {
+  return a * (1 - e * e) / (1 + e * Math.cos(angle));
+}
+
+// Instantaneous orbital angular velocity (Kepler's 2nd law: conserves angular momentum)
+// ω = h/r² where h = sqrt(GM·a·(1-e²)), simplified to: ω_inst = ω_avg · (a/r)²
+function getInstOrbitalAngVel(angle, e, avgOmega) {
+  const r_over_a = (1 - e * e) / (1 + e * Math.cos(angle));
+  // h = r²·ω → ω = h/r² — using area conservation
+  // ω_inst/ω_avg ≈ (a/r)² · (1-e²)^(3/2) ... simplified:
+  const factor = (1 + e * Math.cos(angle)) / (1 - e * e);
+  return avgOmega * factor * factor;
+}
+
+function spawnCrystal() {
+  // Place crystal at random orbit position
+  const a = Math.min(canvas.width, canvas.height) * 0.32;
+  const angle = Math.random() * Math.PI * 2;
+  const r = getOrbitalRadius(angle, a, eccentricity * 1.2);
+  const cx2 = canvas.width / 2 + Math.cos(angle) * r;
+  const cy2 = canvas.height / 2 + Math.sin(angle) * r;
+  crystals.push({ x: cx2, y: cy2, angle: angle, life: 6, maxLife: 6, pulse: Math.random() * Math.PI * 2 });
+}
+
+function spawnParticle(x, y, color) {
+  for (let i = 0; i < 8; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const s = 1 + Math.random() * 3;
+    particles.push({ x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s, life: 1, color });
+  }
+}
+
+function reset() {
+  score = 0;
+  health = 100;
+  orbitAngle = 0;
+  moonSpin = 0;
+  spinRate = BASE_ORBITAL_ANGULAR_VEL;
+  eccentricity = 0.1;
+  time = 0;
+  crystals = [];
+  particles = [];
+  gemTimer = 0;
+  dragActive = false;
+  spinDelta = 0;
+}
+
+function startGame() {
+  reset();
+  state = 'playing';
+  document.getElementById('start-screen').classList.add('hidden');
+  document.getElementById('gameover-screen').classList.add('hidden');
+  document.getElementById('ui').classList.remove('hidden');
+  document.getElementById('health-bar').classList.remove('hidden');
+  document.getElementById('sync-label').classList.remove('hidden');
+  document.getElementById('sync-bar').classList.remove('hidden');
+  lastTime = performance.now();
+  requestAnimationFrame(loop);
+}
+
+function gameOver() {
+  state = 'over';
+  document.getElementById('ui').classList.add('hidden');
+  document.getElementById('health-bar').classList.add('hidden');
+  document.getElementById('sync-label').classList.add('hidden');
+  document.getElementById('sync-bar').classList.add('hidden');
+  document.getElementById('final-score').textContent = score;
+  document.getElementById('funny-msg').textContent = MSGS[Math.floor(Math.random() * MSGS.length)];
+  document.getElementById('gameover-screen').classList.remove('hidden');
+}
+
+// Input handling
+function onPointerDown(e) {
+  if (state !== 'playing') return;
+  e.preventDefault();
+  dragActive = true;
+  const x = e.touches ? e.touches[0].clientX : e.clientX;
+  dragStartX = x;
+  lastDragX = x;
+}
+
+function onPointerMove(e) {
+  if (!dragActive || state !== 'playing') return;
+  e.preventDefault();
+  const x = e.touches ? e.touches[0].clientX : e.clientX;
+  const dx = x - lastDragX;
+  // Map horizontal drag to spin rate adjustment
+  spinDelta += dx * 0.0004; // sensitivity
+  lastDragX = x;
+}
+
+function onPointerUp(e) {
+  dragActive = false;
+  spinDelta = 0;
+}
+
+canvas.addEventListener('pointerdown', onPointerDown, { passive: false });
+canvas.addEventListener('pointermove', onPointerMove, { passive: false });
+canvas.addEventListener('pointerup', onPointerUp);
+canvas.addEventListener('pointercancel', onPointerUp);
+canvas.addEventListener('touchstart', onPointerDown, { passive: false });
+canvas.addEventListener('touchmove', onPointerMove, { passive: false });
+canvas.addEventListener('touchend', onPointerUp);
+
+document.getElementById('btn-start').addEventListener('click', startGame);
+document.getElementById('btn-retry').addEventListener('click', startGame);
+
+function update(dt) {
+  time += dt;
+  // Grow eccentricity over time (max 0.7)
+  eccentricity = Math.min(0.7, 0.1 + time * 0.008);
+
+  // Adjust player spin rate with input
+  if (dragActive) {
+    spinRate += spinDelta;
+  }
+  // Natural damping toward current orbital velocity (very slight — player must fight)
+  // No auto-sync: pure player control
+
+  // Clamp spin rate to reasonable range
+  const maxRate = BASE_ORBITAL_ANGULAR_VEL * 5;
+  spinRate = Math.max(-maxRate, Math.min(maxRate, spinRate));
+
+  // Advance orbit angle
+  const instOmega = getInstOrbitalAngVel(orbitAngle, eccentricity, BASE_ORBITAL_ANGULAR_VEL);
+  orbitAngle += instOmega * dt;
+
+  // Advance moon's own rotation
+  moonSpin += spinRate * dt;
+
+  // Calculate deviation: difference between moon's facing and direction to planet
+  // Moon's face points in direction (moonSpin), should point toward planet = orbitAngle + π
+  const targetFacing = orbitAngle + Math.PI; // direction from moon toward planet
+  let deviation = moonSpin - targetFacing;
+  // Normalize to [-π, π]
+  deviation = ((deviation + Math.PI) % (2 * Math.PI)) - Math.PI;
+
+  // Sync quality (1 = perfect, 0 = totally wrong)
+  const syncQuality = Math.max(0, 1 - Math.abs(deviation) / Math.PI);
+
+  // Health: lose when deviation is large
+  if (Math.abs(deviation) > 0.6) {
+    health -= (Math.abs(deviation) / Math.PI) * 18 * dt;
+  } else {
+    // Recover slightly
+    health = Math.min(100, health + 3 * dt);
+  }
+  health = Math.max(0, health);
+
+  // Gems
+  gemTimer -= dt;
+  if (gemTimer <= 0) {
+    spawnCrystal();
+    gemTimer = GEM_INTERVAL;
+  }
+
+  // Moon position
+  const a = Math.min(canvas.width, canvas.height) * 0.30;
+  const moonR = getOrbitalRadius(orbitAngle, a, eccentricity);
+  const mx = canvas.width / 2 + Math.cos(orbitAngle) * moonR;
+  const my = canvas.height / 2 + Math.sin(orbitAngle) * moonR;
+
+  // Check crystal collection — moon's facing hemisphere
+  for (let i = crystals.length - 1; i >= 0; i--) {
+    const g = crystals[i];
+    g.life -= dt;
+    g.pulse += dt * 3;
+    if (g.life <= 0) { crystals.splice(i, 1); continue; }
+    const dx = g.x - mx;
+    const dy = g.y - my;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < 30) {
+      // Collect!
+      score++;
+      spawnParticle(g.x, g.y, '#ffff00');
+      crystals.splice(i, 1);
+    }
+  }
+
+  // Particles
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.life -= dt * 1.5;
+    p.vx *= 0.95;
+    p.vy *= 0.95;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+
+  // Update UI
+  document.getElementById('ui-score').textContent = score;
+  document.getElementById('ui-deviation').textContent = Math.abs(Math.round(deviation * 180 / Math.PI)) + '°';
+
+  const hp = health / 100;
+  document.getElementById('health-fill').style.width = (hp * 100) + '%';
+  document.getElementById('health-fill').style.backgroundPosition = ((1 - hp) * 100) + '% 0%';
+
+  const syncPct = syncQuality * 100;
+  const syncEl = document.getElementById('sync-fill');
+  syncEl.style.width = syncPct + '%';
+  syncEl.style.background = syncQuality > 0.7 ? '#00ff41' : syncQuality > 0.4 ? '#ffff00' : '#ff0040';
+
+  if (health <= 0) gameOver();
+
+  return { deviation, syncQuality, mx, my, moonR: 18 };
+}
+
+function drawStars(t) {
+  // Static starfield
+  if (!drawStars.stars) {
+    drawStars.stars = [];
+    for (let i = 0; i < 120; i++) {
+      drawStars.stars.push({
+        x: Math.random() * 1600,
+        y: Math.random() * 1600,
+        r: 0.5 + Math.random() * 1.2,
+        tw: Math.random() * Math.PI * 2,
+        ts: 0.5 + Math.random() * 1.5
+      });
+    }
+  }
+  for (const s of drawStars.stars) {
+    const alpha = 0.3 + 0.4 * Math.sin(s.tw + t * s.ts);
+    ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+    ctx.beginPath();
+    ctx.arc(s.x % canvas.width, s.y % canvas.height, s.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawOrbit(a, e) {
+  // Draw elliptical orbit path
+  ctx.save();
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  const b = a * Math.sqrt(1 - e * e);
+  ctx.beginPath();
+  ctx.ellipse(0, 0, a, b, 0, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(0,255,255,0.08)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawPlanet() {
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+  const r = 36;
+
+  // Glow
+  const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 3);
+  grd.addColorStop(0, 'rgba(0,100,255,0.35)');
+  grd.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grd;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * 3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Planet body
+  const pg = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, 0, cx, cy, r);
+  pg.addColorStop(0, '#4488ff');
+  pg.addColorStop(0.5, '#1144cc');
+  pg.addColorStop(1, '#001188');
+  ctx.fillStyle = pg;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Planet ring
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(1, 0.25);
+  ctx.strokeStyle = 'rgba(100,160,255,0.4)';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 1.7, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawMoon(mx, my, moonSpin, deviation, syncQuality) {
+  const mr = 18;
+  ctx.save();
+  ctx.translate(mx, my);
+
+  // Glow based on sync
+  const glowColor = syncQuality > 0.7
+    ? `rgba(0,255,65,${0.15 + syncQuality * 0.2})`
+    : syncQuality > 0.4
+      ? `rgba(255,255,0,0.2)`
+      : `rgba(255,0,64,0.25)`;
+  const glowGrd = ctx.createRadialGradient(0, 0, 0, 0, 0, mr * 2.5);
+  glowGrd.addColorStop(0, glowColor);
+  glowGrd.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = glowGrd;
+  ctx.beginPath();
+  ctx.arc(0, 0, mr * 2.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Moon body — rotate to show spin
+  ctx.save();
+  ctx.rotate(moonSpin);
+
+  // Body
+  const mg = ctx.createRadialGradient(-mr*0.2, -mr*0.2, 0, 0, 0, mr);
+  mg.addColorStop(0, '#ddd');
+  mg.addColorStop(0.6, '#aaa');
+  mg.addColorStop(1, '#666');
+  ctx.fillStyle = mg;
+  ctx.beginPath();
+  ctx.arc(0, 0, mr, 0, Math.PI * 2);
+  ctx.fill();
+
+  // "Face" painted on the moon — the side that should face the planet
+  // Face is at angle 0 of the moon's local frame = the "front"
+  // Face = eyes + smile drawn on +x side
+  ctx.fillStyle = '#333';
+  // Left eye
+  ctx.beginPath();
+  ctx.arc(mr * 0.35, -mr * 0.3, mr * 0.1, 0, Math.PI * 2);
+  ctx.fill();
+  // Right eye
+  ctx.beginPath();
+  ctx.arc(mr * 0.35, mr * 0.3, mr * 0.1, 0, Math.PI * 2);
+  ctx.fill();
+  // Smile
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(mr * 0.45, 0, mr * 0.22, -Math.PI * 0.4, Math.PI * 0.4);
+  ctx.stroke();
+
+  // Far side tint based on deviation (overheating/freezing)
+  const devAbs = Math.abs(deviation);
+  if (devAbs > 0.4) {
+    const sideAlpha = Math.min(0.7, (devAbs - 0.4) / 1.5);
+    // If spin too fast, far side overheats (red); too slow, near side freezes (blue)
+    const sideColor = deviation > 0 ? `rgba(255,50,0,${sideAlpha})` : `rgba(0,150,255,${sideAlpha})`;
+    // Fill the dark half
+    ctx.fillStyle = sideColor;
+    ctx.beginPath();
+    ctx.arc(0, 0, mr, Math.PI * 0.5, Math.PI * 1.5);
+    ctx.fill();
+  }
+
+  ctx.restore(); // un-rotate
+
+  // Direction arrow (faint) showing which way moon faces
+  const faceAngle = moonSpin;
+  const arrowLen = mr * 1.6;
+  ctx.strokeStyle = syncQuality > 0.7 ? 'rgba(0,255,65,0.5)' : 'rgba(255,0,64,0.4)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(Math.cos(faceAngle) * arrowLen, Math.sin(faceAngle) * arrowLen);
+  ctx.stroke();
+  // Arrowhead
+  const ax = Math.cos(faceAngle) * arrowLen;
+  const ay = Math.sin(faceAngle) * arrowLen;
+  ctx.beginPath();
+  ctx.moveTo(ax, ay);
+  ctx.lineTo(ax - Math.cos(faceAngle - 0.4) * 6, ay - Math.sin(faceAngle - 0.4) * 6);
+  ctx.lineTo(ax - Math.cos(faceAngle + 0.4) * 6, ay - Math.sin(faceAngle + 0.4) * 6);
+  ctx.closePath();
+  ctx.fillStyle = syncQuality > 0.7 ? 'rgba(0,255,65,0.5)' : 'rgba(255,0,64,0.4)';
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawCrystals() {
+  for (const g of crystals) {
+    const alpha = Math.min(1, g.life / 1.5) * (0.6 + 0.4 * Math.sin(g.pulse));
+    ctx.save();
+    ctx.translate(g.x, g.y);
+    ctx.rotate(g.pulse * 0.5);
+    ctx.fillStyle = `rgba(255,255,0,${alpha})`;
+    ctx.strokeStyle = `rgba(255,255,100,${alpha * 0.8})`;
+    ctx.lineWidth = 1;
+    // Diamond shape
+    const s = 8 * (0.8 + 0.2 * Math.sin(g.pulse));
+    ctx.beginPath();
+    ctx.moveTo(0, -s);
+    ctx.lineTo(s * 0.6, 0);
+    ctx.lineTo(0, s);
+    ctx.lineTo(-s * 0.6, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    ctx.fillStyle = `rgba(255,255,0,${p.life})`;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 2 * p.life, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawSpeedHint(mx, my) {
+  // Show swipe hint arrow initially
+  if (time < 4) {
+    const alpha = Math.min(1, time < 3 ? 1 : (4 - time));
+    ctx.save();
+    ctx.translate(mx, my + 50);
+    ctx.fillStyle = `rgba(0,255,255,${alpha * 0.7})`;
+    ctx.font = '11px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText('← desliza →', 0, 0);
+    ctx.restore();
+  }
+}
+
+function drawSyncIndicator(deviation, syncQuality, mx, my) {
+  // Target line toward planet
+  const targetAngle = orbitAngle + Math.PI;
+  const indicatorLen = 30;
+  ctx.save();
+  ctx.translate(mx, my);
+  ctx.strokeStyle = 'rgba(0,255,255,0.3)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3, 3]);
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(Math.cos(targetAngle) * indicatorLen, Math.sin(targetAngle) * indicatorLen);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Target dot
+  ctx.fillStyle = 'rgba(0,255,255,0.5)';
+  ctx.beginPath();
+  ctx.arc(Math.cos(targetAngle) * (indicatorLen + 5), Math.sin(targetAngle) * (indicatorLen + 5), 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawEccentricityLabel() {
+  if (eccentricity > 0.2) {
+    ctx.fillStyle = 'rgba(255,0,64,0.6)';
+    ctx.font = '10px Courier New';
+    ctx.textAlign = 'left';
+    ctx.fillText(`e = ${eccentricity.toFixed(2)}`, 12, canvas.height - 35);
+  }
+}
+
+function loop(ts) {
+  if (state !== 'playing') return;
+  const dt = Math.min((ts - lastTime) / 1000, 0.05);
+  lastTime = ts;
+
+  const result = update(dt);
+  const { deviation, syncQuality, mx, my } = result;
+
+  // Draw
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawStars(time);
+
+  const a = Math.min(canvas.width, canvas.height) * 0.30;
+  drawOrbit(a, eccentricity);
+  drawPlanet();
+  drawCrystals();
+  drawParticles();
+  drawMoon(mx, my, moonSpin, deviation, syncQuality);
+  drawSyncIndicator(deviation, syncQuality, mx, my);
+  drawSpeedHint(mx, my);
+  drawEccentricityLabel();
+
+  requestAnimationFrame(loop);
+}
+
+// Kick off render even before game starts (show nothing)
+</script>
+</body>
+</html>

@@ -143,4 +143,13 @@
         "mechanic": "El jugador controla la temperatura termodinámica de un lattice de Ising 2D — la red cambia entre fase ordenada y desordenada con correlaciones espaciales reales; en Tc (solución exacta de Onsager 1944) emergen caminos fractales percolantes",
         "emoji": "⚛️"
     }
+    ,
+    {
+        "id": "019-bloqueo-mareal",
+        "title": "Bloqueo Mareal",
+        "date": "2026-03-07",
+        "description": "Eres la Luna. Tu cara debe siempre mirar al planeta — como la Luna real que siempre da la misma cara a la Tierra. Sincroniza tu rotación con tu órbita o te desintegras.",
+        "mechanic": "El jugador controla la velocidad de rotación de una luna para mantener el bloqueo mareal con su planeta — usando la segunda ley de Kepler real (velocidad angular instantánea varía con la excentricidad orbital)",
+        "emoji": "🌙"
+    }
 ]

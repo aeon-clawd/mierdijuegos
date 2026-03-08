@@ -151,5 +151,13 @@
         "description": "Eres la Luna. Tu cara debe siempre mirar al planeta — como la Luna real que siempre da la misma cara a la Tierra. Sincroniza tu rotación con tu órbita o te desintegras.",
         "mechanic": "El jugador controla la velocidad de rotación de una luna para mantener el bloqueo mareal con su planeta — usando la segunda ley de Kepler real (velocidad angular instantánea varía con la excentricidad orbital)",
         "emoji": "🌙"
+    },
+    {
+        "id": "020-bifurcacion",
+        "title": "Bifurcación",
+        "date": "2026-03-08",
+        "description": "Eres la población x en la ecuación logística. Mantente en los atractores verdes mientras r aumenta: los atractores se bifurcan en 2, 4, 8… y colapsan en caos puro.",
+        "mechanic": "El jugador ES el valor x de x_{n+1}=r·x·(1-x) y debe sobrevivir en los atractores del diagrama de bifurcación — los atractores se dividen en cascada (r=3.0, 3.449, 3.544…) hasta el caos de Feigenbaum",
+        "emoji": "🔱"
     }
 ]

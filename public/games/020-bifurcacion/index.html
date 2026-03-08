@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Bifurcación</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0a;overflow:hidden;font-family:'Courier New',monospace;touch-action:none}
+canvas{display:block}
+#ui{position:fixed;top:0;left:0;right:0;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;pointer-events:none;z-index:10}
+#score-display{color:#00ff41;font-size:1.1rem;font-weight:bold;text-shadow:0 0 8px #00ff41}
+#r-display{color:#00ffff;font-size:0.85rem;text-shadow:0 0 6px #00ffff;text-align:right}
+#chaos-bar{position:fixed;bottom:0;left:0;right:0;height:4px;background:#111;z-index:10}
+#chaos-fill{height:100%;width:0%;background:linear-gradient(90deg,#00ff41,#ffff00,#ff00ff,#ff0040);transition:width 0.1s}
+#overlay{position:fixed;inset:0;background:#0a0a0aee;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:20;padding:24px;text-align:center}
+#overlay h1{color:#ff00ff;font-size:2rem;font-weight:900;text-shadow:0 0 20px #ff00ff;letter-spacing:2px;margin-bottom:8px}
+#overlay .sub{color:#00ffff;font-size:0.8rem;margin-bottom:18px;opacity:0.8}
+#overlay p{color:#aaa;font-size:0.85rem;line-height:1.5;max-width:320px;margin-bottom:20px}
+#overlay .eq{color:#ffff00;font-size:0.9rem;margin:8px 0 18px;font-style:italic;text-shadow:0 0 6px #ffff00}
+#btn{background:transparent;border:2px solid #ff00ff;color:#ff00ff;font-family:'Courier New',monospace;font-size:1.1rem;padding:12px 32px;cursor:pointer;text-transform:uppercase;letter-spacing:3px;text-shadow:0 0 8px #ff00ff;box-shadow:0 0 16px #ff00ff44;transition:all 0.2s}
+#btn:hover,#btn:active{background:#ff00ff22}
+#gameover{display:none;position:fixed;inset:0;background:#0a0a0af0;flex-direction:column;align-items:center;justify-content:center;z-index:30;padding:24px;text-align:center}
+#gameover h2{color:#ff0040;font-size:1.8rem;font-weight:900;text-shadow:0 0 20px #ff0040;margin-bottom:12px}
+#gameover .score-final{color:#00ff41;font-size:2.5rem;font-weight:bold;text-shadow:0 0 12px #00ff41;margin:8px 0}
+#gameover .msg{color:#aaa;font-size:0.9rem;margin-bottom:6px}
+#gameover .r-final{color:#00ffff;font-size:0.85rem;margin-bottom:20px;opacity:0.8}
+#gameover .msg-funny{color:#ffff00;font-size:0.85rem;margin-bottom:24px;font-style:italic}
+.go-btn{background:transparent;border:2px solid #00ff41;color:#00ff41;font-family:'Courier New',monospace;font-size:0.95rem;padding:10px 24px;cursor:pointer;letter-spacing:2px;margin:6px;text-shadow:0 0 6px #00ff41}
+a.more{color:#666;font-size:0.75rem;text-decoration:none;display:block;margin-top:16px}
+a.more:hover{color:#aaa}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <div id="score-display">PUNTOS: <span id="sc">0</span></div>
+  <div id="r-display">r = <span id="rv">2.50</span><br><span id="regime">Punto fijo</span></div>
+</div>
+<div id="chaos-bar"><div id="chaos-fill"></div></div>
+
+<div id="overlay">
+  <h1>🔱 Bifurcación</h1>
+  <div class="sub">Ecuación logística — el borde del caos</div>
+  <div class="eq">x<sub>n+1</sub> = r · x · (1 − x)</div>
+  <p>Eres la población <strong style="color:#ff00ff">x</strong> en la ecuación logística. 
+  Mantente en los <strong style="color:#00ff41">atractores verdes</strong> mientras el parámetro <strong style="color:#00ffff">r</strong> aumenta.<br><br>
+  Cuando r cruza <strong style="color:#ffff00">los puntos de bifurcación</strong>, los atractores se dividen en 2, luego en 4… hasta el caos.<br><br>
+  <strong style="color:#ff0040">Desliza arriba/abajo</strong> para mover tu posición. Fuera del atractor: pierdes vida.</p>
+  <button id="btn" onclick="startGame()">▶ JUGAR</button>
+</div>
+
+<div id="gameover">
+  <h2>⚡ CAOS TOTAL</h2>
+  <div class="msg">Puntuación final:</div>
+  <div class="score-final" id="final-sc">0</div>
+  <div class="r-final">r alcanzado: <span id="final-r">0</span></div>
+  <div class="msg-funny" id="funny"></div>
+  <button class="go-btn" onclick="startGame()">↺ REINTENTAR</button>
+  <a class="more" href="/">más mierdijuegos →</a>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H, animId;
+let gameState = 'menu'; // menu | playing | dead
+let score, playerX, r, rSpeed, health, lastTime, touchStartY, touchStartX;
+let bgCache = null, bgR = -1;
+
+// Audio
+let audioCtx;
+function initAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+function playBeep(freq, dur, type='sine', vol=0.15) {
+  if (!audioCtx) return;
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.connect(g); g.connect(audioCtx.destination);
+  o.type = type; o.frequency.value = freq;
+  g.gain.setValueAtTime(vol, audioCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+  o.start(); o.stop(audioCtx.currentTime + dur);
+}
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  bgCache = null;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// Compute attractor for a given r (iterate logistic map)
+function getAttractor(r, iters=400, keep=80) {
+  let x = 0.5;
+  for (let i = 0; i < iters; i++) x = r * x * (1 - x);
+  const pts = new Set();
+  for (let i = 0; i < keep; i++) {
+    x = r * x * (1 - x);
+    pts.add(Math.round(x * 10000) / 10000);
+  }
+  return [...pts].sort((a,b)=>a-b);
+}
+
+// Draw bifurcation diagram background (static for current window)
+function drawBifDiagram() {
+  // Draw a strip showing attractor points for r range around current r
+  const offscreen = document.createElement('canvas');
+  offscreen.width = W; offscreen.height = H;
+  const oc = offscreen.getContext('2d');
+  oc.fillStyle = '#0a0a0a';
+  oc.fillRect(0, 0, W, H);
+
+  // Draw bifurcation diagram: x-axis = r (2.5 to 4.0), y-axis = x (0 to 1)
+  const rMin = 2.5, rMax = 4.0;
+  const steps = Math.min(W, 600);
+  for (let i = 0; i < steps; i++) {
+    const ri = rMin + (rMax - rMin) * (i / steps);
+    const px = Math.round(i * W / steps);
+    const attr = getAttractor(ri, 300, 60);
+    const numPts = attr.length;
+    for (const ax of attr) {
+      const py = H - Math.round(ax * H * 0.8) - H * 0.1;
+      // Color by density and r
+      const t = (ri - rMin) / (rMax - rMin);
+      const hue = 120 - t * 120; // green → red
+      const alpha = Math.max(0.03, Math.min(0.18, 0.15 / numPts * 3));
+      oc.fillStyle = `hsla(${hue},100%,60%,${alpha})`;
+      oc.fillRect(px, py, 2, 2);
+    }
+  }
+  // Bifurcation lines
+  [3.0, 3.449, 3.544, 3.5644, 3.5688, 3.57].forEach(rb => {
+    const px = Math.round((rb - rMin) / (rMax - rMin) * W);
+    oc.strokeStyle = 'rgba(255,255,0,0.06)';
+    oc.lineWidth = 1;
+    oc.beginPath(); oc.moveTo(px,0); oc.lineTo(px,H); oc.stroke();
+  });
+  return offscreen;
+}
+
+function xToY(x) {
+  // Map player x [0,1] to canvas Y
+  return H - x * H * 0.8 - H * 0.1;
+}
+function yToX(y) {
+  return Math.max(0, Math.min(1, (H - y - H * 0.1) / (H * 0.8)));
+}
+
+function getRegime(r) {
+  if (r < 3.0) return 'Punto fijo';
+  if (r < 3.449) return 'Período 2';
+  if (r < 3.544) return 'Período 4';
+  if (r < 3.5644) return 'Período 8';
+  if (r < 3.57) return 'Período 16…';
+  return '⚡ CAOS';
+}
+
+function getChaosFraction(r) {
+  return Math.max(0, Math.min(1, (r - 2.5) / 1.5));
+}
+
+const funnyMsgs = [
+  'La sensibilidad a condiciones iniciales te mató. Mariposa culpable.',
+  'Como Malthus predijo en 1798. El colapso es inevitable.',
+  'r > 3.57: aquí no hay atractores, solo destino.',
+  'El determinismo caótico no es excusa, pero es bonito.',
+  'Lyapunov estaría decepcionado. Y también contigo.',
+  'Tu órbita divergió exponencialmente. Clásico.',
+  'May (1976) publicó este diagrama. Tú lo has vivido.',
+];
+
+function startGame() {
+  initAudio();
+  document.getElementById('overlay').style.display = 'none';
+  document.getElementById('gameover').style.display = 'none';
+  gameState = 'playing';
+  score = 0;
+  playerX = 0.5;
+  r = 2.5;
+  rSpeed = 0.0008; // r increases per ms
+  health = 1.0;
+  lastTime = null;
+  bgCache = null;
+  bgR = -1;
+  touchStartY = null;
+  touchStartX = null;
+  cancelAnimationFrame(animId);
+  animId = requestAnimationFrame(loop);
+}
+
+function loop(ts) {
+  if (gameState !== 'playing') return;
+  if (!lastTime) lastTime = ts;
+  const dt = Math.min(ts - lastTime, 50);
+  lastTime = ts;
+
+  // Increase r over time
+  r = Math.min(4.0, r + rSpeed * dt);
+  rSpeed = 0.0008 + (r - 2.5) * 0.0003; // accelerates in chaos
+
+  // Compute attractor for current r
+  const attractor = getAttractor(r, 300, 100);
+
+  // Check if player is near any attractor point
+  const tolerance = Math.max(0.02, 0.06 - (r - 2.5) * 0.015); // tighter as chaos
+  let onAttractor = false;
+  let minDist = 1;
+  for (const ax of attractor) {
+    const d = Math.abs(playerX - ax);
+    if (d < minDist) minDist = d;
+    if (d < tolerance) { onAttractor = true; break; }
+  }
+
+  // Health
+  if (onAttractor) {
+    health = Math.min(1.0, health + 0.004 * dt);
+    score += Math.floor(r * 2 * dt / 16);
+    if (Math.random() < 0.01) playBeep(200 + r * 100, 0.05, 'sine', 0.05);
+  } else {
+    const damage = (minDist / tolerance) * 0.003 * dt;
+    health = Math.max(0, health - damage);
+    if (health <= 0) { endGame(); return; }
+  }
+
+  // Regen bg cache when r changes significantly
+  if (Math.abs(r - bgR) > 0.02 || !bgCache) {
+    bgCache = drawBifDiagram();
+    bgR = r;
+  }
+
+  // Draw
+  ctx.clearRect(0, 0, W, H);
+
+  // Background: bifurcation diagram
+  ctx.drawImage(bgCache, 0, 0);
+
+  // Current r marker line
+  const rMin = 2.5, rMax = 4.0;
+  const rPx = Math.round((r - rMin) / (rMax - rMin) * W);
+  ctx.strokeStyle = 'rgba(0,255,255,0.25)';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(rPx, 0); ctx.lineTo(rPx, H); ctx.stroke();
+
+  // Draw attractor zones (safe zones)
+  attractor.forEach(ax => {
+    const ay = xToY(ax);
+    const grad = ctx.createRadialGradient(W/2, ay, 0, W/2, ay, tolerance * H * 0.8 + 20);
+    grad.addColorStop(0, 'rgba(0,255,65,0.18)');
+    grad.addColorStop(1, 'rgba(0,255,65,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, ay - tolerance * H * 0.8 - 20, W, (tolerance * H * 0.8 + 20) * 2);
+
+    // Attractor line
+    ctx.strokeStyle = `rgba(0,255,65,${0.4 / attractor.length + 0.05})`;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath(); ctx.moveTo(0, ay); ctx.lineTo(W, ay);
+    ctx.stroke(); ctx.setLineDash([]);
+  });
+
+  // Player dot
+  const py = xToY(playerX);
+  const playerColor = onAttractor ? '#00ff41' : `hsl(${Math.round(health*120)},100%,60%)`;
+  // Outer glow
+  const glow = ctx.createRadialGradient(W/2, py, 0, W/2, py, 40);
+  glow.addColorStop(0, onAttractor ? 'rgba(0,255,65,0.5)' : 'rgba(255,0,64,0.4)');
+  glow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(W/2-40, py-40, 80, 80);
+  // Dot
+  ctx.fillStyle = playerColor;
+  ctx.shadowColor = playerColor;
+  ctx.shadowBlur = 20;
+  ctx.beginPath(); ctx.arc(W/2, py, 10, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Health bar
+  ctx.fillStyle = '#111';
+  ctx.fillRect(16, H - 24, W - 32, 8);
+  const hColor = health > 0.5 ? '#00ff41' : health > 0.25 ? '#ffff00' : '#ff0040';
+  ctx.fillStyle = hColor;
+  ctx.fillRect(16, H - 24, (W - 32) * health, 8);
+
+  // Update UI
+  document.getElementById('sc').textContent = score;
+  document.getElementById('rv').textContent = r.toFixed(3);
+  document.getElementById('regime').textContent = getRegime(r);
+  document.getElementById('chaos-fill').style.width = (getChaosFraction(r) * 100) + '%';
+
+  // If reached full chaos
+  if (r >= 3.999) { endGame(); return; }
+
+  animId = requestAnimationFrame(loop);
+}
+
+function endGame() {
+  gameState = 'dead';
+  playBeep(80, 0.5, 'sawtooth', 0.2);
+  document.getElementById('final-sc').textContent = score;
+  document.getElementById('final-r').textContent = r.toFixed(3);
+  document.getElementById('funny').textContent = funnyMsgs[Math.floor(Math.random() * funnyMsgs.length)];
+  document.getElementById('gameover').style.display = 'flex';
+}
+
+// Touch / mouse controls
+let dragActive = false, lastDragY = null;
+
+function handleTouchStart(e) {
+  e.preventDefault();
+  const t = e.touches ? e.touches[0] : e;
+  touchStartY = t.clientY;
+  touchStartX = t.clientX;
+  lastDragY = t.clientY;
+  dragActive = true;
+}
+function handleTouchMove(e) {
+  e.preventDefault();
+  if (!dragActive || gameState !== 'playing') return;
+  const t = e.touches ? e.touches[0] : e;
+  const dy = lastDragY - t.clientY; // positive = up = increase x
+  playerX = Math.max(0.01, Math.min(0.99, playerX + dy / H * 0.8));
+  lastDragY = t.clientY;
+}
+function handleTouchEnd(e) {
+  e.preventDefault();
+  dragActive = false;
+  lastDragY = null;
+}
+
+canvas.addEventListener('touchstart', handleTouchStart, {passive:false});
+canvas.addEventListener('touchmove', handleTouchMove, {passive:false});
+canvas.addEventListener('touchend', handleTouchEnd, {passive:false});
+canvas.addEventListener('mousedown', handleTouchStart);
+canvas.addEventListener('mousemove', e=>{ if(e.buttons) handleTouchMove(e); });
+canvas.addEventListener('mouseup', handleTouchEnd);
+
+// Keyboard
+window.addEventListener('keydown', e => {
+  if (gameState !== 'playing') return;
+  if (e.key === 'ArrowUp') playerX = Math.min(0.99, playerX + 0.02);
+  if (e.key === 'ArrowDown') playerX = Math.max(0.01, playerX - 0.02);
+});
+
+// Draw idle diagram
+function drawMenu() {
+  if (bgCache) { ctx.drawImage(bgCache, 0, 0); return; }
+  bgCache = drawBifDiagram();
+  bgR = 2.5;
+  ctx.drawImage(bgCache, 0, 0);
+}
+requestAnimationFrame(function idle(){
+  if (gameState === 'menu') { drawMenu(); requestAnimationFrame(idle); }
+});
+</script>
+</body>
+</html>

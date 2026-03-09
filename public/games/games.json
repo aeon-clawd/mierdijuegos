@@ -159,5 +159,13 @@
         "description": "Eres la población x en la ecuación logística. Mantente en los atractores verdes mientras r aumenta: los atractores se bifurcan en 2, 4, 8… y colapsan en caos puro.",
         "mechanic": "El jugador ES el valor x de x_{n+1}=r·x·(1-x) y debe sobrevivir en los atractores del diagrama de bifurcación — los atractores se dividen en cascada (r=3.0, 3.449, 3.544…) hasta el caos de Feigenbaum",
         "emoji": "🔱"
+    },
+    {
+        "id": "021-soliton",
+        "title": "Solitón",
+        "date": "2026-03-09",
+        "description": "Eres una ola solitaria descrita por la ecuación KdV. Tu amplitud determina tu velocidad. Absorbe olas más pequeñas en el pico de fusión o serás absorbido.",
+        "mechanic": "El jugador ES un solitón KdV real (A·sech²) que colisiona con otros solitones — absorbe los más pequeños en el instante del pico de fusión; la amplitud controla velocidad según A·sech²(√(A/12)·(x−At))",
+        "emoji": "〰️"
     }
 ]

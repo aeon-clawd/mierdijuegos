@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Solitón — Mierdijuegos</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0a0a; color: #fff; font-family: 'Courier New', monospace; overflow: hidden; touch-action: none; }
+  canvas { display: block; }
+  #ui {
+    position: fixed; top: 0; left: 0; right: 0;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 16px; pointer-events: none;
+    background: linear-gradient(#0a0a0aCC, transparent);
+  }
+  #score-box { text-align: left; }
+  #score-label { font-size: 10px; color: #888; letter-spacing: 2px; text-transform: uppercase; }
+  #score { font-size: 28px; color: #00ff41; font-weight: bold; }
+  #amp-box { text-align: right; }
+  #amp-label { font-size: 10px; color: #888; letter-spacing: 2px; text-transform: uppercase; }
+  #amp { font-size: 28px; color: #00ffff; font-weight: bold; }
+  #merge-bar {
+    position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%);
+    width: 200px; height: 8px; background: #222; border-radius: 4px;
+    overflow: hidden; pointer-events: none;
+  }
+  #merge-fill {
+    height: 100%; width: 0%; background: #ffff00;
+    border-radius: 4px; transition: width 0.05s;
+  }
+  #merge-label {
+    position: fixed; bottom: 72px; left: 50%; transform: translateX(-50%);
+    font-size: 10px; color: #888; letter-spacing: 2px; pointer-events: none;
+  }
+  #overlay {
+    position: fixed; inset: 0; background: #0a0a0aEE;
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 20px; padding: 24px;
+  }
+  #overlay h1 { font-size: 42px; color: #00ffff; letter-spacing: 4px; }
+  #overlay .subtitle { font-size: 13px; color: #888; text-align: center; max-width: 320px; line-height: 1.6; }
+  #overlay .mechanic-box {
+    background: #111; border: 1px solid #333; border-radius: 8px;
+    padding: 16px 20px; max-width: 340px; text-align: left;
+  }
+  #overlay .mechanic-box p { font-size: 12px; color: #aaa; line-height: 1.6; }
+  #overlay .mechanic-box .tag { font-size: 10px; color: #00ffff; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px; display: block; }
+  .btn {
+    background: transparent; border: 2px solid #00ff41; color: #00ff41;
+    padding: 14px 40px; font-size: 16px; font-family: 'Courier New', monospace;
+    letter-spacing: 3px; cursor: pointer; text-transform: uppercase;
+    transition: all 0.2s; border-radius: 4px;
+  }
+  .btn:active { background: #00ff41; color: #0a0a0a; }
+  #gameover-score { font-size: 48px; color: #ff00ff; }
+  #gameover-msg { font-size: 14px; color: #888; text-align: center; max-width: 300px; }
+  #back-link { font-size: 12px; color: #444; text-decoration: none; letter-spacing: 2px; }
+  #back-link:hover { color: #888; }
+  .flash { animation: flash 0.3s ease; }
+  @keyframes flash { 0%,100%{opacity:1} 50%{opacity:0.3} }
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+
+<div id="ui">
+  <div id="score-box">
+    <div id="score-label">Puntos</div>
+    <div id="score">0</div>
+  </div>
+  <div id="amp-box">
+    <div id="amp-label">Amplitud</div>
+    <div id="amp">1.0</div>
+  </div>
+</div>
+
+<div id="merge-label">FUSIÓN</div>
+<div id="merge-bar"><div id="merge-fill"></div></div>
+
+<div id="overlay">
+  <h1>〰 SOLITÓN</h1>
+  <div class="subtitle">En 1834, John Scott Russell descubrió olas solitarias que viajan sin deformarse. Cuando dos colisionan, se fusionan y emergen intactas.</div>
+  <div class="mechanic-box">
+    <span class="tag">KdV: u = A·sech²(√(A/12)·(x − At))</span>
+    <p>
+      Tu amplitud <span style="color:#00ffff">A</span> = tu velocidad.<br>
+      Colisiona con olas más pequeñas en el <strong style="color:#ffff00">pico de fusión</strong> para absorberlas.<br>
+      Evita el pico de las más grandes — o te absorben.
+    </p>
+  </div>
+  <button class="btn" id="start-btn">JUGAR</button>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const overlay = document.getElementById('overlay');
+const scoreEl = document.getElementById('score');
+const ampEl = document.getElementById('amp');
+const mergeFill = document.getElementById('merge-fill');
+
+let W, H, dpr;
+function resize() {
+  dpr = window.devicePixelRatio || 1;
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.scale(dpr, dpr);
+}
+resize();
+window.addEventListener('resize', resize);
+
+// === PHYSICS ===
+// KdV soliton: u(x,t) = A * sech²( sqrt(A/12) * (x - A*t/3) )
+// We simplify: amplitude A, speed v = A (normalized)
+// Width ~ 1/sqrt(A) so bigger = taller + narrower + faster
+
+function sech(x) { const e = Math.exp(x); const em = Math.exp(-x); return 2 / (e + em); }
+function solitonProfile(dx, A) {
+  const k = Math.sqrt(A / 12);
+  return A * Math.pow(sech(k * dx), 2);
+}
+
+// Screen coords: water level at H*0.6
+// x maps to [0, W], solitons live on x-axis
+
+const WATER_Y = 0; // offset from baseline
+let score = 0;
+let gameRunning = false;
+let playerX = 0; // position in world units [0, 1000]
+let playerA = 1.0; // amplitude
+const WORLD_W = 1000;
+let cameraX = 0; // world x that maps to screen center
+
+let solitons = []; // {x, A, dir} dir=1 (right) or -1 (left)
+let particles = [];
+let mergeGlow = 0;
+let lastTime = 0;
+let spawnTimer = 0;
+let difficulty = 1;
+let gameTime = 0;
+
+// Touch/mouse state
+let pointerX = null;
+let isDragging = false;
+let dragStartX = null;
+let dragStartPlayerX = null;
+
+function worldToScreen(wx) {
+  return W/2 + (wx - cameraX) * (W / 200);
+}
+function screenToWorld(sx) {
+  return cameraX + (sx - W/2) / (W / 200);
+}
+
+function spawnSoliton() {
+  // Amplitude range: scales with difficulty
+  const minA = 0.3;
+  const maxA = Math.min(0.8 + difficulty * 0.15, 2.5);
+  const A = minA + Math.random() * (maxA - minA);
+  const dir = Math.random() < 0.5 ? 1 : -1;
+  const margin = 120;
+  const wx = dir === 1 ? cameraX - margin : cameraX + margin;
+  solitons.push({ x: wx, A, dir, id: Math.random() });
+}
+
+function addParticles(wx, count, color) {
+  const sx = worldToScreen(wx);
+  const sy = H * 0.55;
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x: sx, y: sy,
+      vx: (Math.random() - 0.5) * 6,
+      vy: -(1 + Math.random() * 5),
+      life: 1.0,
+      color,
+      size: 2 + Math.random() * 3
+    });
+  }
+}
+
+function playTone(freq, duration, type='sine', vol=0.3) {
+  try {
+    const ac = new (window.AudioContext || window.webkitAudioContext)();
+    const o = ac.createOscillator();
+    const g = ac.createGain();
+    o.connect(g); g.connect(ac.destination);
+    o.type = type;
+    o.frequency.setValueAtTime(freq, ac.currentTime);
+    g.gain.setValueAtTime(vol, ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + duration);
+    o.start(); o.stop(ac.currentTime + duration);
+  } catch(e) {}
+}
+
+function startGame() {
+  overlay.style.display = 'none';
+  gameRunning = true;
+  score = 0;
+  playerA = 1.0;
+  playerX = 500;
+  cameraX = playerX;
+  solitons = [];
+  particles = [];
+  gameTime = 0;
+  difficulty = 1;
+  spawnTimer = 0;
+  mergeGlow = 0;
+  lastTime = performance.now();
+  requestAnimationFrame(loop);
+}
+
+function gameOver() {
+  gameRunning = false;
+  const msgs = [
+    "La ola se disuelve. Todo fluye, tú ya no.",
+    "El océano cuántico te ha absorbido.",
+    "Sech² de tu ego = 0. Definitivamente.",
+    "El universo conserva energía. Tú no.",
+    "John Scott Russell lloraría.",
+    "Dispersión no lineal: 1, tú: 0."
+  ];
+  const msg = msgs[Math.floor(Math.random() * msgs.length)];
+  overlay.innerHTML = `
+    <h1 style="color:#ff00ff">〰 FIN</h1>
+    <div id="gameover-score">${score}</div>
+    <div id="gameover-msg">${msg}</div>
+    <button class="btn" onclick="location.reload()">OTRA VEZ</button>
+    <a id="back-link" href="/">más mierdijuegos →</a>
+  `;
+  overlay.style.display = 'flex';
+  playTone(80, 1.5, 'sawtooth', 0.2);
+}
+
+function update(dt) {
+  gameTime += dt;
+  difficulty = 1 + gameTime / 30;
+
+  // Player speed = amplitude (KdV: v = A for our normalization)
+  // Player moves toward pointer
+  if (pointerX !== null) {
+    const targetWX = screenToWorld(pointerX);
+    const diff = targetWX - playerX;
+    const spd = Math.abs(diff) < 5 ? 0 : Math.sign(diff) * Math.min(Math.abs(diff) * 4, playerA * 60);
+    playerX += spd * dt;
+  }
+
+  // Camera follows player smoothly
+  cameraX += (playerX - cameraX) * 6 * dt;
+
+  // Spawn solitons
+  spawnTimer -= dt;
+  if (spawnTimer <= 0) {
+    spawnSoliton();
+    spawnTimer = Math.max(0.4, 2.0 - difficulty * 0.15);
+    if (Math.random() < 0.3) { spawnSoliton(); }
+  }
+
+  // Move solitons
+  for (const s of solitons) {
+    // KdV: speed proportional to amplitude
+    s.x += s.dir * s.A * 35 * dt;
+  }
+
+  // Check merges: solitons passing through player
+  mergeGlow = 0;
+  for (const s of solitons) {
+    const dx = s.x - playerX;
+    const overlap = solitonProfile(dx, s.A) + solitonProfile(dx, playerA);
+    const maxPossible = s.A + playerA;
+    const mergeRatio = overlap / maxPossible;
+
+    if (mergeRatio > 0.3) {
+      mergeGlow = Math.max(mergeGlow, mergeRatio);
+    }
+
+    // Peak of collision: when soliton center is near player center
+    const atPeak = Math.abs(dx) < (2 / Math.sqrt(Math.min(s.A, playerA) / 12));
+    if (atPeak && mergeRatio > 0.7) {
+      if (s.A < playerA) {
+        // Absorb smaller soliton
+        const gain = s.A * 0.3;
+        playerA = Math.min(playerA + gain, 4.0);
+        score += Math.floor(s.A * 100);
+        addParticles(playerX, 15, '#00ff41');
+        playTone(440 + playerA * 200, 0.2, 'sine', 0.25);
+        s.dead = true;
+      } else if (s.A > playerA * 1.2) {
+        // Bigger soliton absorbs us
+        const loss = (s.A - playerA) * 0.25;
+        playerA = Math.max(playerA - loss, 0.1);
+        addParticles(playerX, 10, '#ff0040');
+        playTone(110, 0.3, 'sawtooth', 0.3);
+        if (playerA <= 0.15) { gameOver(); return; }
+      }
+    }
+  }
+
+  // Remove dead or out-of-view solitons
+  solitons = solitons.filter(s => {
+    if (s.dead) return false;
+    const sx = worldToScreen(s.x);
+    return sx > -300 && sx < W + 300;
+  });
+
+  // Update particles
+  for (const p of particles) {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.15;
+    p.life -= dt * 2;
+  }
+  particles = particles.filter(p => p.life > 0);
+
+  // Update UI
+  scoreEl.textContent = score;
+  ampEl.textContent = playerA.toFixed(2);
+  mergeFill.style.width = (mergeGlow * 100) + '%';
+}
+
+function drawWater() {
+  // Draw combined soliton field
+  const baseline = H * 0.58;
+  const scaleY = H * 0.25;
+
+  ctx.beginPath();
+  ctx.moveTo(0, baseline);
+
+  const step = 3;
+  for (let sx = 0; sx <= W; sx += step) {
+    const wx = screenToWorld(sx);
+    let u = 0;
+
+    // Sum all soliton profiles at this x
+    for (const s of solitons) {
+      u += solitonProfile(wx - s.x, s.A);
+    }
+    // Player soliton
+    u += solitonProfile(wx - playerX, playerA);
+
+    const sy = baseline - u * scaleY;
+    if (sx === 0) ctx.moveTo(sx, sy);
+    else ctx.lineTo(sx, sy);
+  }
+
+  ctx.lineTo(W, H);
+  ctx.lineTo(0, H);
+  ctx.closePath();
+
+  // Color based on amplitude
+  const hue = Math.floor(180 - playerA * 30);
+  const grad = ctx.createLinearGradient(0, baseline - scaleY * playerA, 0, H);
+  grad.addColorStop(0, `hsla(${hue}, 100%, 60%, 0.9)`);
+  grad.addColorStop(0.4, `hsla(${hue}, 80%, 40%, 0.6)`);
+  grad.addColorStop(1, '#0a0a0a');
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Stroke the wave
+  ctx.beginPath();
+  for (let sx = 0; sx <= W; sx += step) {
+    const wx = screenToWorld(sx);
+    let u = 0;
+    for (const s of solitons) u += solitonProfile(wx - s.x, s.A);
+    u += solitonProfile(wx - playerX, playerA);
+    const sy = baseline - u * scaleY;
+    if (sx === 0) ctx.moveTo(sx, sy);
+    else ctx.lineTo(sx, sy);
+  }
+  ctx.strokeStyle = `hsla(${hue}, 100%, 75%, 0.8)`;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
+function drawSolitonLabels() {
+  const baseline = H * 0.58;
+  const scaleY = H * 0.25;
+
+  for (const s of solitons) {
+    const sx = worldToScreen(s.x);
+    if (sx < -50 || sx > W + 50) continue;
+    const sy = baseline - s.A * scaleY - 20;
+
+    // Danger indicator
+    const bigger = s.A > playerA * 1.2;
+    ctx.fillStyle = bigger ? '#ff004088' : '#00ff4188';
+    ctx.beginPath();
+    ctx.arc(sx, sy, 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = bigger ? '#ff0040' : '#00ff41';
+    ctx.font = '10px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText('A=' + s.A.toFixed(1), sx, sy - 12);
+  }
+
+  // Player peak marker
+  const psx = worldToScreen(playerX);
+  const totalAtPlayer = solitons.reduce((acc, s) => acc + solitonProfile(playerX - s.x, s.A), 0) + playerA;
+  const psy = baseline - totalAtPlayer * scaleY - 30;
+
+  ctx.fillStyle = '#00ffff';
+  ctx.font = 'bold 12px Courier New';
+  ctx.textAlign = 'center';
+  ctx.fillText('▼ TÚ', psx, psy);
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawMergeGlow() {
+  if (mergeGlow < 0.1) return;
+  const psx = worldToScreen(playerX);
+  const baseline = H * 0.58;
+  const grad = ctx.createRadialGradient(psx, baseline - 30, 0, psx, baseline - 30, 120 * mergeGlow);
+  grad.addColorStop(0, `rgba(255,255,0,${mergeGlow * 0.4})`);
+  grad.addColorStop(1, 'transparent');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+}
+
+function drawGrid() {
+  // Subtle world grid
+  ctx.strokeStyle = '#ffffff08';
+  ctx.lineWidth = 1;
+  const startWX = Math.floor(screenToWorld(0) / 50) * 50;
+  for (let wx = startWX; wx < screenToWorld(W) + 50; wx += 50) {
+    const sx = worldToScreen(wx);
+    ctx.beginPath();
+    ctx.moveTo(sx, 0);
+    ctx.lineTo(sx, H);
+    ctx.stroke();
+  }
+}
+
+function draw() {
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(0, 0, W, H);
+
+  drawGrid();
+  drawMergeGlow();
+  drawWater();
+  drawSolitonLabels();
+  drawParticles();
+
+  // Instruction hint early game
+  if (gameTime < 8) {
+    ctx.globalAlpha = Math.max(0, 1 - gameTime / 6);
+    ctx.fillStyle = '#ffffff66';
+    ctx.font = '13px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText('Toca para moverte — absorbe olas más pequeñas', W/2, H * 0.85);
+    ctx.globalAlpha = 1;
+  }
+}
+
+function loop(ts) {
+  if (!gameRunning) return;
+  const dt = Math.min((ts - lastTime) / 1000, 0.05);
+  lastTime = ts;
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// Controls
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  pointerX = t.clientX;
+  isDragging = true;
+}, { passive: false });
+
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if (!isDragging) return;
+  pointerX = e.touches[0].clientX;
+}, { passive: false });
+
+canvas.addEventListener('touchend', e => {
+  e.preventDefault();
+  pointerX = null;
+  isDragging = false;
+}, { passive: false });
+
+canvas.addEventListener('mousemove', e => {
+  if (gameRunning) pointerX = e.clientX;
+});
+canvas.addEventListener('mouseleave', () => { pointerX = null; });
+
+document.getElementById('start-btn').addEventListener('click', startGame);
+</script>
+
+</body>
+</html>

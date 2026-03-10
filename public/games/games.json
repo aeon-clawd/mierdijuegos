@@ -167,5 +167,13 @@
         "description": "Eres una ola solitaria descrita por la ecuación KdV. Tu amplitud determina tu velocidad. Absorbe olas más pequeñas en el pico de fusión o serás absorbido.",
         "mechanic": "El jugador ES un solitón KdV real (A·sech²) que colisiona con otros solitones — absorbe los más pequeños en el instante del pico de fusión; la amplitud controla velocidad según A·sech²(√(A/12)·(x−At))",
         "emoji": "〰️"
+    },
+    {
+        "id": "022-penrose",
+        "title": "Penrose — Laberinto Aperiódico",
+        "date": "2026-03-10",
+        "description": "Navega un mosaico de Penrose generado por deflación. Los enemigos siguen rutas periódicas, pero el laberinto aperiódico los confunde. φ ≈ 1.618 es tu única guía.",
+        "mechanic": "Navegación sobre grafo de teselado de Penrose P2 (aperiódico) — el jugador explota la falta de periodicidad para evitar enemigos que siguen ciclos deterministas",
+        "emoji": "💎"
     }
 ]

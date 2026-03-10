@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1">
+<title>Penrose — El Laberinto Aperiódico</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0a0a; color: #fff; font-family: 'Courier New', monospace; overflow: hidden; width: 100vw; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  canvas { display: block; touch-action: none; }
+  #ui { position: fixed; top: 0; left: 0; right: 0; padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; pointer-events: none; z-index: 10; }
+  #score-display { font-size: 18px; color: #00ff41; font-weight: bold; }
+  #lives-display { font-size: 18px; color: #ff00ff; }
+  #level-display { font-size: 14px; color: #00ffff; }
+  .screen { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(10,10,10,0.97); z-index: 100; padding: 24px; text-align: center; }
+  .screen h1 { font-size: clamp(24px, 6vw, 42px); margin-bottom: 12px; }
+  .screen p { font-size: clamp(13px, 3.5vw, 16px); color: #aaa; max-width: 420px; line-height: 1.6; margin-bottom: 16px; }
+  .screen .science { font-size: clamp(11px, 2.8vw, 13px); color: #00ffff; max-width: 400px; line-height: 1.5; background: rgba(0,255,255,0.05); border: 1px solid rgba(0,255,255,0.2); border-radius: 8px; padding: 12px; margin-bottom: 20px; }
+  .btn { background: #00ff41; color: #000; border: none; padding: 14px 36px; font-size: 18px; font-family: 'Courier New', monospace; font-weight: bold; cursor: pointer; border-radius: 4px; letter-spacing: 2px; transition: all 0.1s; }
+  .btn:active { transform: scale(0.95); }
+  .btn-secondary { background: transparent; color: #00ff41; border: 2px solid #00ff41; margin-top: 12px; padding: 10px 24px; font-size: 14px; }
+  #start-screen h1 { color: #00ff41; }
+  #gameover-screen h1 { color: #ff0040; }
+  #gameover-score { font-size: 32px; color: #ffff00; margin: 8px 0 16px; }
+  .hidden { display: none !important; }
+  #phi-display { position: fixed; bottom: 8px; left: 50%; transform: translateX(-50%); font-size: 11px; color: #333; pointer-events: none; }
+</style>
+</head>
+<body>
+
+<div id="start-screen" class="screen">
+  <h1>〈 PENROSE 〉</h1>
+  <h2 style="color:#ff00ff;font-size:clamp(13px,3vw,16px);margin-bottom:16px">El Laberinto Aperiódico</h2>
+  <p>Eres un punto de luz atrapado en un mosaico de Penrose — el único patrón que llena el plano sin repetirse nunca. Los cazadores siguen rutas periódicas… pero el laberinto aperiódico los confunde. <strong style="color:#00ff41">Tú no.</strong></p>
+  <div class="science">
+    🔬 Los mosaicos de Penrose (1974) teselas el plano con dos rombos (36° y 72°) usando reglas de emparejamiento. El patrón se expande por el ratio áureo φ ≈ 1.618. Nunca se repite, pero tiene simetría pentagonal quasicristalina de largo alcance.
+  </div>
+  <p style="font-size:12px;color:#555;margin-bottom:20px">Toca un nodo adyacente para moverte · Recoge los cristales amarillos · Evita los cazadores rojos</p>
+  <button class="btn" onclick="startGame()">▶ JUGAR</button>
+</div>
+
+<div id="gameover-screen" class="screen hidden">
+  <h1>☠ ATRAPADO</h1>
+  <div id="gameover-score">0 pts</div>
+  <p id="gameover-msg"></p>
+  <button class="btn" onclick="startGame()">↺ REINTENTAR</button>
+  <a href="/" class="btn btn-secondary">← más mierdijuegos</a>
+</div>
+
+<div id="ui">
+  <div id="score-display">0 pts</div>
+  <div id="level-display">φ⁰</div>
+  <div id="lives-display">♦♦♦</div>
+</div>
+
+<canvas id="c"></canvas>
+<div id="phi-display">φ = 1.6180339887… · Penrose P2 Rhombus Tiling</div>
+
+<script>
+// ─── PENROSE RHOMBUS TILING ────────────────────────────────────────────────
+// We generate a Penrose P2 tiling using deflation substitution rules.
+// Golden ratio φ ≈ 1.618034
+const PHI = (1 + Math.sqrt(5)) / 2;
+const DEG = Math.PI / 180;
+
+// Penrose rhombus vertices generated from angular positions
+// Fat rhombus angles: 72°, 108° — Thin rhombus: 36°, 144°
+// We'll generate a graph of nodes + edges from Penrose substitution
+
+function penroseGraph(cx, cy, radius, depth) {
+  // Use a simpler but mathematically correct approach:
+  // Generate Penrose tiling vertices by deflation from an initial sun (10 fat rhombuses)
+  const nodes = new Map(); // key -> {x,y,id}
+  const edges = []; // {a, b} node ids
+  
+  function nodeKey(x, y) {
+    return `${Math.round(x)},${Math.round(y)}`;
+  }
+  
+  function addNode(x, y) {
+    const k = nodeKey(x, y);
+    if (!nodes.has(k)) {
+      nodes.set(k, { x, y, id: nodes.size, key: k });
+    }
+    return nodes.get(k).id;
+  }
+  
+  function addEdge(idA, idB) {
+    if (idA !== idB) {
+      const key = idA < idB ? `${idA}-${idB}` : `${idB}-${idA}`;
+      if (!edgeSet.has(key)) {
+        edgeSet.add(key);
+        edges.push({ a: idA, b: idB });
+      }
+    }
+  }
+  
+  const edgeSet = new Set();
+  
+  // Generate Penrose P2 using substitution starting from a "sun" (10 fat rhombuses around center)
+  // Fat rhombus: angles at vertices are 72° and 108°
+  // Thin rhombus: angles at vertices are 36° and 144°
+  
+  const tileStack = []; // {type:'fat'|'thin', v0, v1, v2, v3, depth}
+  
+  function fatRhombus(cx2, cy2, angle, size) {
+    // Fat rhombus centered at cx2,cy2, pointing at angle
+    // Has angles 72° at top/bottom, 108° at sides
+    const a72 = 72 * DEG / 2;
+    return [
+      [cx2, cy2],
+      [cx2 + size * Math.cos(angle + a72), cy2 + size * Math.sin(angle + a72)],
+      [cx2 + size * PHI * Math.cos(angle), cy2 + size * PHI * Math.sin(angle)],
+      [cx2 + size * Math.cos(angle - a72), cy2 + size * Math.sin(angle - a72)]
+    ];
+  }
+  
+  // Instead, use the "arc" approach: generate Penrose by segments
+  // We'll use a well-known algorithm: Penrose from complex numbers
+  // Each tile defined by two vertices + side length + type
+  
+  // Seed: "sun" — 10 fat rhombuses around center
+  const tiles = [];
+  
+  function addTileRaw(type, p0, p1, p2, p3) {
+    tiles.push({ type, p0, p1, p2, p3 });
+  }
+  
+  // Generate using Penrose substitution on triangles (Robinson triangles)
+  // P2: fat rhombus = 2 golden gnomons, thin rhombus = 2 golden triangles
+  // Golden triangle: isoceles with apex 36°, base angles 72°
+  // Golden gnomon: isoceles with apex 108°, base angles 36°
+  
+  const triangles = []; // {type: 'G' (golden) | 'g' (gnomon), A, B, C}
+  
+  // Seed: 10 golden triangles forming a decagon (Penrose "sun")
+  for (let i = 0; i < 10; i++) {
+    const ang = (36 * i + 18) * DEG;
+    const ang2 = (36 * i + 18 + 36) * DEG;
+    const A = { x: cx, y: cy };
+    const B = {
+      x: cx + radius * Math.cos(ang),
+      y: cy + radius * Math.sin(ang)
+    };
+    const C = {
+      x: cx + radius * Math.cos(ang2),
+      y: cy + radius * Math.sin(ang2)
+    };
+    // Alternate orientation for correct sun
+    if (i % 2 === 0) {
+      triangles.push({ type: 'G', A, B: C, C: B });
+    } else {
+      triangles.push({ type: 'G', A, B, C });
+    }
+  }
+  
+  // Deflation rules:
+  // Golden triangle (G): split into 1 gnomon (g) + 1 golden (G)
+  // Gnomon (g): split into 1 golden (G) + 1 gnomon (g)
+  function deflate(tri) {
+    const { type, A, B, C } = tri;
+    const result = [];
+    if (type === 'G') {
+      // P divides AB at ratio 1/φ from A
+      const P = {
+        x: A.x + (B.x - A.x) / PHI,
+        y: A.y + (B.y - A.y) / PHI
+      };
+      result.push({ type: 'G', A: C, B: P, C: B });
+      result.push({ type: 'g', A: P, B: A, C: C });
+    } else {
+      // Gnomon: Q divides AC at ratio 1/φ from A
+      const Q = {
+        x: A.x + (C.x - A.x) / PHI,
+        y: A.y + (C.y - A.y) / PHI
+      };
+      result.push({ type: 'G', A: Q, B: B, C: A });
+      result.push({ type: 'g', A: B, B: C, C: Q });
+    }
+    return result;
+  }
+  
+  // Apply deflations
+  let current = triangles;
+  for (let d = 0; d < depth; d++) {
+    const next = [];
+    for (const t of current) {
+      next.push(...deflate(t));
+    }
+    current = next;
+  }
+  
+  // Build graph from triangles
+  function snap(p) {
+    return { x: Math.round(p.x * 2) / 2, y: Math.round(p.y * 2) / 2 };
+  }
+  function nodeKeySnap(p) {
+    return `${Math.round(p.x * 2)},${Math.round(p.y * 2)}`;
+  }
+  function addNodeSnap(p) {
+    const sp = snap(p);
+    const k = nodeKeySnap(sp);
+    if (!nodes.has(k)) {
+      nodes.set(k, { x: sp.x, y: sp.y, id: nodes.size, key: k, neighbors: [] });
+    }
+    return nodes.get(k);
+  }
+  
+  function addEdgeBetween(na, nb) {
+    if (na.id === nb.id) return;
+    const key = na.id < nb.id ? `${na.id}-${nb.id}` : `${nb.id}-${na.id}`;
+    if (!edgeSet.has(key)) {
+      edgeSet.add(key);
+      edges.push({ a: na.id, b: nb.id });
+      na.neighbors.push(nb.id);
+      nb.neighbors.push(na.id);
+    }
+  }
+  
+  for (const tri of current) {
+    const nA = addNodeSnap(tri.A);
+    const nB = addNodeSnap(tri.B);
+    const nC = addNodeSnap(tri.C);
+    addEdgeBetween(nA, nB);
+    addEdgeBetween(nB, nC);
+    addEdgeBetween(nA, nC);
+  }
+  
+  return { nodes: [...nodes.values()], edges };
+}
+
+// ─── GAME STATE ────────────────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H;
+let graph = null;
+let playerNode = 0;
+let crystals = [];
+let hunters = [];
+let score = 0;
+let lives = 3;
+let level = 0;
+let gameActive = false;
+let animId = null;
+let lastTime = 0;
+let hunterTimer = 0;
+let flashNodes = new Map(); // nodeId -> {color, alpha}
+let particles = [];
+let cameraX = 0, cameraY = 0;
+let targetCamX = 0, targetCamY = 0;
+let touchStartNode = -1;
+
+// Messages
+const msgs = [
+  "El caos quasicristalino te atrapó.",
+  "φ te venció. El ratio áureo no perdona.",
+  "Nunca repitas tus pasos... pero te repitiste.",
+  "Los cazadores periódicos encontraron tu patrón.",
+  "La aperiodicidad no fue suficiente.",
+  "Hasta los fractales tienen un fin.",
+];
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+
+function startGame() {
+  document.getElementById('start-screen').classList.add('hidden');
+  document.getElementById('gameover-screen').classList.add('hidden');
+  resize();
+  
+  score = 0;
+  lives = 3;
+  level = 0;
+  particles = [];
+  flashNodes = new Map();
+  gameActive = true;
+  
+  initLevel();
+  updateUI();
+  
+  if (animId) cancelAnimationFrame(animId);
+  lastTime = performance.now();
+  animId = requestAnimationFrame(gameLoop);
+}
+
+function initLevel() {
+  const depth = Math.min(3 + level, 5);
+  const radius = Math.min(W, H) * 0.38;
+  
+  graph = penroseGraph(0, 0, radius / (PHI ** depth), depth);
+  
+  // Filter nodes within bounds
+  const maxR = radius * 1.1;
+  graph.nodes = graph.nodes.filter(n => Math.sqrt(n.x*n.x + n.y*n.y) < maxR);
+  
+  // Rebuild node index
+  const validIds = new Set(graph.nodes.map(n => n.id));
+  graph.nodes.forEach((n, i) => { n.newId = i; });
+  const idMap = new Map(graph.nodes.map(n => [n.id, n.newId]));
+  graph.nodes.forEach(n => {
+    n.id = n.newId;
+    n.neighbors = (n.neighbors || []).filter(nb => validIds.has(nb)).map(nb => idMap.get(nb));
+  });
+  graph.edges = graph.edges
+    .filter(e => validIds.has(e.a) && validIds.has(e.b))
+    .map(e => ({ a: idMap.get(e.a), b: idMap.get(e.b) }));
+  
+  // Find center node (closest to 0,0)
+  let minDist = Infinity, centerIdx = 0;
+  graph.nodes.forEach((n, i) => {
+    const d = Math.sqrt(n.x*n.x + n.y*n.y);
+    if (d < minDist) { minDist = d; centerIdx = i; }
+  });
+  playerNode = centerIdx;
+  
+  // Place crystals: nodes far from center
+  const sorted = [...graph.nodes].sort((a,b) => 
+    Math.sqrt(b.x*b.x+b.y*b.y) - Math.sqrt(a.x*a.x+a.y*a.y)
+  );
+  const crystalCount = 5 + level * 2;
+  crystals = sorted.slice(0, Math.min(crystalCount, sorted.length - 1))
+    .filter(n => n.id !== playerNode)
+    .slice(0, crystalCount)
+    .map(n => ({ nodeId: n.id, pulse: Math.random() * Math.PI * 2 }));
+  
+  // Place hunters at outer ring nodes, on the opposite side
+  const hunterCount = 1 + level;
+  hunters = [];
+  const angleStep = (Math.PI * 2) / hunterCount;
+  for (let i = 0; i < hunterCount; i++) {
+    const targetAngle = angleStep * i;
+    let bestNode = null, bestDist = Infinity;
+    graph.nodes.forEach(n => {
+      const angle = Math.atan2(n.y, n.x);
+      const r = Math.sqrt(n.x*n.x+n.y*n.y);
+      if (r > radius * 0.4) {
+        const da = Math.abs(Math.atan2(Math.sin(angle-targetAngle), Math.cos(angle-targetAngle)));
+        if (da < bestDist) { bestDist = da; bestNode = n; }
+      }
+    });
+    if (bestNode && bestNode.id !== playerNode) {
+      hunters.push({
+        nodeId: bestNode.id,
+        path: [],
+        moveTimer: 0,
+        speed: 1.2 - level * 0.05, // seconds between moves
+        renderX: bestNode.x,
+        renderY: bestNode.y,
+        moving: false
+      });
+    }
+  }
+  
+  hunterTimer = 0;
+  cameraX = graph.nodes[playerNode].x;
+  cameraY = graph.nodes[playerNode].y;
+  targetCamX = cameraX;
+  targetCamY = cameraY;
+}
+
+// BFS pathfinding
+function bfsPath(fromId, toId) {
+  if (fromId === toId) return [];
+  const queue = [[fromId]];
+  const visited = new Set([fromId]);
+  while (queue.length) {
+    const path = queue.shift();
+    const cur = path[path.length - 1];
+    const node = graph.nodes[cur];
+    for (const nb of (node.neighbors || [])) {
+      if (nb === toId) return [...path, nb];
+      if (!visited.has(nb)) {
+        visited.add(nb);
+        queue.push([...path, nb]);
+      }
+    }
+  }
+  return [];
+}
+
+function updateUI() {
+  document.getElementById('score-display').textContent = `${score} pts`;
+  document.getElementById('lives-display').textContent = '♦'.repeat(lives) + '◇'.repeat(Math.max(0, 3 - lives));
+  document.getElementById('level-display').textContent = `φ${level}`;
+}
+
+function gameLoop(now) {
+  if (!gameActive) return;
+  const dt = (now - lastTime) / 1000;
+  lastTime = now;
+  
+  update(dt);
+  render();
+  
+  animId = requestAnimationFrame(gameLoop);
+}
+
+function update(dt) {
+  hunterTimer += dt;
+  
+  // Update hunter speed based on level
+  const hunterSpeed = Math.max(0.4, 1.2 - level * 0.12);
+  
+  // Move hunters toward player
+  if (hunterTimer >= hunterSpeed) {
+    hunterTimer = 0;
+    for (const hunter of hunters) {
+      if (!hunter.moving) {
+        const path = bfsPath(hunter.nodeId, playerNode);
+        if (path.length > 1) {
+          hunter.nextNode = path[1];
+          hunter.startX = graph.nodes[hunter.nodeId].x;
+          hunter.startY = graph.nodes[hunter.nodeId].y;
+          hunter.endX = graph.nodes[path[1]].x;
+          hunter.endY = graph.nodes[path[1]].y;
+          hunter.moveProgress = 0;
+          hunter.moving = true;
+        }
+      }
+    }
+  }
+  
+  // Animate hunter movement
+  for (const hunter of hunters) {
+    if (hunter.moving) {
+      hunter.moveProgress = Math.min(1, (hunter.moveProgress || 0) + dt * 3.5);
+      const t = hunter.moveProgress;
+      hunter.renderX = hunter.startX + (hunter.endX - hunter.startX) * t;
+      hunter.renderY = hunter.startY + (hunter.endY - hunter.startY) * t;
+      if (hunter.moveProgress >= 1) {
+        hunter.nodeId = hunter.nextNode;
+        hunter.renderX = hunter.endX;
+        hunter.renderY = hunter.endY;
+        hunter.moving = false;
+      }
+    } else {
+      const n = graph.nodes[hunter.nodeId];
+      if (n) { hunter.renderX = n.x; hunter.renderY = n.y; }
+    }
+    
+    // Check collision with player
+    if (hunter.nodeId === playerNode) {
+      lives--;
+      updateUI();
+      flashNode(playerNode, '#ff0040', 1.0);
+      spawnParticles(graph.nodes[playerNode].x, graph.nodes[playerNode].y, '#ff0040', 12);
+      
+      if (lives <= 0) {
+        endGame();
+        return;
+      }
+      
+      // Respawn hunter far away
+      const maxR = 0;
+      let farthest = graph.nodes[0];
+      graph.nodes.forEach(n => {
+        const d = Math.sqrt((n.x-graph.nodes[playerNode].x)**2 + (n.y-graph.nodes[playerNode].y)**2);
+        const r = Math.sqrt(n.x*n.x+n.y*n.y);
+        if (r > maxR && d > 100) farthest = n;
+      });
+      hunter.nodeId = farthest.id;
+      hunter.renderX = farthest.x;
+      hunter.renderY = farthest.y;
+      hunter.moving = false;
+    }
+  }
+  
+  // Update flash nodes
+  for (const [id, f] of flashNodes) {
+    f.alpha -= dt * 2;
+    if (f.alpha <= 0) flashNodes.delete(id);
+  }
+  
+  // Update particles
+  for (const p of particles) {
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.life -= dt;
+    p.vy += 200 * dt;
+  }
+  particles = particles.filter(p => p.life > 0);
+  
+  // Update crystal pulses
+  for (const c of crystals) {
+    c.pulse += dt * 2.5;
+  }
+  
+  // Camera follows player with lerp
+  const pn = graph.nodes[playerNode];
+  if (pn) {
+    targetCamX = pn.x;
+    targetCamY = pn.y;
+  }
+  cameraX += (targetCamX - cameraX) * Math.min(1, dt * 8);
+  cameraY += (targetCamY - cameraY) * Math.min(1, dt * 8);
+}
+
+function flashNode(id, color, alpha) {
+  flashNodes.set(id, { color, alpha });
+}
+
+function spawnParticles(x, y, color, count) {
+  for (let i = 0; i < count; i++) {
+    const ang = Math.random() * Math.PI * 2;
+    const spd = 80 + Math.random() * 160;
+    particles.push({
+      x, y,
+      vx: Math.cos(ang) * spd,
+      vy: Math.sin(ang) * spd - 50,
+      life: 0.4 + Math.random() * 0.4,
+      maxLife: 0.8,
+      color,
+      size: 2 + Math.random() * 3
+    });
+  }
+}
+
+function render() {
+  ctx.clearRect(0, 0, W, H);
+  
+  // Background subtle pattern
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(0, 0, W, H);
+  
+  // Camera transform
+  ctx.save();
+  ctx.translate(W / 2 - cameraX, H / 2 - cameraY);
+  
+  if (!graph) { ctx.restore(); return; }
+  
+  const pn = graph.nodes[playerNode];
+  const viewR = Math.max(W, H) * 0.7;
+  
+  // Draw edges
+  for (const e of graph.edges) {
+    const na = graph.nodes[e.a];
+    const nb = graph.nodes[e.b];
+    if (!na || !nb) continue;
+    
+    // Cull far edges
+    const midX = (na.x + nb.x) / 2 - cameraX;
+    const midY = (na.y + nb.y) / 2 - cameraY;
+    if (Math.sqrt(midX*midX + midY*midY) > viewR) continue;
+    
+    // Check if near player path
+    const distA = Math.sqrt((na.x-pn.x)**2 + (na.y-pn.y)**2);
+    const distB = Math.sqrt((nb.x-pn.x)**2 + (nb.y-pn.y)**2);
+    const isNear = Math.min(distA, distB) < 150;
+    
+    ctx.beginPath();
+    ctx.moveTo(na.x, na.y);
+    ctx.lineTo(nb.x, nb.y);
+    ctx.strokeStyle = isNear ? 'rgba(0,255,65,0.25)' : 'rgba(0,255,65,0.07)';
+    ctx.lineWidth = isNear ? 1.5 : 0.8;
+    ctx.stroke();
+  }
+  
+  // Draw crystal connections (nearest neighbor)
+  for (const c of crystals) {
+    const cn = graph.nodes[c.nodeId];
+    if (!cn || !pn) continue;
+    const alpha = 0.15 + 0.1 * Math.sin(c.pulse);
+    ctx.beginPath();
+    ctx.moveTo(cn.x, cn.y);
+    ctx.lineTo(pn.x, pn.y);
+    ctx.strokeStyle = `rgba(255,255,0,${alpha})`;
+    ctx.lineWidth = 0.8;
+    ctx.setLineDash([4, 8]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  
+  // Draw flash nodes
+  for (const [id, f] of flashNodes) {
+    const n = graph.nodes[id];
+    if (!n) continue;
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, 24 * f.alpha, 0, Math.PI * 2);
+    ctx.fillStyle = f.color + Math.round(f.alpha * 40).toString(16).padStart(2,'0');
+    ctx.fill();
+  }
+  
+  // Draw nodes (only nearby ones)
+  for (const n of graph.nodes) {
+    const dx = n.x - cameraX, dy = n.y - cameraY;
+    if (Math.sqrt(dx*dx+dy*dy) > viewR) continue;
+    
+    const distToPlayer = Math.sqrt((n.x-pn.x)**2 + (n.y-pn.y)**2);
+    const isNeighbor = pn && (pn.neighbors || []).includes(n.id);
+    const alpha = isNeighbor ? 1 : Math.max(0.15, 1 - distToPlayer / 250);
+    
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, isNeighbor ? 5 : 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = isNeighbor
+      ? `rgba(0,255,65,${alpha})`
+      : `rgba(0,255,65,${alpha * 0.5})`;
+    ctx.fill();
+    
+    // Neighbor highlight ring
+    if (isNeighbor) {
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, 12, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(0,255,65,0.35)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  }
+  
+  // Draw crystals
+  for (const c of crystals) {
+    const cn = graph.nodes[c.nodeId];
+    if (!cn) continue;
+    const pulse = Math.sin(c.pulse) * 0.3 + 0.7;
+    const size = 8 * pulse;
+    
+    // Glow
+    const grd = ctx.createRadialGradient(cn.x, cn.y, 0, cn.x, cn.y, size * 2.5);
+    grd.addColorStop(0, `rgba(255,255,0,${0.6 * pulse})`);
+    grd.addColorStop(1, 'rgba(255,255,0,0)');
+    ctx.beginPath();
+    ctx.arc(cn.x, cn.y, size * 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = grd;
+    ctx.fill();
+    
+    // Diamond shape
+    ctx.save();
+    ctx.translate(cn.x, cn.y);
+    ctx.rotate(c.pulse * 0.5);
+    ctx.beginPath();
+    ctx.moveTo(0, -size);
+    ctx.lineTo(size * 0.6, 0);
+    ctx.lineTo(0, size);
+    ctx.lineTo(-size * 0.6, 0);
+    ctx.closePath();
+    ctx.fillStyle = '#ffff00';
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+  }
+  
+  // Draw hunters
+  for (const h of hunters) {
+    const hx = h.renderX, hy = h.renderY;
+    const dx2 = hx - cameraX, dy2 = hy - cameraY;
+    if (Math.sqrt(dx2*dx2+dy2*dy2) > viewR * 1.2) continue;
+    
+    // Glow
+    const grd2 = ctx.createRadialGradient(hx, hy, 0, hx, hy, 22);
+    grd2.addColorStop(0, 'rgba(255,0,64,0.4)');
+    grd2.addColorStop(1, 'rgba(255,0,64,0)');
+    ctx.beginPath();
+    ctx.arc(hx, hy, 22, 0, Math.PI * 2);
+    ctx.fillStyle = grd2;
+    ctx.fill();
+    
+    // X shape
+    ctx.save();
+    ctx.translate(hx, hy);
+    ctx.rotate(Math.PI / 4);
+    ctx.strokeStyle = '#ff0040';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-8, 0); ctx.lineTo(8, 0);
+    ctx.moveTo(0, -8); ctx.lineTo(0, 8);
+    ctx.stroke();
+    ctx.restore();
+    
+    ctx.beginPath();
+    ctx.arc(hx, hy, 9, 0, Math.PI * 2);
+    ctx.fillStyle = '#ff0040';
+    ctx.fill();
+  }
+  
+  // Draw player
+  if (pn) {
+    const t = Date.now() / 1000;
+    const pSize = 10 + Math.sin(t * 3) * 1.5;
+    
+    const grdP = ctx.createRadialGradient(pn.x, pn.y, 0, pn.x, pn.y, pSize * 3);
+    grdP.addColorStop(0, 'rgba(0,255,255,0.7)');
+    grdP.addColorStop(1, 'rgba(0,255,255,0)');
+    ctx.beginPath();
+    ctx.arc(pn.x, pn.y, pSize * 3, 0, Math.PI * 2);
+    ctx.fillStyle = grdP;
+    ctx.fill();
+    
+    ctx.beginPath();
+    ctx.arc(pn.x, pn.y, pSize, 0, Math.PI * 2);
+    ctx.fillStyle = '#00ffff';
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    
+    // Pentagonal halo (Penrose has 5-fold symmetry)
+    ctx.beginPath();
+    for (let i = 0; i < 5; i++) {
+      const ang = (i * 72 + t * 30) * DEG;
+      const px2 = pn.x + Math.cos(ang) * 18;
+      const py2 = pn.y + Math.sin(ang) * 18;
+      if (i === 0) ctx.moveTo(px2, py2); else ctx.lineTo(px2, py2);
+    }
+    ctx.closePath();
+    ctx.strokeStyle = 'rgba(0,255,255,0.4)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  
+  // Draw particles
+  for (const p of particles) {
+    const alpha = p.life / p.maxLife;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * alpha, 0, Math.PI * 2);
+    ctx.fillStyle = p.color + Math.round(alpha * 200).toString(16).padStart(2,'0');
+    ctx.fill();
+  }
+  
+  ctx.restore();
+  
+  // Vignette
+  const vgrd = ctx.createRadialGradient(W/2, H/2, Math.min(W,H)*0.35, W/2, H/2, Math.max(W,H)*0.75);
+  vgrd.addColorStop(0, 'rgba(10,10,10,0)');
+  vgrd.addColorStop(1, 'rgba(10,10,10,0.8)');
+  ctx.fillStyle = vgrd;
+  ctx.fillRect(0, 0, W, H);
+}
+
+// ─── INPUT ─────────────────────────────────────────────────────────────────
+function handleTap(screenX, screenY) {
+  if (!gameActive || !graph) return;
+  
+  // Convert screen → world
+  const wx = screenX - W/2 + cameraX;
+  const wy = screenY - H/2 + cameraY;
+  
+  const pn = graph.nodes[playerNode];
+  if (!pn) return;
+  
+  // Find nearest neighbor node to tap
+  let bestDist = 60; // tap radius
+  let bestId = -1;
+  
+  for (const nb of (pn.neighbors || [])) {
+    const n = graph.nodes[nb];
+    if (!n) continue;
+    const d = Math.sqrt((n.x - wx)**2 + (n.y - wy)**2);
+    if (d < bestDist) {
+      bestDist = d;
+      bestId = nb;
+    }
+  }
+  
+  // Also allow tapping current node area
+  const dCenter = Math.sqrt((pn.x - wx)**2 + (pn.y - wy)**2);
+  
+  if (bestId === -1 && dCenter < 40) return; // tap on self, ignore
+  if (bestId === -1) return;
+  
+  // Move player
+  playerNode = bestId;
+  flashNode(playerNode, '#00ffff', 0.6);
+  
+  // Check crystal collection
+  for (let i = crystals.length - 1; i >= 0; i--) {
+    if (crystals[i].nodeId === playerNode) {
+      const cn = graph.nodes[playerNode];
+      score += 10 * (level + 1);
+      spawnParticles(cn.x, cn.y, '#ffff00', 10);
+      flashNode(playerNode, '#ffff00', 1.0);
+      crystals.splice(i, 1);
+      updateUI();
+      
+      // Level complete?
+      if (crystals.length === 0) {
+        level++;
+        updateUI();
+        setTimeout(() => {
+          crystals = []; hunters = [];
+          initLevel();
+        }, 500);
+      }
+      break;
+    }
+  }
+  
+  // Check hunter collision immediately
+  for (const h of hunters) {
+    if (h.nodeId === playerNode) {
+      lives--;
+      updateUI();
+      flashNode(playerNode, '#ff0040', 1.0);
+      spawnParticles(graph.nodes[playerNode].x, graph.nodes[playerNode].y, '#ff0040', 12);
+      if (lives <= 0) { endGame(); return; }
+      // Push hunter away
+      let farthest = graph.nodes[0];
+      let maxD2 = 0;
+      graph.nodes.forEach(n => {
+        const d2 = Math.sqrt((n.x-graph.nodes[playerNode].x)**2 + (n.y-graph.nodes[playerNode].y)**2);
+        if (d2 > maxD2) { maxD2 = d2; farthest = n; }
+      });
+      h.nodeId = farthest.id;
+      h.renderX = farthest.x;
+      h.renderY = farthest.y;
+      h.moving = false;
+    }
+  }
+}
+
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const t = e.changedTouches[0];
+  handleTap(t.clientX, t.clientY);
+}, { passive: false });
+
+canvas.addEventListener('click', e => {
+  handleTap(e.clientX, e.clientY);
+});
+
+function endGame() {
+  gameActive = false;
+  const el = document.getElementById('gameover-screen');
+  document.getElementById('gameover-score').textContent = `${score} pts`;
+  document.getElementById('gameover-msg').textContent = msgs[Math.floor(Math.random() * msgs.length)];
+  el.classList.remove('hidden');
+}
+
+window.addEventListener('resize', () => {
+  resize();
+});
+
+resize();
+</script>
+</body>
+</html>

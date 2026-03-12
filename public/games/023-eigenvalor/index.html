@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Eigenvalor — Mierdijuegos</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0a0a; color: #00ff41; font-family: 'Courier New', monospace; overflow: hidden; touch-action: none; }
+  canvas { display: block; }
+  #ui { position: fixed; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; pointer-events: none; z-index: 10; }
+  #score-display { font-size: 22px; color: #ffff00; text-shadow: 0 0 10px #ffff00; }
+  #life-display { font-size: 18px; color: #ff0040; text-shadow: 0 0 8px #ff0040; }
+  #resonance-bar { position: fixed; bottom: 0; left: 0; right: 0; height: 8px; background: #111; z-index: 10; }
+  #resonance-fill { height: 100%; background: linear-gradient(90deg, #ff00ff, #00ffff); width: 0%; transition: width 0.05s; }
+  #matrix-info { position: fixed; top: 50px; left: 10px; font-size: 11px; color: #333; pointer-events: none; z-index: 10; line-height: 1.6; }
+  #screen { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.92); z-index: 20; padding: 20px; text-align: center; }
+  #screen h1 { font-size: 38px; color: #00ffff; text-shadow: 0 0 20px #00ffff; margin-bottom: 10px; }
+  #screen .subtitle { font-size: 14px; color: #888; margin-bottom: 20px; max-width: 340px; line-height: 1.5; }
+  #screen .mechanic { font-size: 13px; color: #00ff41; background: #111; border: 1px solid #00ff41; padding: 12px 16px; border-radius: 6px; max-width: 340px; margin-bottom: 24px; line-height: 1.6; }
+  button { background: #00ff41; color: #0a0a0a; border: none; padding: 14px 32px; font-size: 18px; font-family: 'Courier New', monospace; font-weight: bold; cursor: pointer; border-radius: 4px; }
+  button:active { transform: scale(0.96); }
+  .back-link { margin-top: 16px; color: #666; font-size: 13px; text-decoration: none; }
+  .back-link:hover { color: #00ffff; }
+  #hint { position: fixed; bottom: 20px; left: 0; right: 0; text-align: center; font-size: 13px; color: #444; pointer-events: none; z-index: 10; }
+</style>
+</head>
+<body>
+
+<canvas id="canvas"></canvas>
+<div id="ui">
+  <div id="score-display">CRISTALES: 0</div>
+  <div id="life-display">♥♥♥</div>
+</div>
+<div id="matrix-info"></div>
+<div id="resonance-bar"><div id="resonance-fill"></div></div>
+<div id="hint"></div>
+
+<div id="screen">
+  <h1>EIGENVALOR</h1>
+  <div class="subtitle">El espacio se deforma. Solo los vectores propios sobreviven.</div>
+  <div class="mechanic">
+    Una transformación lineal deforma toda la realidad.<br>
+    Tú eres un vector. Rota hasta alinearte con un <strong>eigenvector</strong>.<br>
+    En resonancia ↗ eres invencible y coleccionas cristales.<br>
+    Fuera de alineación → el campo te devora.<br><br>
+    <strong>← →</strong> o desliza para rotar tu vector.
+  </div>
+  <button id="btn-start">JUGAR</button>
+</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+let W, H, cx, cy;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  cx = W / 2; cy = H / 2;
+}
+resize();
+window.addEventListener('resize', resize);
+
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function beep(freq, dur, type='sine', vol=0.15) {
+  try {
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+    o.start(); o.stop(audioCtx.currentTime + dur);
+  } catch(e) {}
+}
+function chime() { [523,659,784,1047].forEach((f,i) => setTimeout(() => beep(f,.15,'sine',.1),i*80)); }
+function deathSound() { beep(200,.3,'sawtooth',.2); setTimeout(() => beep(100,.5,'sawtooth',.3),200); }
+function shiftSound() { beep(330,.2,'triangle',.12); setTimeout(() => beep(440,.1,'sine',.08),100); }
+
+// Eigenvectors of symmetric 2x2 [[a,b],[b,d]] — always real
+function eigenSym(a, b, d) {
+  const disc = Math.sqrt((a-d)**2 + 4*b*b);
+  const l1 = (a+d-disc)/2, l2 = (a+d+disc)/2;
+  function evec(lam) {
+    const da = a-lam;
+    if (Math.abs(b) > 1e-9) { const len=Math.hypot(-b,da); return [-b/len,da/len]; }
+    return Math.abs(da)<1e-9?[1,0]:[0,1];
+  }
+  return { l1, l2, v1:evec(l1), v2:evec(l2) };
+}
+
+function vecAngle(v) { return Math.atan2(v[1], v[0]); }
+function angleDiff(a, b) { return Math.abs(((b-a)%(Math.PI*2)+Math.PI*3)%(Math.PI*2)-Math.PI); }
+
+let state = 'start';
+let score = 0, lives = 3, playerAngle = 0, resonance = 0, resonanceLevel = 0, hp = 100;
+let matrix = { a:1, b:0, d:1 };
+let eigen = eigenSym(1,0,1);
+let matrixTimer = 0, matrixDuration = 7000;
+// Interesting symmetric matrices with real eigenvectors
+const MATRICES = [
+  { a: 3, b: 1, d: 2 },   // eigvecs at ~26° and ~116°
+  { a: 2, b: 1, d: 3 },   // eigvecs at ~63° and ~153°
+  { a: 1, b: 2, d: 1 },   // eigvecs at 45° and 135°
+  { a: 4, b: 1, d: 1 },   // eigvecs near 0° and 90°
+  { a: 3, b: 2, d: 1 },   // eigvecs mixed
+  { a: 1, b: -2, d: 3 },  // eigvecs mixed sign
+  { a: 5, b: 1, d: 2 },
+  { a: 2, b: 3, d: 2 },
+  { a: 1, b: 1, d: 4 },
+  { a: 3, b: -1, d: 1 },
+];
+let matrixIdx = 0;
+let particles = [], crystals = [];
+const NUM_PARTICLES = 60;
+let rotInput = 0, touchStartX = null, lastTouchX = null;
+
+function initParticles() {
+  particles = [];
+  for (let i = 0; i < NUM_PARTICLES; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const r = 40 + Math.random() * (Math.min(W, H) * 0.42);
+    particles.push({
+      x: cx + Math.cos(angle) * r,
+      y: cy + Math.sin(angle) * r,
+      vx: (Math.random() - 0.5) * 0.5,
+      vy: (Math.random() - 0.5) * 0.5,
+      baseAngle: angle,
+      r: r,
+      size: 1.5 + Math.random() * 2,
+      alpha: 0.2 + Math.random() * 0.5,
+      phase: Math.random() * Math.PI * 2,
+    });
+  }
+}
+
+function spawnCrystal() {
+  // Spawn crystal along one of the eigenvector directions (randomly along the line)
+  const ev = Math.random() < 0.5 ? eigen.v1 : eigen.v2;
+  const sign = Math.random() < 0.5 ? 1 : -1;
+  const dist = 80 + Math.random() * Math.min(W, H) * 0.3;
+  crystals.push({
+    x: cx + sign * ev[0] * dist,
+    y: cy + sign * ev[1] * dist,
+    angle: vecAngle(ev),
+    size: 7 + Math.random() * 5,
+    life: 5000 + Math.random() * 3000,
+    born: performance.now(),
+    collected: false,
+    pulse: Math.random() * Math.PI * 2,
+  });
+}
+
+function setMatrix(m) {
+  matrix = { ...m };
+  eigen = eigenSym(matrix.a, matrix.b, matrix.d);
+}
+
+function nextMatrixShift() {
+  matrixIdx = (matrixIdx + 1) % MATRICES.length;
+  setMatrix(MATRICES[matrixIdx]);
+  matrixTimer = 0;
+  shiftSound();
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft') rotInput = -1;
+  if (e.key === 'ArrowRight') rotInput = 1;
+});
+document.addEventListener('keyup', e => {
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') rotInput = 0;
+});
+
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  touchStartX = e.touches[0].clientX;
+  lastTouchX = touchStartX;
+}, { passive: false });
+
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if (lastTouchX !== null) {
+    const dx = e.touches[0].clientX - lastTouchX;
+    playerAngle += dx * 0.012;
+    lastTouchX = e.touches[0].clientX;
+  }
+}, { passive: false });
+
+canvas.addEventListener('touchend', e => {
+  touchStartX = null; lastTouchX = null;
+}, { passive: false });
+
+function startGame() {
+  score = 0; lives = 3; hp = 100;
+  playerAngle = 0; resonance = 0; resonanceLevel = 0;
+  matrixTimer = 0;
+  matrixIdx = 0;
+  setMatrix(MATRICES[0]);
+  initParticles();
+  crystals = [];
+  setTimeout(() => spawnCrystal(), 1500);
+  state = 'play';
+  document.getElementById('screen').style.display = 'none';
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  lastTime = performance.now();
+  requestAnimationFrame(loop);
+}
+
+document.getElementById('btn-start').addEventListener('click', startGame);
+
+let lastTime = 0;
+
+function update(dt) {
+  if (state !== 'play') return;
+
+  // Rotate from keyboard
+  if (rotInput !== 0) {
+    playerAngle += rotInput * 0.04;
+  }
+
+  matrixTimer += dt;
+  if (matrixTimer > matrixDuration) {
+    nextMatrixShift();
+    // Also clear old crystals and spawn fresh ones
+    crystals = crystals.filter(c => c.collected);
+    setTimeout(() => spawnCrystal(), 800);
+    setTimeout(() => spawnCrystal(), 1800);
+    // Reduce interval slightly for difficulty
+    matrixDuration = Math.max(3500, matrixDuration - 150);
+  }
+
+  const a1 = vecAngle(eigen.v1), a2 = vecAngle(eigen.v2);
+  const diffs = [
+    angleDiff(playerAngle, a1),
+    angleDiff(playerAngle, a1 + Math.PI),
+    angleDiff(playerAngle, a2),
+    angleDiff(playerAngle, a2 + Math.PI),
+  ];
+  const minDiff = Math.min(...diffs);
+  const TOLERANCE = 0.20;
+  const rawResonance = minDiff < TOLERANCE
+    ? Math.max(0, 1 - (minDiff / TOLERANCE))
+    : 0;
+  resonance = rawResonance;
+
+  // Smooth resonance level for display
+  resonanceLevel += (resonance - resonanceLevel) * 0.15;
+
+  if (resonance > 0.7) {
+    hp = Math.min(100, hp + 15 * dt / 1000);
+  } else if (resonance > 0.3) {
+    // partial alignment — neutral
+    hp -= 5 * dt / 1000;
+  } else {
+    // misaligned — the field deforms us
+    const damage = 20 * (1 - resonance) * dt / 1000;
+    hp -= damage;
+  }
+
+  if (hp <= 0) {
+    hp = 0; lives--;
+    if (lives <= 0) { gameOver(); return; }
+    deathSound(); hp = 60;
+    playerAngle += (Math.random()-0.5)*0.5;
+  }
+
+  const now = performance.now();
+  particles.forEach(p => {
+    if (resonance > 0.6) {
+      // Particles flow toward eigenvectors — peaceful
+      const a = vecAngle(eigen.v1);
+      const flowx = Math.cos(a) * 0.3;
+      const flowy = Math.sin(a) * 0.3;
+      p.vx += (flowx - p.vx) * 0.02;
+      p.vy += (flowy - p.vy) * 0.02;
+    } else {
+      // Particles drift chaotically — apply matrix deformation
+      const nx = matrix.a * (p.x - cx) + matrix.b * (p.y - cy);
+      const ny = matrix.b * (p.x - cx) + matrix.d * (p.y - cy);
+      const tx = cx + nx * 0.001, ty = cy + ny * 0.001;
+      p.vx += (tx - p.x) * 0.001;
+      p.vy += (ty - p.y) * 0.001;
+      p.vx *= 0.98; p.vy *= 0.98;
+    }
+    p.x += p.vx;
+    p.y += p.vy;
+    // Wrap
+    if (p.x < -10) p.x = W + 10;
+    if (p.x > W + 10) p.x = -10;
+    if (p.y < -10) p.y = H + 10;
+    if (p.y > H + 10) p.y = -10;
+  });
+
+  crystals.forEach(c => {
+    if (c.collected) return;
+    const age = now - c.born;
+    if (age > c.life) { c.collected = true; return; }
+    // Only collectible when resonant
+    if (resonance > 0.5) {
+      const dx = c.x - cx, dy = c.y - cy;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 40) { c.collected = true; score++; chime(); document.getElementById('score-display').textContent = 'CRISTALES: '+score; }
+    }
+  });
+
+  crystals = crystals.filter(c => !c.collected);
+  if (crystals.length < 2 && Math.random() < 0.01) spawnCrystal();
+
+  let hearts = ''; for(let i=0;i<lives;i++) hearts+='♥'; for(let i=lives;i<3;i++) hearts+='♡';
+  document.getElementById('life-display').textContent = hearts;
+  document.getElementById('resonance-fill').style.width = (resonanceLevel*100)+'%';
+  const a1deg=(vecAngle(eigen.v1)*180/Math.PI).toFixed(1), a2deg=(vecAngle(eigen.v2)*180/Math.PI).toFixed(1), pDeg=((playerAngle*180/Math.PI+360)%360).toFixed(1);
+  document.getElementById('matrix-info').innerHTML=`M=[[${matrix.a},${matrix.b}],[${matrix.b},${matrix.d}]]<br>λ₁=${eigen.l1.toFixed(2)}→${a1deg}°<br>λ₂=${eigen.l2.toFixed(2)}→${a2deg}°<br>θ=${pDeg}°`;
+
+  const hint = document.getElementById('hint');
+  if (resonance > 0.8) {
+    hint.textContent = '∞ RESONANCIA PERFECTA ∞';
+    hint.style.color = '#00ffff';
+  } else if (resonance > 0.4) {
+    hint.textContent = '→ Ajusta para alinear con el eigenvector';
+    hint.style.color = '#ffff00';
+  } else {
+    hint.textContent = 'El campo te deforma... encuentra el eigenvector';
+    hint.style.color = '#ff0040';
+  }
+}
+
+// ──────────── DRAW ────────────
+function draw(t) {
+  ctx.clearRect(0, 0, W, H);
+
+  // Background grid — deformed by matrix
+  drawDeformationField(t);
+
+  // Eigenvector lines
+  drawEigenvectorLines();
+
+  // Crystals
+  drawCrystals(t);
+
+  // Particles
+  drawParticles(t);
+
+  // Player vector
+  drawPlayer(t);
+
+  // HP arc around player
+  drawHPArc();
+}
+
+function drawDeformationField(t) {
+  // Draw a field of small arrows showing how the matrix deforms space
+  const step = 60;
+  const scale = 0.06;
+  for (let px = step; px < W; px += step) {
+    for (let py = step; py < H; py += step) {
+      const dx = (px - cx) * scale;
+      const dy = (py - cy) * scale;
+      // Apply matrix - identity to show deformation
+      const nx = (matrix.a - 1) * dx + matrix.b * dy;
+      const ny = matrix.b * dx + (matrix.d - 1) * dy;
+      const len = Math.hypot(nx, ny);
+      if (len < 0.5) continue;
+      const col = resonance > 0.6 ? '0,255,255' : '255,0,64';
+      const alpha = resonance > 0.6 ? 0.04 : 0.06;
+      ctx.strokeStyle = `rgba(${col},${alpha})`;
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      ctx.moveTo(px, py);
+      ctx.lineTo(px + nx * 5, py + ny * 5);
+      ctx.stroke();
+    }
+  }
+}
+
+function drawEigenvectorLines() {
+  const vecs = [
+    { v: eigen.v1, l: eigen.l1, col: '#00ff41' },
+    { v: eigen.v2, l: eigen.l2, col: '#ff00ff' },
+  ];
+  vecs.forEach(({ v, l, col }) => {
+    const angle = vecAngle(v);
+    const maxLen = Math.hypot(W, H);
+    ctx.strokeStyle = col;
+    ctx.globalAlpha = 0.18 + resonance * 0.25;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6, 10]);
+    ctx.beginPath();
+    ctx.moveTo(cx - Math.cos(angle) * maxLen, cy - Math.sin(angle) * maxLen);
+    ctx.lineTo(cx + Math.cos(angle) * maxLen, cy + Math.sin(angle) * maxLen);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+
+    // Label at edge
+    const lx = cx + Math.cos(angle) * (Math.min(W, H) * 0.38);
+    const ly = cy + Math.sin(angle) * (Math.min(W, H) * 0.38);
+    ctx.fillStyle = col;
+    ctx.globalAlpha = 0.5;
+    ctx.font = '10px Courier New';
+    ctx.fillText(`λ=${l.toFixed(1)}`, lx + 4, ly + 4);
+    ctx.globalAlpha = 1;
+  });
+}
+
+function drawCrystals(t) {
+  const now = performance.now();
+  crystals.forEach(c => {
+    const age = now - c.born;
+    const alpha = Math.sin(age / c.life * Math.PI);
+    const pulse = 0.8 + 0.2 * Math.sin(t * 0.003 + c.pulse);
+    const visible = state === 'play' && resonance > 0.3 ? 1 : 0.3;
+
+    ctx.save();
+    ctx.translate(c.x, c.y);
+    ctx.rotate(t * 0.001 + c.pulse);
+    ctx.globalAlpha = alpha * visible;
+
+    // Diamond shape
+    const s = c.size * pulse;
+    ctx.strokeStyle = '#00ffff';
+    ctx.fillStyle = 'rgba(0,255,255,0.15)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(0, -s);
+    ctx.lineTo(s * 0.6, 0);
+    ctx.lineTo(0, s);
+    ctx.lineTo(-s * 0.6, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Glow when resonant
+    if (resonance > 0.5) {
+      ctx.shadowColor = '#00ffff';
+      ctx.shadowBlur = 15;
+      ctx.stroke();
+    }
+    ctx.restore();
+  });
+}
+
+function drawParticles(t) {
+  particles.forEach(p => {
+    const col = resonance > 0.6
+      ? `rgba(0,255,65,${p.alpha * 0.6})`
+      : `rgba(255,0,64,${p.alpha * 0.4})`;
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
+function drawPlayer(t) {
+  const R = 38; // vector length
+  const ex = Math.cos(playerAngle) * R;
+  const ey = Math.sin(playerAngle) * R;
+
+  // Color depends on resonance
+  let r, g, b;
+  if (resonance > 0.7) {
+    r = 0; g = 255; b = 255; // cyan — resonant
+  } else if (resonance > 0.3) {
+    const f = (resonance - 0.3) / 0.4;
+    r = Math.floor(255 * (1 - f)); g = 255; b = Math.floor(255 * f);
+  } else {
+    r = 255; g = 64; b = 0; // red — danger
+  }
+  const col = `rgb(${r},${g},${b})`;
+
+  // Glow
+  ctx.shadowColor = col;
+  ctx.shadowBlur = resonance > 0.7 ? 25 : 10;
+
+  // Shaft
+  ctx.strokeStyle = col;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(cx - ex * 0.3, cy - ey * 0.3);
+  ctx.lineTo(cx + ex, cy + ey);
+  ctx.stroke();
+
+  // Arrowhead
+  const ah = 12, aw = 7;
+  const ax = cx + ex, ay = cy + ey;
+  const perp = playerAngle + Math.PI / 2;
+  ctx.fillStyle = col;
+  ctx.beginPath();
+  ctx.moveTo(ax, ay);
+  ctx.lineTo(ax - Math.cos(playerAngle) * ah + Math.cos(perp) * aw,
+             ay - Math.sin(playerAngle) * ah + Math.sin(perp) * aw);
+  ctx.lineTo(ax - Math.cos(playerAngle) * ah - Math.cos(perp) * aw,
+             ay - Math.sin(playerAngle) * ah - Math.sin(perp) * aw);
+  ctx.closePath();
+  ctx.fill();
+
+  // Origin dot
+  ctx.beginPath();
+  ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+  ctx.fillStyle = col;
+  ctx.fill();
+
+  ctx.shadowBlur = 0;
+
+  // Resonance ring
+  if (resonance > 0.1) {
+    const rings = resonance > 0.7 ? 2 : 1;
+    for (let i = 0; i < rings; i++) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, 55 + i * 20 + Math.sin(t * 0.004) * 5, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(${r},${g},${b},${resonance * 0.4})`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  }
+
+  // Matrix shift timer arc
+  const timerFraction = 1 - matrixTimer / matrixDuration;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 50, -Math.PI / 2, -Math.PI / 2 + timerFraction * Math.PI * 2);
+  ctx.strokeStyle = 'rgba(255,255,0,0.25)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
+function drawHPArc() {
+  const startAngle = Math.PI * 0.6;
+  const endAngle = Math.PI * 2.4;
+  const hpFraction = hp / 100;
+
+  // Background arc
+  ctx.beginPath();
+  ctx.arc(cx, cy, 70, startAngle, endAngle);
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 4;
+  ctx.stroke();
+
+  // HP arc
+  if (hpFraction > 0) {
+    const hpEnd = startAngle + (endAngle - startAngle) * hpFraction;
+    const hpCol = hp > 60 ? '#00ff41' : hp > 30 ? '#ffff00' : '#ff0040';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 70, startAngle, hpEnd);
+    ctx.strokeStyle = hpCol;
+    ctx.lineWidth = 4;
+    ctx.stroke();
+  }
+}
+
+// ──────────── GAME OVER ────────────
+function gameOver() {
+  state = 'over';
+  deathSound();
+
+  const msgs = [
+    'Te deformó la transformación lineal.',
+    'El espacio se dobló. Tú también.',
+    'No eras un eigenvector. Lo eres ahora: nada.',
+    'λ = 0. Eso te hace...',
+    'La transformación fue implacable.',
+    'Singular. En el peor sentido.',
+  ];
+  const msg = msgs[Math.floor(Math.random() * msgs.length)];
+
+  document.getElementById('screen').innerHTML = `
+    <h1 style="color:#ff0040;text-shadow:0 0 20px #ff0040">COLAPSO</h1>
+    <div class="subtitle">${msg}</div>
+    <div class="mechanic" style="color:#ffff00;border-color:#ffff00">
+      CRISTALES: ${score}
+      <br><br>
+      <span style="font-size:11px;color:#888">
+        Un eigenvector es el único vector que una transformación lineal<br>
+        no rota — solo escala. Eres estable solo si te alineas.
+      </span>
+    </div>
+    <button id="btn-retry">REINTENTAR</button>
+    <a class="back-link" href="/">← más mierdijuegos</a>
+  `;
+  document.getElementById('screen').style.display = 'flex';
+  document.getElementById('btn-retry').addEventListener('click', startGame);
+}
+
+// ──────────── LOOP ────────────
+function loop(t) {
+  const dt = Math.min(t - lastTime, 50);
+  lastTime = t;
+  if (state === 'play') {
+    update(dt);
+    draw(t);
+  }
+  requestAnimationFrame(loop);
+}
+
+// Draw idle background on start screen
+function drawIdle(t) {
+  ctx.clearRect(0, 0, W, H);
+  // Animated eigenvector lines
+  const ang = t * 0.0004;
+  [[Math.cos(ang), Math.sin(ang)], [-Math.sin(ang), Math.cos(ang)]].forEach((v, i) => {
+    const a = vecAngle(v);
+    const maxLen = Math.hypot(W, H);
+    ctx.strokeStyle = i === 0 ? 'rgba(0,255,65,0.12)' : 'rgba(255,0,255,0.12)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6, 10]);
+    ctx.beginPath();
+    ctx.moveTo(cx - Math.cos(a) * maxLen, cy - Math.sin(a) * maxLen);
+    ctx.lineTo(cx + Math.cos(a) * maxLen, cy + Math.sin(a) * maxLen);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  });
+  // Animated vector
+  const va = t * 0.0012;
+  const R = 45;
+  ctx.shadowColor = '#00ffff'; ctx.shadowBlur = 15;
+  ctx.strokeStyle = '#00ffff'; ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx + Math.cos(va) * R, cy + Math.sin(va) * R);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  if (state === 'start') requestAnimationFrame(drawIdle);
+}
+requestAnimationFrame(drawIdle);
+</script>
+</body>
+</html>

@@ -145,6 +145,14 @@
     }
     ,
     {
+        "id": "023-eigenvalor",
+        "title": "Eigenvalor",
+        "date": "2026-03-11",
+        "description": "Una transformación lineal deforma la realidad. Eres un vector — rota hasta alinearte con el eigenvector y volverte invencible.",
+        "mechanic": "El jugador rota su vector para alinearse con eigenvectores de una matriz real que cambia dinámicamente — la resonancia con el espacio propio otorga inmunidad",
+        "emoji": "↗️"
+    },
+    {
         "id": "019-bloqueo-mareal",
         "title": "Bloqueo Mareal",
         "date": "2026-03-07",
@@ -175,5 +183,13 @@
         "description": "Navega un mosaico de Penrose generado por deflación. Los enemigos siguen rutas periódicas, pero el laberinto aperiódico los confunde. φ ≈ 1.618 es tu única guía.",
         "mechanic": "Navegación sobre grafo de teselado de Penrose P2 (aperiódico) — el jugador explota la falta de periodicidad para evitar enemigos que siguen ciclos deterministas",
         "emoji": "💎"
+    },
+    {
+        "id": "024-efecto-tunel",
+        "title": "Efecto Túnel",
+        "date": "2026-03-12",
+        "description": "Eres una partícula cuántica. Controla tu energía: por encima de la barrera activa el detector y pierdes una vida. Por debajo, la probabilidad de tunelizar es real — T = 1/(1 + sinh²(κL)·V₀²/4E(V₀−E)).",
+        "mechanic": "El jugador calibra la energía de una partícula cuántica para maximizar la probabilidad de tunelización (fórmula de Gamow real) sin cruzar V₀ — el riesgo/recompensa es la mecánica core",
+        "emoji": "⚛️"
     }
 ]

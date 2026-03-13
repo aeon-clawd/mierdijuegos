@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Eco de Espín</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0a;color:#00ff41;font-family:'Courier New',monospace;overflow:hidden;width:100vw;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center}
+canvas{display:block;touch-action:none}
+#ui{position:fixed;top:0;left:0;right:0;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;background:rgba(0,0,0,0.7);z-index:10;font-size:13px}
+.score-val{color:#ffff00;font-size:16px;font-weight:bold}
+.label{color:#888;font-size:11px}
+#screen{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,0.92);z-index:20;padding:24px;text-align:center}
+#screen h1{font-size:28px;color:#00ffff;margin-bottom:8px;letter-spacing:2px}
+#screen .sub{color:#888;font-size:12px;margin-bottom:16px;letter-spacing:1px}
+#screen .desc{color:#ccc;font-size:13px;line-height:1.7;max-width:320px;margin-bottom:24px}
+#screen .highlight{color:#ff00ff}
+.btn{background:transparent;border:2px solid #00ff41;color:#00ff41;padding:12px 32px;font-family:'Courier New',monospace;font-size:15px;cursor:pointer;letter-spacing:2px;transition:all 0.2s}
+.btn:hover,.btn:active{background:#00ff41;color:#0a0a0a}
+#gameover-score{font-size:36px;color:#ffff00;margin:12px 0}
+#funny{color:#ff00ff;font-size:13px;margin-bottom:20px;font-style:italic}
+#back{display:block;margin-top:14px;color:#555;font-size:12px;text-decoration:none}
+#back:hover{color:#888}
+</style>
+</head>
+<body>
+<div id="ui">
+  <div><div class="label">PUNTUACIÓN</div><div class="score-val" id="scoreDisplay">0</div></div>
+  <div><div class="label">NIVEL</div><div class="score-val" id="levelDisplay">1</div></div>
+  <div><div class="label">VIDAS</div><div class="score-val" id="livesDisplay">❤️❤️❤️</div></div>
+</div>
+<canvas id="c"></canvas>
+
+<!-- Start Screen -->
+<div id="screen">
+  <h1>ECO DE ESPÍN</h1>
+  <div class="sub">RESONANCIA MAGNÉTICA NUCLEAR</div>
+  <div class="desc">
+    Los protones giran juntos, pero el campo no es perfecto.<br>
+    Cada uno se <span class="highlight">desincroniza</span> ligeramente.<br><br>
+    Toca la pantalla para enviar un <span class="highlight">pulso π</span> que invierte todos los espines.<br>
+    Si aciertas el momento exacto, <span class="highlight">convergen de nuevo</span> en un eco.<br><br>
+    La física es real: T₂* = 50ms, frecuencias de Larmor.
+  </div>
+  <button class="btn" id="startBtn">▶ COMENZAR</button>
+</div>
+
+<!-- Game Over Screen -->
+<div id="gameoverScreen" style="display:none;position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,0.93);z-index:21;padding:24px;text-align:center">
+  <h1 style="color:#ff0040;font-size:26px;margin-bottom:4px">DESFASE TOTAL</h1>
+  <div style="color:#888;font-size:12px;margin-bottom:16px">LOS ESPINES SE HAN PERDIDO</div>
+  <div class="label">PUNTUACIÓN FINAL</div>
+  <div id="gameover-score">0</div>
+  <div id="funny"></div>
+  <button class="btn" id="retryBtn">↺ REINTENTAR</button>
+  <a href="/" id="back">← más mierdijuegos</a>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+let audioCtx=null;
+function initAudio(){if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();}
+function playTone(f,d,v,t='sine'){if(!audioCtx)return;const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.connect(g);g.connect(audioCtx.destination);o.type=t;o.frequency.value=f;g.gain.setValueAtTime(v,audioCtx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+d);o.start();o.stop(audioCtx.currentTime+d);}
+function playEcho(s){const f=220+s*880;playTone(f,0.4,s*0.4);setTimeout(()=>playTone(f*1.5,0.2,s*0.2),80);}
+function playPulse(){playTone(440,0.08,0.3,'square');}
+function playFail(){playTone(120,0.3,0.3,'sawtooth');}
+
+const NUM_SPINS=16;
+let spins=[],t=0,tau_pulse=0,state='idle',echoStrength=0,echoWindow=0;
+let score=0,level=1,lives=3,roundsInLevel=0,gameRunning=false,animId=null,lastTime=0;
+
+function getLevelParams(l){return{fanSpeed:Math.min(0.6+l*0.18,2.2),t2star:Math.max(2.5-l*0.15,0.9),echoWindowWidth:Math.max(0.35-l*0.018,0.12),dephaseTime:Math.max(1.8-l*0.05,1.0)};}
+function initSpins(l){spins=[];const p=getLevelParams(l);for(let i=0;i<NUM_SPINS;i++){const frac=(i/(NUM_SPINS-1))-0.5;spins.push({omega:frac*p.fanSpeed*2*Math.PI,phase:0,flipped:false});}}
+
+function startRound() {
+  const p = getLevelParams(level);
+  initSpins(level);
+  t = 0;
+  tau_pulse = 0;
+  state = 'dephasing';
+  echoStrength = 0;
+  echoWindow = 0;
+}
+
+function startGame() {
+  score = 0;
+  level = 1;
+  lives = 3;
+  roundsInLevel = 0;
+  gameRunning = true;
+  startRound();
+  updateUI();
+  lastTime = performance.now();
+  if (animId) cancelAnimationFrame(animId);
+  animId = requestAnimationFrame(loop);
+}
+
+function updateUI() {
+  document.getElementById('scoreDisplay').textContent = score;
+  document.getElementById('levelDisplay').textContent = level;
+  const hearts = '❤️'.repeat(lives) + '🖤'.repeat(3 - lives);
+  document.getElementById('livesDisplay').textContent = hearts;
+}
+
+// ── Input ──
+function handleInput() {
+  if (!gameRunning) return;
+  initAudio();
+  if (state === 'dephasing') {
+    // Fire 180° pulse
+    state = 'refocusing';
+    tau_pulse = t;
+    playPulse();
+    // Flip all spins: phase_new = -phase (reversal in rotating frame)
+    spins.forEach(s => {
+      s.phase = -s.phase;
+      s.flipped = true;
+    });
+  }
+}
+
+canvas.addEventListener('pointerdown', handleInput);
+
+// ── Physics Update ──
+function updatePhysics(dt) {
+  if (state === 'idle') return;
+  
+  t += dt;
+  const p = getLevelParams(level);
+  const decay = Math.exp(-t / p.t2star);
+  
+  // Update spin phases
+  spins.forEach(s => {
+    s.phase += s.omega * dt;
+  });
+  
+  if (state === 'dephasing') {
+    // Check if time ran out without pulse
+    if (t >= p.dephaseTime * 2) {
+      // Missed — lost a life
+      lives--;
+      playFail();
+      updateUI();
+      if (lives <= 0) {
+        endGame();
+      } else {
+        startRound();
+      }
+    }
+  }
+  
+  if (state === 'refocusing') {
+    // Echo forms at t = 2 * tau_pulse
+    const t_echo = 2 * tau_pulse;
+    const t_since_pulse = t - tau_pulse;
+    const time_to_echo = t_echo - t;
+    
+    // Measure coherence: how aligned are the spins?
+    // Coherence = |<e^{i*phase}>| = magnitude of mean vector
+    let sumX = 0, sumY = 0;
+    spins.forEach(s => {
+      sumX += Math.cos(s.phase);
+      sumY += Math.sin(s.phase);
+    });
+    const coherence = Math.sqrt(sumX*sumX + sumY*sumY) / NUM_SPINS;
+    
+    // Apply T2* decay to coherence
+    const eff_coherence = coherence * decay;
+    
+    // Detect echo peak: coherence exceeds threshold near t_echo
+    if (t >= t_echo - p.echoWindowWidth && t <= t_echo + p.echoWindowWidth) {
+      echoStrength = Math.max(echoStrength, eff_coherence);
+    }
+    
+    // After the echo window passes
+    if (t > t_echo + p.echoWindowWidth + 0.1) {
+      // Score based on echo strength
+      const pts = Math.round(echoStrength * 100 * level);
+      if (echoStrength > 0.5) {
+        score += pts;
+        playEcho(echoStrength);
+        roundsInLevel++;
+        if (roundsInLevel >= 3) {
+          level++;
+          roundsInLevel = 0;
+        }
+      } else {
+        // Weak echo = missed
+        lives--;
+        playFail();
+        if (lives <= 0) {
+          endGame();
+          return;
+        }
+      }
+      updateUI();
+      
+      // Brief echo display state
+      state = 'echo';
+      echoWindow = 0.6;
+    }
+  }
+  
+  if (state === 'echo') {
+    echoWindow -= dt;
+    if (echoWindow <= 0) {
+      startRound();
+    }
+  }
+}
+
+// ── Drawing ──
+
+function getSpinColor(i) {
+  const hue = (i / NUM_SPINS) * 300; // spread hue
+  return `hsl(${hue},100%,65%)`;
+}
+
+function draw() {
+  const W = canvas.width, H = canvas.height;
+  const cx = W / 2, cy = H / 2;
+  const R = Math.min(W, H) * 0.30;
+  
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(0, 0, W, H);
+  
+  if (!gameRunning) return;
+  
+  const p = getLevelParams(level);
+  const decay = Math.exp(-t / p.t2star);
+  
+  // Background rings
+  for (let r = R * 0.25; r <= R; r += R * 0.25) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  
+  // Coherence ring — shows current alignment
+  let sumX = 0, sumY = 0;
+  spins.forEach(s => {
+    sumX += Math.cos(s.phase);
+    sumY += Math.sin(s.phase);
+  });
+  const coherence = Math.sqrt(sumX*sumX + sumY*sumY) / NUM_SPINS;
+  const eff_coh = coherence * decay;
+  
+  // Outer coherence meter ring
+  ctx.beginPath();
+  ctx.arc(cx, cy, R + 20, -Math.PI/2, -Math.PI/2 + eff_coh * 2 * Math.PI);
+  ctx.strokeStyle = eff_coh > 0.7 ? '#00ff41' : eff_coh > 0.4 ? '#ffff00' : '#ff0040';
+  ctx.lineWidth = 6;
+  ctx.stroke();
+  
+  // Draw individual spin vectors
+  spins.forEach((s, i) => {
+    const alpha = decay * 0.6 + 0.15;
+    const len = R * (0.5 + 0.5 * decay);
+    const hue = Math.round((i / NUM_SPINS) * 280 + 160);
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(
+      cx + len * Math.cos(s.phase),
+      cy + len * Math.sin(s.phase)
+    );
+    ctx.strokeStyle = `hsla(${hue},100%,65%,${alpha.toFixed(2)})`;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    
+    // Tip dot
+    ctx.beginPath();
+    ctx.arc(cx + len * Math.cos(s.phase), cy + len * Math.sin(s.phase), 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${hue},100%,80%,${alpha.toFixed(2)})`;
+    ctx.fill();
+  });
+  
+  // Mean vector (signal)
+  const meanAngle = Math.atan2(sumY, sumX);
+  const meanLen = R * coherence * decay;
+  if (meanLen > 4) {
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + meanLen * Math.cos(meanAngle), cy + meanLen * Math.sin(meanAngle));
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    // Arrowhead
+    const ax = cx + meanLen * Math.cos(meanAngle);
+    const ay = cy + meanLen * Math.sin(meanAngle);
+    ctx.beginPath();
+    ctx.arc(ax, ay, 5, 0, Math.PI*2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+  }
+  
+  // Center dot
+  ctx.beginPath();
+  ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+  ctx.fillStyle = '#00ffff';
+  ctx.fill();
+  
+  // State label + instructions
+  const bottomY = cy + R + 60;
+  ctx.font = 'bold 13px Courier New';
+  ctx.textAlign = 'center';
+  
+  if (state === 'dephasing') {
+    // Show hint: "pulse ahora" when near optimal tau
+    // Optimal tau = p.dephaseTime / 2 (midpoint — not too early, not too late)
+    const optTau = p.dephaseTime * 0.5;
+    const hint = t < optTau * 0.3 ? '↓ espera...' 
+                : t < optTau * 0.7 ? '⚡ TOCA AHORA'
+                : t < optTau * 1.3 ? '⚡ TOCA AHORA'
+                : t < p.dephaseTime * 1.5 ? '⚠️ demasiado tarde...'
+                : '💀';
+    const hintColor = (t > optTau * 0.3 && t < optTau * 1.3) ? '#00ff41' : '#ff0040';
+    ctx.fillStyle = hintColor;
+    ctx.fillText(hint, cx, bottomY);
+    
+    // T2* decay bar
+    ctx.fillStyle = '#444';
+    ctx.fillRect(cx - 80, bottomY + 16, 160, 6);
+    ctx.fillStyle = decay > 0.6 ? '#00ff41' : decay > 0.3 ? '#ffff00' : '#ff0040';
+    ctx.fillRect(cx - 80, bottomY + 16, 160 * decay, 6);
+    ctx.fillStyle = '#555';
+    ctx.font = '10px Courier New';
+    ctx.fillText('T₂* decay', cx, bottomY + 36);
+    
+  } else if (state === 'refocusing') {
+    const t_echo = 2 * tau_pulse;
+    const timeLeft = t_echo - t;
+    ctx.fillStyle = '#00ffff';
+    ctx.fillText('↺ espines invirtiéndose...', cx, bottomY);
+    if (timeLeft > 0) {
+      ctx.fillStyle = '#888';
+      ctx.font = '11px Courier New';
+      ctx.fillText(`eco en: ${timeLeft.toFixed(2)}s`, cx, bottomY + 18);
+    }
+    
+    // Progress to echo
+    const progress = (t - tau_pulse) / tau_pulse;
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(cx - 80, bottomY + 28, 160, 6);
+    ctx.fillStyle = '#00ffff';
+    ctx.fillRect(cx - 80, bottomY + 28, Math.min(160 * progress, 160), 6);
+    
+  } else if (state === 'echo') {
+    // Flash the echo
+    const flashAlpha = echoWindow / 0.6;
+    ctx.fillStyle = `rgba(0,255,255,${flashAlpha * 0.15})`;
+    ctx.fillRect(0, 0, W, H);
+    
+    const pts = Math.round(echoStrength * 100 * level);
+    ctx.fillStyle = `rgba(0,255,65,${flashAlpha})`;
+    ctx.font = `bold ${Math.round(20 + echoStrength * 20)}px Courier New`;
+    ctx.fillText(echoStrength > 0.8 ? `✦ ECO PERFECTO ✦` : echoStrength > 0.5 ? `✦ ECO DETECTADO` : '✗ ECO DÉBIL', cx, cy - R - 30);
+    ctx.font = 'bold 22px Courier New';
+    ctx.fillStyle = `rgba(255,255,0,${flashAlpha})`;
+    ctx.fillText(`+${pts}`, cx, cy - R - 8);
+  }
+  
+    ctx.textAlign='left';
+}
+
+function loop(now){const dt=Math.min((now-lastTime)/1000,0.05);lastTime=now;if(gameRunning){updatePhysics(dt);draw();animId=requestAnimationFrame(loop);}}
+
+const FUNNY_MSGS=[
+  '"La decoherencia cuántica es literalmente lo que eres ahora mismo."',
+  '"Los espines se rieron de ti y se fueron a casa."',
+  '"Hasta el campo magnético terrestre lo hace mejor."',
+  '"Con esa puntería, mejor dedícate a la medicina alternativa."',
+  '"Los físicos de Brookhaven están llorando."',
+  '"T2* = 50ms. Tu tiempo de reacción = ∞."',
+  '"El escáner MRI de tu hospital funciona mejor SIN ti."',
+  '"Schrödinger: simultáneamente malo y muy malo."'
+];
+
+function endGame(){gameRunning=false;cancelAnimationFrame(animId);document.getElementById('gameover-score').textContent=score;document.getElementById('funny').textContent=FUNNY_MSGS[Math.floor(Math.random()*FUNNY_MSGS.length)];document.getElementById('gameoverScreen').style.display='flex';}
+document.getElementById('startBtn').addEventListener('click',()=>{initAudio();document.getElementById('screen').style.display='none';startGame();});
+document.getElementById('retryBtn').addEventListener('click',()=>{initAudio();document.getElementById('gameoverScreen').style.display='none';startGame();});
+draw();
+</script>
+</body>
+</html>

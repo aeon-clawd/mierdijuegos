@@ -198,5 +198,13 @@
         "description": "Los protones giran juntos pero se desincronican. Toca en el momento exacto para enviar un pulso π que invierte todos los espines — si aciertas, convergen en un eco. Física NMR real: T₂*, Larmor, decoherencia.",
         "mechanic": "Pulso de refocalización NMR — el jugador cronometra el pulso π para maximizar la coherencia del eco de espín",
         "emoji": "🧲"
+    },
+    {
+        "id": "026-apolonio",
+        "title": "Apolonio — Tangencias Perfectas",
+        "date": "2026-03-14",
+        "description": "Tu burbuja crece bajo el dedo. Cuando toca exactamente 3 círculos al mismo tiempo, se solidifica. Cuanto más pequeño el hueco que llenas, más puntos. Teorema de Descartes real.",
+        "mechanic": "El jugador posiciona una burbuja creciente para alcanzar tangencia simultánea con 3 círculos — k₄ = k₁+k₂+k₃ ± 2√(k₁k₂+k₂k₃+k₁k₃) — llenando el gasket de Apolonio",
+        "emoji": "⭕"
     }
 ]

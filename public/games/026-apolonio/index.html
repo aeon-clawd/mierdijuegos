@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+<title>Apolonio</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0a;color:#fff;font-family:'Courier New',monospace;overflow:hidden;touch-action:none}
+canvas{display:block}
+#ui{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:8px 14px;pointer-events:none;z-index:10;background:linear-gradient(#0a0a0a,transparent)}
+.stat{font-size:12px;color:#666}.stat span{color:#00ff41;font-size:16px;font-weight:bold}
+.overlay{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:20;background:rgba(10,10,10,.95);padding:24px;text-align:center}
+h1{font-size:28px;color:#00ff41;letter-spacing:3px;margin-bottom:6px}
+.sub{font-size:11px;color:#ff00ff;letter-spacing:2px;margin-bottom:18px}
+p{font-size:13px;color:#ccc;max-width:300px;line-height:1.8;margin-bottom:6px}
+.math{font-size:11px;color:#00ffff;margin:10px 0;letter-spacing:1px}
+.tip{font-size:11px;color:#444;margin-top:8px}
+btn,button{display:inline-block;margin-top:20px;padding:12px 32px;font-size:14px;font-family:inherit;background:transparent;border:2px solid #00ff41;color:#00ff41;cursor:pointer;letter-spacing:2px;text-transform:uppercase}
+button:active{background:#00ff41;color:#0a0a0a}
+#govMsg{font-size:16px;color:#ff00ff;margin:8px 0}
+#govScore{font-size:44px;color:#00ffff;font-weight:bold}
+#govCount{font-size:13px;color:#888;margin-bottom:4px}
+a{color:#444;font-size:11px;text-decoration:none;margin-top:12px;display:block}
+a:hover{color:#fff}
+#lbar{position:fixed;top:0;left:0;right:0;height:3px;z-index:30;background:#111}
+#lbarFill{height:100%;background:linear-gradient(90deg,#ff00ff,#00ffff);transition:width .08s;width:0}
+#hint{position:fixed;bottom:14px;left:0;right:0;text-align:center;font-size:12px;color:#333;pointer-events:none;z-index:10;transition:opacity 1s}
+</style>
+</head>
+<body>
+<div id="lbar"><div id="lbarFill"></div></div>
+<div id="ui">
+  <div class="stat">PUNTOS <span id="sc">0</span></div>
+  <div class="stat">CIRCS <span id="cn">0</span></div>
+  <div class="stat">TIEMPO <span id="ti">60</span></div>
+</div>
+<div id="hint">Mueve el dedo — espera que la burbuja toque 3 círculos</div>
+<div class="overlay" id="startScreen">
+  <h1>APOLONIO</h1>
+  <div class="sub">Tangencias Perfectas</div>
+  <p>Mantén el dedo presionado. Tu burbuja crece.</p>
+  <p>Cuando toca <strong style="color:#00ff41">exactamente 3 círculos</strong> a la vez, se solidifica y ganas puntos.</p>
+  <p>Cuanto más pequeño el hueco que llenas, más puntos obtienes.</p>
+  <div class="math">Teorema de Descartes (1643)<br>k₄ = k₁+k₂+k₃ ± 2√(k₁k₂+k₂k₃+k₁k₃)</div>
+  <div class="tip">Los círculos de las paredes también cuentan</div>
+  <button id="btnStart">JUGAR</button>
+</div>
+<div class="overlay" id="govScreen" style="display:none">
+  <h1>FIN</h1>
+  <div id="govMsg"></div>
+  <div id="govCount"></div>
+  <div id="govScore"></div>
+  <button id="btnRetry">OTRA VEZ</button>
+  <a href="/">← más mierdijuegos</a>
+</div>
+<canvas id="c"></canvas>
+
+<script>
+const C=document.getElementById('c');
+const ctx=C.getContext('2d');
+let W,H;
+function resize(){W=C.width=innerWidth;H=C.height=innerHeight}
+resize();addEventListener('resize',resize);
+
+// ── Audio ─────────────────────────────────────────
+let ac;
+function initAC(){if(!ac)try{ac=new(window.AudioContext||window.webkitAudioContext)()}catch(e){}}
+function tone(f,d,t='sine',v=.1){
+  if(!ac)return;
+  const o=ac.createOscillator(),g=ac.createGain();
+  o.connect(g);g.connect(ac.destination);
+  o.type=t;o.frequency.value=f;
+  g.gain.setValueAtTime(v,ac.currentTime);
+  g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+d);
+  o.start();o.stop(ac.currentTime+d);
+}
+function sfxLock(){[523,659,784,1047].forEach((f,i)=>setTimeout(()=>tone(f,.12,'triangle',.1),i*50))}
+function sfxContact(){tone(1200,.04,'sine',.05)}
+function sfxGameover(){tone(150,.5,'sawtooth',.12);setTimeout(()=>tone(100,.6,'sawtooth',.1),200)}
+
+// ── Game state ────────────────────────────────────
+let circles=[], score=0, placed=0;
+let px=-9999, py=-9999, pr=8, growing=false;
+let touching=[], lockT=0;
+let timeLeft=60, lastSec=0, gameFrame=0;
+let state='start';
+let flashAlpha=0;
+
+const LOCK_FRAMES=22, GROW_SPEED=0.7, MIN_R=6, MAX_R=110, WALL=55;
+const COLORS=['#ff0040','#00ff41','#ff00ff','#00ffff','#ffff00','#ff8800'];
+
+function dist(ax,ay,bx,by){return Math.hypot(bx-ax,by-ay)}
+
+// Wall is treated as 4 large circles at the edges
+function wallCircles(){
+  const big=Math.max(W,H)*5;
+  return[
+    {x:-big+WALL,y:H/2,r:big,wall:true},
+    {x:W+big-WALL,y:H/2,r:big,wall:true},
+    {x:W/2,y:-big+WALL,r:big,wall:true},
+    {x:W/2,y:H+big-WALL,r:big,wall:true}
+  ];
+}
+
+function allCircles(){return [...wallCircles(),...circles]}
+
+function getTouching(){
+  const all=allCircles();
+  return all.map((c,i)=>{
+    const d=dist(px,py,c.x,c.y);
+    const gap=Math.abs(d-(pr+c.r));
+    return gap<5?i:-1;
+  }).filter(i=>i>=0);
+}
+
+function overlaps(x,y,r){
+  for(const c of circles){
+    if(dist(x,y,c.x,c.y)<r+c.r-6)return true;
+  }
+  if(x-r<WALL||y-r<WALL||x+r>W-WALL||y+r>H-WALL)return true;
+  return false;
+}
+
+function pointScore(r){
+  // Smaller radius = more points (inverse square)
+  return Math.max(5,Math.round(3000/(r*r/10+1)));
+}
+
+function initGame(){
+  circles=[];score=0;placed=0;
+  px=-9999;py=-9999;pr=MIN_R;growing=false;
+  touching=[];lockT=0;timeLeft=60;lastSec=0;gameFrame=0;flashAlpha=0;
+
+  // Three mutually-tangent seed circles
+  const cx=W/2, cy=H/2;
+  const R=Math.min(W,H)*0.17;
+  const a=Math.PI/2, b=a+2*Math.PI/3, cc=b+2*Math.PI/3;
+  const d=R*2.05;
+  circles.push({x:cx+d*Math.cos(a),y:cy+d*Math.sin(a),r:R,col:COLORS[0],born:0,sf:0});
+  circles.push({x:cx+d*Math.cos(b),y:cy+d*Math.sin(b),r:R,col:COLORS[1],born:0,sf:0});
+  circles.push({x:cx+d*Math.cos(cc),y:cy+d*Math.sin(cc),r:R,col:COLORS[2],born:0,sf:0});
+
+  document.getElementById('sc').textContent='0';
+  document.getElementById('cn').textContent='0';
+  document.getElementById('ti').textContent='60';
+}
+
+// ── Update ────────────────────────────────────────
+function update(){
+  if(state!=='play')return;
+  gameFrame++;
+
+  // Timer
+  const nowSec=Math.floor(gameFrame/60);
+  if(nowSec>lastSec){
+    timeLeft=Math.max(0,60-nowSec);
+    lastSec=nowSec;
+    document.getElementById('ti').textContent=timeLeft;
+    if(timeLeft<=0){endGame();return}
+  }
+
+  if(flashAlpha>0)flashAlpha=Math.max(0,flashAlpha-0.06);
+
+  if(!growing){
+    // Player not dragging — bubble drifts away slowly
+    pr=Math.max(MIN_R,pr-2);
+    return;
+  }
+
+  // Grow bubble
+  if(pr<MAX_R)pr+=GROW_SPEED;
+  // Clamp
+  px=Math.max(WALL+pr,Math.min(W-WALL-pr,px));
+  py=Math.max(WALL+pr,Math.min(H-WALL-pr,py));
+
+  const prev=touching.length;
+  touching=getTouching();
+  if(touching.length>prev&&touching.length>0)sfxContact();
+
+  const lb=document.getElementById('lbarFill');
+  if(touching.length>=3){
+    lockT++;
+    growing=false; // freeze size while locking
+    // Actually keep size but stop growing
+    growing=true; // re-enable position updates
+    pr=Math.min(pr,MAX_R); // just cap
+    lb.style.width=(lockT/LOCK_FRAMES*100)+'%';
+    lb.style.background='linear-gradient(90deg,#00ff41,#00ffff)';
+    if(lockT>=LOCK_FRAMES)commitBubble();
+  } else {
+    lockT=Math.max(0,lockT-3);
+    lb.style.width=(lockT/LOCK_FRAMES*100)+'%';
+    lb.style.background='linear-gradient(90deg,#ff00ff,#00ffff)';
+  }
+}
+
+function commitBubble(){
+  if(overlaps(px,py,pr-8))return; // somehow still overlapping, abort
+  const pts=pointScore(pr);
+  score+=pts;placed++;
+  circles.push({x:px,y:py,r:pr,col:COLORS[placed%COLORS.length],born:gameFrame,sf:pts});
+  document.getElementById('sc').textContent=score;
+  document.getElementById('cn').textContent=placed;
+  sfxLock();
+  flashAlpha=0.4;
+  pr=MIN_R;lockT=0;touching=[];
+}
+
+function endGame(){
+  state='gameover';sfxGameover();
+  const msgs=['¡Apolo estaría orgulloso!','Pitágoras te da un 7/10','Descartes lloraría de alegría','Tangencialmente brillante','¡Burbuja maestra!'];
+  document.getElementById('govMsg').textContent=msgs[Math.floor(Math.random()*msgs.length)];
+  document.getElementById('govCount').textContent=placed+' círculos solidificados';
+  document.getElementById('govScore').textContent=score+' pts';
+  document.getElementById('govScreen').style.display='flex';
+}
+
+// ── Draw ──────────────────────────────────────────
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  if(state==='start')return;
+
+  // Grid
+  ctx.strokeStyle='#0d0d0d';ctx.lineWidth=.5;
+  for(let x=0;x<W;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}
+  for(let y=0;y<H;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
+
+  // Wall boundary
+  ctx.strokeStyle='#1a1a2e';ctx.lineWidth=1.5;
+  ctx.setLineDash([6,6]);
+  ctx.strokeRect(WALL,WALL,W-WALL*2,H-WALL*2);
+  ctx.setLineDash([]);
+
+  // Placed circles
+  for(const c of circles){
+    const age=gameFrame-c.born;
+    const scale=age<10?(0.4+0.6*age/10):1;
+    const r=c.r*scale;
+    ctx.beginPath();ctx.arc(c.x,c.y,r,0,Math.PI*2);
+    ctx.fillStyle=c.col+'18';ctx.fill();
+    ctx.strokeStyle=c.col;ctx.lineWidth=age<10?3:1.5;ctx.stroke();
+    // Score popup
+    if(c.sf&&age<50){
+      const a=1-age/50;
+      ctx.font=`bold ${16-age/6}px Courier New`;
+      ctx.fillStyle=`rgba(0,255,255,${a})`;
+      ctx.textAlign='center';
+      ctx.fillText('+'+c.sf,c.x,c.y-r-4-age*.6);
+    }
+  }
+
+  // Tangent lines
+  if(growing&&touching.length>0){
+    const all=allCircles();
+    ctx.setLineDash([3,4]);ctx.lineWidth=.8;
+    for(const i of touching){
+      const c=all[i];
+      if(c.wall)continue;
+      ctx.strokeStyle='rgba(255,255,0,.25)';
+      ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(c.x,c.y);ctx.stroke();
+    }
+    ctx.setLineDash([]);
+  }
+
+  // Player bubble
+  if(growing&&px>0&&px<W){
+    const is3=touching.length>=3;
+    const lp=lockT/LOCK_FRAMES;
+
+    // Glow
+    if(is3){
+      const g=ctx.createRadialGradient(px,py,pr*.3,px,py,pr*1.8);
+      g.addColorStop(0,`rgba(0,255,65,${.1+lp*.15})`);
+      g.addColorStop(1,'rgba(0,255,65,0)');
+      ctx.beginPath();ctx.arc(px,py,pr*1.8,0,Math.PI*2);
+      ctx.fillStyle=g;ctx.fill();
+    }
+
+    // Fill
+    ctx.beginPath();ctx.arc(px,py,pr,0,Math.PI*2);
+    ctx.fillStyle=is3?`rgba(0,255,65,${.08+lp*.12})`:'rgba(0,255,255,.07)';
+    ctx.fill();
+
+    // Stroke
+    ctx.strokeStyle=is3?`rgba(0,255,65,${.7+lp*.3})`:'rgba(0,255,255,.6)';
+    ctx.lineWidth=is3?2.5:1.5;ctx.stroke();
+
+    // Lock arc
+    if(is3&&lockT>0){
+      ctx.beginPath();ctx.arc(px,py,pr+6,-Math.PI/2,-Math.PI/2+Math.PI*2*lp);
+      ctx.strokeStyle='#00ff41';ctx.lineWidth=3;ctx.stroke();
+    }
+
+    // Touch counter
+    const tc=Math.min(touching.length,3);
+    const tcolors=['#00ffff','#ffff00','#ff8800','#00ff41'];
+    ctx.font='11px Courier New';
+    ctx.fillStyle=tcolors[tc];
+    ctx.textAlign='center';
+    ctx.fillText(tc+'/3',px,py+pr+14);
+  }
+
+  // Flash
+  if(flashAlpha>0){
+    ctx.fillStyle=`rgba(0,255,65,${flashAlpha*.3})`;
+    ctx.fillRect(0,0,W,H);
+  }
+
+  // Timer color warning
+  if(timeLeft<=10){
+    const pulse=.5+.5*Math.sin(gameFrame*.3);
+    document.getElementById('ti').style.color=`rgba(255,${Math.round(pulse*40)},40,1)`;
+  }
+}
+
+function loop(){update();draw();requestAnimationFrame(loop)}
+
+// ── Input ─────────────────────────────────────────
+C.addEventListener('pointerdown',e=>{
+  e.preventDefault();initAC();
+  if(state!=='play')return;
+  growing=true;pr=MIN_R;px=e.clientX;py=e.clientY;lockT=0;
+},{passive:false});
+C.addEventListener('pointermove',e=>{
+  e.preventDefault();
+  if(state!=='play'||!growing)return;
+  px=e.clientX;py=e.clientY;
+},{passive:false});
+C.addEventListener('pointerup',e=>{
+  e.preventDefault();
+  if(state!=='play')return;
+  growing=false;lockT=0;pr=MIN_R;touching=[];
+  document.getElementById('lbarFill').style.width='0';
+},{passive:false});
+C.addEventListener('pointercancel',()=>{growing=false;lockT=0;pr=MIN_R;});
+
+document.getElementById('btnStart').addEventListener('click',()=>{
+  initAC();initGame();state='play';
+  document.getElementById('startScreen').style.display='none';
+  const h=document.getElementById('hint');
+  h.style.opacity='1';setTimeout(()=>h.style.opacity='0',4000);
+});
+document.getElementById('btnRetry').addEventListener('click',()=>{
+  document.getElementById('govScreen').style.display='none';
+  initGame();state='play';
+});
+
+loop();
+</script>
+</body>
+</html>

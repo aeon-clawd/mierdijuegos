@@ -206,5 +206,13 @@
         "description": "Tu burbuja crece bajo el dedo. Cuando toca exactamente 3 círculos al mismo tiempo, se solidifica. Cuanto más pequeño el hueco que llenas, más puntos. Teorema de Descartes real.",
         "mechanic": "El jugador posiciona una burbuja creciente para alcanzar tangencia simultánea con 3 círculos — k₄ = k₁+k₂+k₃ ± 2√(k₁k₂+k₂k₃+k₁k₃) — llenando el gasket de Apolonio",
         "emoji": "⭕"
+    },
+    {
+        "id": "027-percolacion",
+        "title": "Percolación — El Umbral Crítico",
+        "date": "2026-03-15",
+        "description": "El mundo se cierra. Teleportate entre celdas de tu clúster antes de que la red se fragmente. Cuando la densidad cruza pc≈0.5927, el clúster infinito desaparece — y contigo.",
+        "mechanic": "El jugador se teleporta dentro de su clúster conectado en una red de percolación de sitios 2D — cuando ρ cruza el umbral crítico pc≈0.5927, el clúster gigante colapsa en islas aisladas (transición de fase real)",
+        "emoji": "🕸️"
     }
 ]

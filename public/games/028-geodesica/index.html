@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Geodésica — Mierdijuegos</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#0a0a0a;color:#00ff41;font-family:'Courier New',monospace;overflow:hidden;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  canvas{display:block;touch-action:none}
+  #ui{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:8px 14px;background:rgba(0,0,0,0.7);z-index:10;font-size:13px}
+  #score-display{color:#00ff41;font-size:16px;font-weight:bold}
+  #lives-display{color:#ff00ff}
+  #level-display{color:#00ffff}
+  .screen{position:fixed;inset:0;background:#0a0a0a;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;z-index:20}
+  .screen h1{font-size:clamp(26px,7vw,52px);color:#00ff41;text-shadow:0 0 20px #00ff41;margin-bottom:12px;letter-spacing:2px}
+  .screen h2{font-size:clamp(20px,5vw,38px);color:#ff00ff;text-shadow:0 0 15px #ff00ff;margin-bottom:12px}
+  .screen p{font-size:clamp(12px,3vw,16px);color:#888;max-width:400px;line-height:1.7;margin-bottom:8px}
+  .screen .highlight{color:#00ffff;font-size:clamp(13px,3.5vw,18px);margin:10px 0}
+  .btn{margin-top:20px;padding:14px 36px;background:transparent;border:2px solid #00ff41;color:#00ff41;font-family:'Courier New',monospace;font-size:16px;cursor:pointer;letter-spacing:2px;text-transform:uppercase;transition:all 0.2s}
+  .btn:hover,.btn:active{background:#00ff41;color:#0a0a0a}
+  .btn.secondary{border-color:#444;color:#666;font-size:13px;margin-top:8px}
+  .btn.secondary:hover{background:#444;color:#0a0a0a}
+  #final-score{font-size:clamp(28px,8vw,60px);color:#ffff00;text-shadow:0 0 20px #ffff00;margin:14px 0}
+  .math-note{font-size:11px;color:#444;margin-top:18px;max-width:360px;line-height:1.5}
+  #crosshair{position:fixed;pointer-events:none;z-index:15;display:none}
+  .angle-arc{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);z-index:15;display:none;align-items:center;gap:10px;font-size:13px;color:#ffff00}
+</style>
+</head>
+<body>
+
+<div id="ui" style="display:none">
+  <div id="score-display">PUNTOS: 0</div>
+  <div id="level-display">NIVEL 1</div>
+  <div id="lives-display">♥ ♥ ♥</div>
+</div>
+
+<canvas id="c"></canvas>
+
+<!-- START SCREEN -->
+<div class="screen" id="start-screen">
+  <h1>GEODÉSICA</h1>
+  <p class="highlight">Disparas en un toro 4D.<br>Las líneas rectas se curvan.</p>
+  <p>En geometría diferencial, las <em>geodésicas</em> son las "líneas más cortas" en una superficie curva. En un toro, una línea recta puede terminar enroscándose sobre sí misma, cruzando el agujero, o escapando al infinito.</p>
+  <p style="color:#ff00ff;margin-top:8px">Ajusta el ángulo → dispara → el rayo sigue la geodésica real del toro → impacta en el objetivo exacto.</p>
+  <div class="math-note">
+    Ecuaciones reales de Clairaut:<br>
+    ü = (R+r·cos u)·sin u · v̇² / r<br>
+    v̈ = −2·sin u / (R+r·cos u) · u̇·v̇
+  </div>
+  <button class="btn" id="btn-start">JUGAR</button>
+</div>
+
+<!-- GAME OVER SCREEN -->
+<div class="screen" id="over-screen" style="display:none">
+  <h2>GEODÉSICA PERDIDA</h2>
+  <div id="final-score">0</div>
+  <p id="funny-msg" style="color:#ff00ff;font-size:14px"></p>
+  <p style="margin-top:8px;color:#666">Euler lloraría. Riemann también.</p>
+  <button class="btn" id="btn-retry">REINTENTAR</button>
+  <a href="/" style="text-decoration:none"><button class="btn secondary">← MÁS MIERDIJUEGOS</button></a>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+// ── CONFIG ──────────────────────────────────────────────────────────
+const R = 2.8, r = 1.0; // torus radii (major, minor)
+const DT = 0.016;        // integration timestep
+const STEP = 50;         // pixels per integration step in screen projection
+
+// Geodesic ODE on torus (Clairaut equations)
+// state = [u, du, v, dv]
+function geodesicDerivs(state) {
+  const [u, du, v, dv] = state;
+  const cu = Math.cos(u), su = Math.sin(u);
+  const rrc = R + r * cu;
+  const ddu = rrc * su / r * dv * dv;       // Christoffel Γ^u terms
+  const ddv = -2 * su / rrc * du * dv;      // Christoffel Γ^v terms
+  return [du, ddu, dv, ddv];
+}
+
+function rkStep(state, h) {
+  const k1 = geodesicDerivs(state);
+  const s2 = state.map((x,i) => x + 0.5*h*k1[i]);
+  const k2 = geodesicDerivs(s2);
+  const s3 = state.map((x,i) => x + 0.5*h*k2[i]);
+  const k3 = geodesicDerivs(s3);
+  const s4 = state.map((x,i) => x + h*k3[i]);
+  const k4 = geodesicDerivs(s4);
+  return state.map((x,i) => x + h/6*(k1[i]+2*k2[i]+2*k3[i]+k4[i]));
+}
+
+// Project torus (u,v) → screen (x,y) as flat map with wrapping
+// u = poloidal (around tube), v = toroidal (around hole)
+// Display as a flat UV map: x = v/2π * W, y = u/2π * H
+// with neon torus illustration overlaid
+
+// ── CANVAS SETUP ──────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H;
+
+function resize() {
+  W = canvas.width  = window.innerWidth;
+  H = canvas.height = window.innerHeight - 40;
+}
+resize();
+window.addEventListener('resize', () => { resize(); if(gameState==='playing') drawBg(); });
+
+// ── GAME STATE ──────────────────────────────────────────────────
+let gameState = 'start';
+let score = 0, lives = 3, level = 1;
+let targets = [], trails = [], particles = [];
+let shootAngle = 0.4; // initial angle in radians (angle of (du,dv) vector)
+let playerU = Math.PI/3, playerV = 0;
+let dragging = false, lastTouchX = 0;
+let animId = null;
+let levelCleared = false, levelTimer = 0;
+let shootCooldown = 0;
+
+const FUNNY_MSGS = [
+  "La curvatura del toro te ha vencido.",
+  "Riemann fue más inteligente que tú.",
+  "Euler habría calculado eso mentalmente.",
+  "El agujero del toro se llama donuts. Perdiste igual.",
+  "Intenta ser más geodésico la próxima vez.",
+  "Tu ángulo era incorrecto en cada dimensión.",
+  "Las superficies curvas no aceptan excusas.",
+];
+
+// ── TORUS PROJECTION ──────────────────────────────────────────────
+// Show as flat UV map, u vertical, v horizontal, with gridlines showing curvature
+function toScreen(u, v) {
+  // normalize to [0,2π) × [0,2π)
+  const uu = ((u % (2*Math.PI)) + 2*Math.PI) % (2*Math.PI);
+  const vv = ((v % (2*Math.PI)) + 2*Math.PI) % (2*Math.PI);
+  const px = vv / (2*Math.PI) * (W - 60) + 30;
+  const py = uu / (2*Math.PI) * (H - 60) + 30;
+  return {x: px, y: py};
+}
+
+function fromScreen(px, py) {
+  const u = ((py - 30) / (H - 60)) * 2*Math.PI;
+  const v = ((px - 30) / (W - 60)) * 2*Math.PI;
+  return {u, v};
+}
+
+// ── BACKGROUND ──────────────────────────────────────────────────
+function drawBg() {
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(0, 0, W, H);
+
+  // Grid lines representing torus topology
+  const N = 8;
+  ctx.lineWidth = 0.5;
+  for (let i = 0; i <= N; i++) {
+    const t = i / N;
+    const xx = 30 + t * (W-60);
+    const yy = 30 + t * (H-60);
+    // vertical lines (constant v)
+    ctx.strokeStyle = i===0||i===N ? 'rgba(0,255,65,0.4)' : 'rgba(0,255,65,0.1)';
+    ctx.beginPath(); ctx.moveTo(xx,30); ctx.lineTo(xx,H-30); ctx.stroke();
+    // horizontal lines (constant u)
+    ctx.strokeStyle = i===0||i===N ? 'rgba(0,255,65,0.4)' : 'rgba(0,255,65,0.1)';
+    ctx.beginPath(); ctx.moveTo(30,yy); ctx.lineTo(W-30,yy); ctx.stroke();
+  }
+
+  // Labels
+  ctx.fillStyle = 'rgba(0,255,65,0.3)';
+  ctx.font = '10px Courier New';
+  ctx.fillText('v →', W-28, H-16);
+  ctx.fillText('u ↓', 4, 44);
+  ctx.fillStyle = 'rgba(0,255,255,0.2)';
+  ctx.font = '9px Courier New';
+  ctx.fillText('TORO APLANADO (identificación: bordes opuestos = igual punto)', W/2-160, H-4);
+}
+
+// ── TARGETS ──────────────────────────────────────────────────
+function spawnTargets() {
+  targets = [];
+  const count = 2 + level;
+  for (let i = 0; i < count; i++) {
+    targets.push({
+      u: Math.random() * 2*Math.PI,
+      v: Math.random() * 2*Math.PI,
+      r: 18 - level,
+      hit: false,
+      pulse: Math.random()*Math.PI*2
+    });
+  }
+}
+
+function drawTargets(dt) {
+  for (const t of targets) {
+    if (t.hit) continue;
+    t.pulse += dt*2;
+    const p = toScreen(t.u, t.v);
+    const rr = t.r + Math.sin(t.pulse)*3;
+
+    // Outer glow
+    const grd = ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,rr*2.5);
+    grd.addColorStop(0,'rgba(255,255,0,0.3)');
+    grd.addColorStop(1,'rgba(255,255,0,0)');
+    ctx.fillStyle = grd;
+    ctx.beginPath(); ctx.arc(p.x,p.y,rr*2.5,0,Math.PI*2); ctx.fill();
+
+    // Target circle
+    ctx.strokeStyle = '#ffff00';
+    ctx.lineWidth = 2;
+    ctx.shadowColor = '#ffff00';
+    ctx.shadowBlur = 10;
+    ctx.beginPath(); ctx.arc(p.x,p.y,rr,0,Math.PI*2); ctx.stroke();
+
+    // Crosshairs
+    ctx.strokeStyle = 'rgba(255,255,0,0.6)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(p.x-rr*1.5,p.y); ctx.lineTo(p.x+rr*1.5,p.y);
+    ctx.moveTo(p.x,p.y-rr*1.5); ctx.lineTo(p.x,p.y+rr*1.5);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+}
+
+// ── PLAYER ──────────────────────────────────────────────────
+function drawPlayer() {
+  const p = toScreen(playerU, playerV);
+
+  // glow
+  ctx.shadowColor = '#00ff41';
+  ctx.shadowBlur = 16;
+  ctx.fillStyle = '#00ff41';
+  ctx.beginPath(); ctx.arc(p.x,p.y,8,0,Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Direction arrow (shows current shoot angle)
+  const arrowLen = 30;
+  // angle is (du, dv) → screen direction: dv → x, du → y
+  const screenAngle = Math.atan2(Math.sin(shootAngle), Math.cos(shootAngle));
+  const ax = p.x + Math.cos(screenAngle)*arrowLen;
+  const ay = p.y + Math.sin(screenAngle)*arrowLen;
+
+  ctx.strokeStyle = '#00ffff';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#00ffff';
+  ctx.shadowBlur = 8;
+  ctx.beginPath();
+  ctx.moveTo(p.x,p.y); ctx.lineTo(ax,ay); ctx.stroke();
+
+  // Arrowhead
+  const headLen = 8;
+  const headAngle = 0.4;
+  ctx.beginPath();
+  ctx.moveTo(ax,ay);
+  ctx.lineTo(ax - headLen*Math.cos(screenAngle-headAngle), ay - headLen*Math.sin(screenAngle-headAngle));
+  ctx.moveTo(ax,ay);
+  ctx.lineTo(ax - headLen*Math.cos(screenAngle+headAngle), ay - headLen*Math.sin(screenAngle+headAngle));
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+
+// ── TRAILS ──────────────────────────────────────────────────
+function drawTrails() {
+  for (let t = trails.length-1; t >= 0; t--) {
+    const trail = trails[t];
+    trail.age += DT;
+    if (trail.age > trail.maxAge) { trails.splice(t,1); continue; }
+
+    const alpha = 1 - trail.age/trail.maxAge;
+
+    for (let i = 1; i < trail.pts.length; i++) {
+      const a = toScreen(trail.pts[i-1][0], trail.pts[i-1][1]);
+      const b = toScreen(trail.pts[i][0], trail.pts[i][1]);
+
+      // detect wrap-arounds (don't draw lines across the screen)
+      const dx = Math.abs(b.x - a.x), dy = Math.abs(b.y - a.y);
+      if (dx > W*0.4 || dy > H*0.4) continue;
+
+      ctx.strokeStyle = `rgba(${trail.hit?'0,255,65':'255,0,64'},${alpha*0.9})`;
+      ctx.lineWidth = trail.hit ? 2.5 : 1.5;
+      ctx.shadowColor = trail.hit ? '#00ff41' : '#ff0040';
+      ctx.shadowBlur = 6;
+      ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+  }
+}
+
+// ── PARTICLES ──────────────────────────────────────────────────
+function spawnHitParticles(px, py, color) {
+  for (let i = 0; i < 18; i++) {
+    const angle = Math.random()*Math.PI*2;
+    const speed = 60 + Math.random()*100;
+    particles.push({
+      x: px, y: py,
+      vx: Math.cos(angle)*speed, vy: Math.sin(angle)*speed,
+      life: 1.0, color
+    });
+  }
+}
+
+function updateParticles(dt) {
+  for (let i = particles.length-1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx*dt; p.y += p.vy*dt;
+    p.vx *= 0.93; p.vy *= 0.93;
+    p.life -= dt*2;
+    if (p.life <= 0) { particles.splice(i,1); continue; }
+    ctx.fillStyle = p.color.replace('1)', `${p.life})`);
+    ctx.shadowColor = p.color;
+    ctx.shadowBlur = 4;
+    ctx.beginPath(); ctx.arc(p.x,p.y,3*p.life,0,Math.PI*2); ctx.fill();
+  }
+  ctx.shadowBlur = 0;
+}
+
+// ── SHOOT ──────────────────────────────────────────────────
+function shoot() {
+  if (shootCooldown > 0 || gameState !== 'playing') return;
+  shootCooldown = 0.6;
+
+  // Initial velocity in (u,v) direction
+  // shootAngle is the screen angle; convert: v→x axis, u→y axis
+  const speed = 1.5 + level * 0.2;
+  const du0 = Math.sin(shootAngle) * speed;
+  const dv0 = Math.cos(shootAngle) * speed;
+
+  let state = [playerU, du0, playerV, dv0];
+  const pts = [[state[0], state[2]]];
+
+  // Integrate geodesic for fixed arc length
+  const maxSteps = 400 + level * 50;
+  let hitTarget = null;
+  let hitIdx = -1;
+
+  for (let s = 0; s < maxSteps; s++) {
+    state = rkStep(state, DT);
+    pts.push([state[0], state[2]]);
+
+    // Check target hit
+    for (let ti = 0; ti < targets.length; ti++) {
+      const t = targets[ti];
+      if (t.hit) continue;
+      // Angular distance on torus (wrap-aware)
+      let du = Math.abs(state[0] - t.u) % (2*Math.PI);
+      let dv = Math.abs(state[2] - t.v) % (2*Math.PI);
+      if (du > Math.PI) du = 2*Math.PI-du;
+      if (dv > Math.PI) dv = 2*Math.PI-dv;
+      const screenDist = Math.sqrt((du*(H-60)/(2*Math.PI))**2 + (dv*(W-60)/(2*Math.PI))**2);
+      if (screenDist < t.r) {
+        hitTarget = t; hitIdx = ti;
+        break;
+      }
+    }
+    if (hitTarget) break;
+  }
+
+  const trail = { pts, age:0, maxAge:3.5, hit:!!hitTarget };
+  trails.push(trail);
+
+  if (hitTarget) {
+    hitTarget.hit = true;
+    const sp = toScreen(hitTarget.u, hitTarget.v);
+    spawnHitParticles(sp.x, sp.y, 'rgba(0,255,65,1)');
+    score += Math.ceil(100 * (1 + level*0.5));
+    updateHUD();
+
+    // Check level cleared
+    if (targets.every(t => t.hit)) {
+      levelCleared = true;
+      levelTimer = 1.5;
+    }
+  } else {
+    // Miss — lose a life
+    lives--;
+    updateHUD();
+    const ep = toScreen(state[0], state[2]);
+    spawnHitParticles(ep.x, ep.y, 'rgba(255,0,64,1)');
+    if (lives <= 0) setTimeout(gameOver, 600);
+  }
+}
+
+// ── HUD ──────────────────────────────────────────────────
+function updateHUD() {
+  document.getElementById('score-display').textContent = `PUNTOS: ${score}`;
+  document.getElementById('level-display').textContent = `NIVEL ${level}`;
+  document.getElementById('lives-display').textContent = '♥ '.repeat(lives).trim() || '✕';
+}
+
+// ── ANGLE INDICATOR ──────────────────────────────────────────────────
+function drawAngleHUD() {
+  // Show angle wheel at bottom of canvas
+  const cx = W/2, cy = H-20, radius = 35;
+  ctx.strokeStyle = 'rgba(0,255,255,0.3)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(cx,cy,radius,0,Math.PI*2); ctx.stroke();
+
+  // angle needle
+  ctx.strokeStyle = '#00ffff';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#00ffff';
+  ctx.shadowBlur = 8;
+  ctx.beginPath();
+  ctx.moveTo(cx,cy);
+  ctx.lineTo(cx+Math.cos(shootAngle)*radius, cy+Math.sin(shootAngle)*radius);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = 'rgba(0,255,255,0.6)';
+  ctx.font = '10px Courier New';
+  ctx.textAlign = 'center';
+  ctx.fillText(`ángulo: ${(shootAngle*180/Math.PI).toFixed(0)}°`, cx, cy+radius+14);
+  ctx.textAlign = 'left';
+
+  // Cooldown arc
+  if (shootCooldown > 0) {
+    ctx.strokeStyle = 'rgba(255,255,0,0.5)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(cx,cy,radius+5, -Math.PI/2, -Math.PI/2 + (1-shootCooldown/0.6)*Math.PI*2);
+    ctx.stroke();
+  }
+}
+
+function drawLevelCleared() {
+  ctx.fillStyle = 'rgba(0,255,65,0.15)';
+  ctx.fillRect(0,0,W,H);
+  ctx.fillStyle = '#00ff41';
+  ctx.font = `bold ${Math.min(W*0.1,60)}px Courier New`;
+  ctx.textAlign = 'center';
+  ctx.shadowColor = '#00ff41';
+  ctx.shadowBlur = 30;
+  ctx.fillText('NIVEL DESPEJADO', W/2, H/2);
+  ctx.shadowBlur = 0;
+  ctx.textAlign = 'left';
+}
+
+// ── MAIN LOOP ──────────────────────────────────────────────────
+let last = null;
+function loop(ts) {
+  if (gameState !== 'playing') return;
+  const dt = last ? Math.min((ts-last)/1000, 0.05) : DT;
+  last = ts;
+
+  shootCooldown = Math.max(0, shootCooldown - dt);
+
+  drawBg();
+  drawTrails();
+  drawTargets(dt);
+  drawPlayer();
+  updateParticles(dt);
+  drawAngleHUD();
+
+  if (levelCleared) {
+    levelTimer -= dt;
+    drawLevelCleared();
+    if (levelTimer <= 0) nextLevel();
+  }
+
+  // Instructions (first few seconds)
+  if (score === 0 && !levelCleared && trails.length === 0) {
+    ctx.fillStyle = 'rgba(255,255,0,0.7)';
+    ctx.font = '12px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText('← DESLIZA para girar · TAP para disparar →', W/2, H-60);
+    ctx.textAlign = 'left';
+  }
+
+  animId = requestAnimationFrame(loop);
+}
+
+function nextLevel() {
+  level++;
+  levelCleared = false;
+  trails = [];
+  spawnTargets();
+  updateHUD();
+}
+
+function gameOver() {
+  gameState = 'over';
+  cancelAnimationFrame(animId);
+  document.getElementById('ui').style.display = 'none';
+  document.getElementById('final-score').textContent = score;
+  document.getElementById('funny-msg').textContent = FUNNY_MSGS[Math.floor(Math.random()*FUNNY_MSGS.length)];
+  document.getElementById('over-screen').style.display = 'flex';
+}
+
+// ── INPUT ──────────────────────────────────────────────────
+let touchStartX = null, touchStartY = null, touchStartAngle = null;
+
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  touchStartX = t.clientX;
+  touchStartY = t.clientY;
+  touchStartAngle = shootAngle;
+}, {passive:false});
+
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if (touchStartX === null) return;
+  const t = e.touches[0];
+  const dx = t.clientX - touchStartX;
+  const dy = t.clientY - touchStartY;
+  // Horizontal drag = rotate angle
+  shootAngle = touchStartAngle + dx * 0.012;
+}, {passive:false});
+
+canvas.addEventListener('touchend', e => {
+  e.preventDefault();
+  const t = e.changedTouches[0];
+  const dx = Math.abs(t.clientX - touchStartX);
+  const dy = Math.abs(t.clientY - touchStartY);
+  // Small tap = shoot
+  if (dx < 15 && dy < 15) shoot();
+  touchStartX = null;
+}, {passive:false});
+
+// Mouse support
+canvas.addEventListener('mousemove', e => {
+  if (gameState !== 'playing') return;
+  if (!dragging) return;
+  const dx = e.clientX - lastTouchX;
+  shootAngle += dx * 0.012;
+  lastTouchX = e.clientX;
+});
+canvas.addEventListener('mousedown', e => { dragging=true; lastTouchX=e.clientX; });
+canvas.addEventListener('mouseup', e => {
+  dragging = false;
+  shoot();
+});
+
+// Keyboard
+window.addEventListener('keydown', e => {
+  if (gameState !== 'playing') return;
+  if (e.key === 'ArrowLeft') shootAngle -= 0.08;
+  if (e.key === 'ArrowRight') shootAngle += 0.08;
+  if (e.key === ' ' || e.key === 'Enter') shoot();
+});
+
+// ── BUTTONS ──────────────────────────────────────────────────
+document.getElementById('btn-start').addEventListener('click', startGame);
+document.getElementById('btn-retry').addEventListener('click', () => {
+  document.getElementById('over-screen').style.display = 'none';
+  startGame();
+});
+
+function startGame() {
+  score = 0; lives = 3; level = 1;
+  trails = []; particles = [];
+  playerU = Math.PI/3; playerV = Math.PI/4;
+  shootAngle = 0.4;
+  levelCleared = false;
+  shootCooldown = 0;
+  gameState = 'playing';
+  spawnTargets();
+  updateHUD();
+  document.getElementById('start-screen').style.display = 'none';
+  document.getElementById('ui').style.display = 'flex';
+  last = null;
+  animId = requestAnimationFrame(loop);
+}
+
+// Init bg on start screen
+drawBg();
+
+})();
+</script>
+</body>
+</html>

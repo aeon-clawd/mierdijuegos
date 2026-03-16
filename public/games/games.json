@@ -214,5 +214,13 @@
         "description": "El mundo se cierra. Teleportate entre celdas de tu clúster antes de que la red se fragmente. Cuando la densidad cruza pc≈0.5927, el clúster infinito desaparece — y contigo.",
         "mechanic": "El jugador se teleporta dentro de su clúster conectado en una red de percolación de sitios 2D — cuando ρ cruza el umbral crítico pc≈0.5927, el clúster gigante colapsa en islas aisladas (transición de fase real)",
         "emoji": "🕸️"
+    },
+    {
+        "id": "028-geodesica",
+        "title": "Geodésica",
+        "date": "2026-03-16",
+        "description": "Disparas en un toro 4D. Las líneas rectas se curvan. Ajusta el ángulo y dispara — tu rayo sigue la geodésica real del toro (ecuaciones de Clairaut) y puede enroscarse, cruzar el agujero, o perderse en el infinito.",
+        "mechanic": "El jugador ajusta el ángulo de disparo y el rayo sigue las ecuaciones geodésicas reales de un toro (Clairaut: ü = (R+r·cos u)·sin u·v̇²/r) — las 'líneas rectas' de la geometría diferencial son el arma",
+        "emoji": "🍩"
     }
 ]

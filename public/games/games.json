@@ -222,5 +222,13 @@
         "description": "Disparas en un toro 4D. Las líneas rectas se curvan. Ajusta el ángulo y dispara — tu rayo sigue la geodésica real del toro (ecuaciones de Clairaut) y puede enroscarse, cruzar el agujero, o perderse en el infinito.",
         "mechanic": "El jugador ajusta el ángulo de disparo y el rayo sigue las ecuaciones geodésicas reales de un toro (Clairaut: ü = (R+r·cos u)·sin u·v̇²/r) — las 'líneas rectas' de la geometría diferencial son el arma",
         "emoji": "🍩"
+    },
+    {
+        "id": "029-cristal-de-tiempo",
+        "title": "Cristal de Tiempo",
+        "date": "2026-03-17",
+        "description": "Toca a la mitad de la frecuencia del pulso conductor. El cristal oscila a f/2 — toca en el subarmónico o el calentamiento de Floquet destruirá la coherencia cuántica.",
+        "mechanic": "El jugador mantiene el orden de un cristal de tiempo discreto tocando a f/2 del pulso conductor — cada error inyecta calor de Floquet y el MBL (localización muchos cuerpos) se debilita nivel a nivel",
+        "emoji": "❄️"
     }
 ]

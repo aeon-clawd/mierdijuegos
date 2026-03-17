@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Cristal de Tiempo</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a0a;
+    color: #fff;
+    font-family: 'Courier New', monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    overflow: hidden;
+    touch-action: none;
+  }
+  canvas { display: block; }
+  #ui {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: rgba(0,0,0,0.6);
+    z-index: 10;
+    font-size: 14px;
+  }
+  .ui-val { color: #00ffff; font-weight: bold; }
+  .ui-label { color: #666; font-size: 11px; }
+  #screen {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.95);
+    z-index: 20;
+    padding: 20px;
+    text-align: center;
+  }
+  #screen h1 { font-size: 2em; color: #00ffff; margin-bottom: 8px; letter-spacing: 2px; }
+  #screen .sub { color: #888; font-size: 0.8em; margin-bottom: 20px; }
+  #screen p { color: #aaa; font-size: 0.85em; line-height: 1.6; max-width: 340px; margin-bottom: 20px; }
+  #screen .science { color: #ff00ff; font-size: 0.75em; font-style: italic; margin-bottom: 24px; max-width: 320px; }
+  button {
+    background: #00ffff;
+    color: #0a0a0a;
+    border: none;
+    padding: 14px 40px;
+    font-size: 1.1em;
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    cursor: pointer;
+    letter-spacing: 2px;
+    border-radius: 2px;
+    margin: 6px;
+  }
+  button:hover { background: #00cccc; }
+  .btn-secondary {
+    background: transparent;
+    color: #666;
+    border: 1px solid #333;
+    font-size: 0.85em;
+    padding: 10px 24px;
+  }
+  .btn-secondary:hover { color: #aaa; border-color: #666; }
+  #score-big { font-size: 3em; color: #ffff00; margin: 10px 0; }
+  #funny { color: #ff00ff; font-size: 0.9em; margin: 10px 0 20px; }
+  .phase-bar {
+    width: 200px; height: 8px;
+    background: #1a1a1a;
+    border-radius: 4px;
+    margin: 8px auto;
+    overflow: hidden;
+  }
+  .phase-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: none;
+  }
+</style>
+</head>
+<body>
+
+<div id="ui" style="display:none">
+  <div>
+    <div class="ui-label">ORDEN</div>
+    <div class="ui-val" id="ui-order">100%</div>
+  </div>
+  <div>
+    <div class="ui-label">PUNTOS</div>
+    <div class="ui-val" id="ui-score">0</div>
+  </div>
+  <div>
+    <div class="ui-label">NIVEL</div>
+    <div class="ui-val" id="ui-level">1</div>
+  </div>
+  <div>
+    <div class="ui-label">CALOR</div>
+    <div class="ui-val" id="ui-heat">0%</div>
+  </div>
+</div>
+
+<canvas id="c"></canvas>
+
+<div id="screen">
+  <h1>⟨ CRISTAL DE TIEMPO ⟩</h1>
+  <div class="sub">Física cuántica de Floquet · 2021</div>
+  <p>Un cristal de tiempo rompe la simetría temporal: oscila a <strong style="color:#00ffff">f/2</strong> aunque el pulso conductor bate a <strong style="color:#ff00ff">f</strong>.</p>
+  <p>Toca la pantalla en cada <strong style="color:#ffff00">segundo pulso</strong> — justo cuando el anillo alcanza el subarmónico. Si tocas fuera de fase, inyectas calor y el cristal se derrite.</p>
+  <p class="science">🔬 Física real: los cristales de tiempo discretos (Google, 2021) usan localización muchos cuerpos (MBL) para resistir el calentamiento de Floquet. Sin MBL, cualquier error acumula entropía hasta el colapso.</p>
+  <button id="btn-start">INICIAR CRISTAL</button>
+</div>
+
+<div id="screen-over" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.95); z-index:20; flex-direction:column; align-items:center; justify-content:center; padding:20px; text-align:center;">
+  <h1 style="color:#ff0040; font-size:1.6em; margin-bottom:4px;">☠ COLAPSO TÉRMICO</h1>
+  <div style="color:#666; font-size:0.8em; margin-bottom:12px;">El cristal de tiempo ha muerto</div>
+  <div id="score-big">0</div>
+  <div style="color:#888; font-size:0.8em; margin-bottom:6px;">puntos acumulados</div>
+  <div id="funny"></div>
+  <div style="color:#555; font-size:0.75em; margin: 8px 0 20px">Nivel <span id="final-level">1</span> · Calor final: <span id="final-heat">0</span>%</div>
+  <button id="btn-retry">REINICIAR CRISTAL</button>
+  <br>
+  <a href="/" style="color:#333; font-size:0.8em; text-decoration:none; margin-top:12px;">← más mierdijuegos</a>
+</div>
+
+<script>
+// === STATE ===
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H, cx, cy;
+
+let gameState = 'menu'; // menu | playing | over
+let score = 0;
+let level = 1;
+let heat = 0; // 0-1 Floquet heating
+let mblStrength = 1.0; // decreases with level (tolerance window)
+
+// Time crystal parameters
+const BASE_DRIVE_PERIOD = 1400; // ms — driving pulse period (f)
+// Crystal oscillates at f/2 — player must tap every 2 pulses
+let drivePeriod = BASE_DRIVE_PERIOD;
+let crystalPhase = 0; // 0 to 2*drivePeriod — crystal cycle
+let drivePhase = 0; // 0 to drivePeriod — driving cycle
+let lastTime = 0;
+let pulseCount = 0; // counts driving pulses
+let expectingTap = false; // true on the "tap" pulse (every other)
+let tapWindow = 0; // time since expected tap moment
+let tapped = false;
+let flashDrive = 0; // 0-1 visual flash for drive pulse
+let flashCrystal = 0; // 0-1 visual flash for crystal pulse
+let flashTap = 0; // 0-1 feedback flash
+let tapSuccess = false;
+
+// Spins — hexagonal lattice of quantum spins
+// Each spin has phase alignment with the crystal
+let spins = [];
+const NUM_SPINS = 7; // center + 6 hexagonal
+
+// Funny messages
+const funnyMsgs = [
+  "El calentamiento de Floquet ha ganado. Como siempre.",
+  "Sin MBL no hay cristal. Hay sopa cuántica.",
+  "Tu coherencia era tan temporal como tu atención.",
+  "Incluso Google necesitó 70 qubits. Tú solo tenías un dedo.",
+  "El segundo principio de la termodinámica: 1. Tú: 0.",
+  "La entropía siempre gana. Sin excepción.",
+  "Deberías haber estudiado física cuántica antes de jugar.",
+  "Wilczek dijo que era imposible. Tenía razón contigo.",
+  "Tu cristal de tiempo era más frágil que tus excusas.",
+];
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  cx = W / 2;
+  cy = H / 2;
+}
+
+function initSpins() {
+  spins = [];
+  const R = Math.min(W, H) * 0.15;
+  // center
+  spins.push({ x: cx, y: cy + 30, order: 1.0, angle: 0 });
+  // hexagonal ring
+  for (let i = 0; i < 6; i++) {
+    const a = (i * Math.PI * 2 / 6) - Math.PI / 6;
+    spins.push({
+      x: cx + Math.cos(a) * R,
+      y: cy + 30 + Math.sin(a) * R,
+      order: 1.0,
+      angle: (i % 2 === 0) ? 0 : Math.PI // alternating spin pattern
+    });
+  }
+}
+
+function initGame() {
+  score = 0;
+  level = 1;
+  heat = 0;
+  mblStrength = 1.0;
+  drivePeriod = BASE_DRIVE_PERIOD;
+  crystalPhase = 0;
+  drivePhase = 0;
+  pulseCount = 0;
+  expectingTap = false;
+  tapWindow = 0;
+  tapped = false;
+  flashDrive = 0;
+  flashCrystal = 0;
+  flashTap = 0;
+  tapSuccess = false;
+  resize();
+  initSpins();
+  gameState = 'playing';
+  lastTime = performance.now();
+  requestAnimationFrame(loop);
+}
+
+// === AUDIO ===
+let audioCtx = null;
+function getAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+function beep(freq, type, dur, vol, time) {
+  try {
+    const ac = getAudio();
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.connect(gain);
+    gain.connect(ac.destination);
+    osc.type = type || 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(vol || 0.3, time || ac.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, (time || ac.currentTime) + dur);
+    osc.start(time || ac.currentTime);
+    osc.stop((time || ac.currentTime) + dur);
+  } catch(e) {}
+}
+
+// === GAME LOGIC ===
+function onTap() {
+  if (gameState !== 'playing') return;
+  try { getAudio().resume(); } catch(e) {}
+
+  // Calculate timing accuracy
+  if (expectingTap) {
+    // How close to the ideal moment?
+    // tapWindow: 0 = just triggered, increases
+    // ideal tap: center of tolerance window
+    const tolerance = (drivePeriod * 0.35) * mblStrength; // MBL determines window
+    const ideal = drivePeriod * 0.05; // shortly after pulse
+    const error = Math.abs(tapWindow - ideal);
+
+    if (error < tolerance) {
+      // Successful subharmonic tap
+      const accuracy = 1 - (error / tolerance);
+      const pts = Math.round(accuracy * 100 * level);
+      score += pts;
+      heat = Math.max(0, heat - 0.03 * accuracy);
+      tapSuccess = true;
+      tapped = true;
+      flashTap = 1;
+      // Increase spin order
+      spins.forEach(s => s.order = Math.min(1, s.order + 0.15 * accuracy));
+      beep(440 + accuracy * 220, 'sine', 0.15, 0.4);
+    } else {
+      // Wrong timing — inject heat
+      heat = Math.min(1, heat + 0.12);
+      tapSuccess = false;
+      tapped = true;
+      flashTap = 1;
+      // Decrease spin order
+      spins.forEach(s => s.order = Math.max(0, s.order - 0.2));
+      beep(150, 'sawtooth', 0.2, 0.3);
+    }
+  } else {
+    // Tapped on driving pulse — wrong! heat injection
+    heat = Math.min(1, heat + 0.15);
+    tapSuccess = false;
+    tapped = true;
+    flashTap = 1;
+    spins.forEach(s => s.order = Math.max(0, s.order - 0.25));
+    beep(100, 'sawtooth', 0.2, 0.4);
+  }
+}
+
+function onDrivePulse() {
+  pulseCount++;
+  flashDrive = 1;
+  beep(200, 'square', 0.05, 0.15);
+
+  if (pulseCount % 2 === 0) {
+    // Crystal pulse — player should tap here
+    expectingTap = true;
+    tapWindow = 0;
+    tapped = false;
+    flashCrystal = 1;
+    beep(600, 'sine', 0.08, 0.1);
+  } else {
+    expectingTap = false;
+    // If previous crystal pulse missed
+  }
+}
+
+function update(dt) {
+  if (gameState !== 'playing') return;
+
+  // Update phases
+  drivePhase += dt;
+  crystalPhase += dt;
+  if (tapWindow !== null && expectingTap) tapWindow += dt;
+
+  // Drive pulse trigger
+  if (drivePhase >= drivePeriod) {
+    drivePhase -= drivePeriod;
+    onDrivePulse();
+  }
+
+  // Crystal pulse timeout — missed tap
+  if (expectingTap && tapWindow > drivePeriod * 0.7 && !tapped) {
+    // Missed tap
+    heat = Math.min(1, heat + 0.10);
+    spins.forEach(s => s.order = Math.max(0, s.order - 0.15));
+    expectingTap = false;
+    beep(80, 'sawtooth', 0.3, 0.2);
+  }
+
+  // Floquet heating: passive heat accumulation increases with level
+  const heatingRate = 0.00003 * level * (1 - mblStrength * 0.8);
+  heat = Math.min(1, heat + heatingRate * dt);
+
+  // Natural cooling from order
+  const avgOrder = spins.reduce((s, sp) => s + sp.order, 0) / spins.length;
+  if (avgOrder > 0.7) heat = Math.max(0, heat - 0.00001 * dt * avgOrder);
+
+  // Spin dynamics — spins precess based on crystal phase
+  spins.forEach((s, i) => {
+    const phaseOsc = (crystalPhase / (drivePeriod * 2)) * Math.PI * 2;
+    s.angle = (i % 2 === 0 ? 1 : -1) * phaseOsc;
+    // Disorder from heat
+    s.order = Math.max(0, s.order - heat * 0.0001 * dt);
+  });
+
+  // Level progression
+  if (score >= level * 800) {
+    level++;
+    mblStrength = Math.max(0.2, 1.0 - (level - 1) * 0.08);
+    drivePeriod = Math.max(500, BASE_DRIVE_PERIOD - (level - 1) * 80);
+    // Reset heat partially
+    heat = Math.max(0, heat - 0.2);
+    beep(880, 'sine', 0.4, 0.5);
+  }
+
+  // Fade flashes
+  flashDrive = Math.max(0, flashDrive - dt * 0.01);
+  flashCrystal = Math.max(0, flashCrystal - dt * 0.006);
+  flashTap = Math.max(0, flashTap - dt * 0.012);
+
+  // Death condition
+  if (heat >= 1) {
+    gameState = 'over';
+    showGameOver();
+  }
+
+  // UI
+  document.getElementById('ui-order').textContent = Math.round(avgOrder * 100) + '%';
+  document.getElementById('ui-score').textContent = score;
+  document.getElementById('ui-level').textContent = level;
+  document.getElementById('ui-heat').textContent = Math.round(heat * 100) + '%';
+}
+
+// === RENDER ===
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+
+  // Background — heat tint
+  ctx.fillStyle = `rgb(${Math.round(10 + heat * 30)}, ${Math.round(10 - heat * 5)}, ${Math.round(10 - heat * 5)})`;
+  ctx.fillRect(0, 0, W, H);
+
+  // Drive pulse flash — top pulse indicator
+  if (flashDrive > 0) {
+    ctx.fillStyle = `rgba(255, 0, 255, ${flashDrive * 0.3})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  const TOP = 60;
+  const BOT = H - 60;
+
+  // --- Drive pulse bar (top) ---
+  const driveX = (drivePhase / drivePeriod) * (W - 40) + 20;
+  // Background bar
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(20, TOP - 24, W - 40, 8);
+  // Progress
+  ctx.fillStyle = '#ff00ff';
+  ctx.fillRect(20, TOP - 24, driveX - 20, 8);
+  // Label
+  ctx.fillStyle = '#ff00ff';
+  ctx.font = '11px Courier New';
+  ctx.fillText('PULSO CONDUCTOR f', 20, TOP - 28);
+
+  // Crystal phase indicator (half frequency)
+  const crystalPeriod = drivePeriod * 2;
+  const crystalX = ((crystalPhase % crystalPeriod) / crystalPeriod) * (W - 40) + 20;
+  // Background bar
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(20, TOP - 8, W - 40, 8);
+  // Progress
+  ctx.fillStyle = '#00ffff';
+  ctx.fillRect(20, TOP - 8, crystalX - 20, 8);
+
+  // Sweet zone (tolerance window for tap)
+  if (expectingTap) {
+    const sweepStart = 0;
+    const tolerance = (drivePeriod * 0.35) * mblStrength;
+    const zStart = 20 + (sweepStart / crystalPeriod) * (W - 40);
+    const zWidth = (tolerance / crystalPeriod) * (W - 40) * 2;
+    // Find crystal position at expected tap point
+    const tapPos = ((pulseCount % 2 === 0 ? crystalPeriod * 0.5 : 0) / crystalPeriod) * (W - 40) + 20;
+    // Actually: sweet zone is just around current crystalX if it just fired
+    const cxPercent = (crystalPhase % crystalPeriod) / crystalPeriod;
+    const zoneCenter = (Math.round(cxPercent * 2) / 2) * (W - 40) + 20;
+    const tol = ((tolerance) / crystalPeriod) * (W - 40);
+    ctx.fillStyle = `rgba(0,255,255,0.15)`;
+    ctx.fillRect(Math.max(20, zoneCenter - tol), TOP - 8, Math.min(tol * 2, W - 40), 8);
+  }
+
+  ctx.fillStyle = '#00ffff';
+  ctx.font = '11px Courier New';
+  ctx.fillText('OSCILACIÓN CRISTAL f/2', 20, TOP - 12);
+
+  // Tap instruction
+  if (expectingTap && !tapped) {
+    ctx.fillStyle = `rgba(255,255,0,${0.5 + 0.5 * Math.sin(Date.now() * 0.015)})`;
+    ctx.font = 'bold 16px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText('¡ TOCA AHORA !', W / 2, TOP + 22);
+    ctx.textAlign = 'left';
+  }
+
+  // Tap feedback
+  if (flashTap > 0) {
+    const col = tapSuccess ? `rgba(0,255,65,${flashTap * 0.4})` : `rgba(255,0,64,${flashTap * 0.4})`;
+    ctx.fillStyle = col;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // === SPINS ===
+  const avgOrder = spins.reduce((s, sp) => s + sp.order, 0) / spins.length;
+  spins.forEach((spin, i) => {
+    const r = i === 0 ? 28 : 22;
+    const { x, y, order, angle } = spin;
+
+    // Outer ring — order indicator
+    ctx.beginPath();
+    ctx.arc(x, y, r + 4, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(0,255,255,${order * 0.4})`;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Disorder halo
+    if (heat > 0.3) {
+      ctx.beginPath();
+      ctx.arc(x, y, r + 4 + heat * 8, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(255,0,64,${heat * 0.3})`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    // Spin body
+    const hue = order > 0.5 ? '0,255,255' : '255,0,64';
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(${hue},${0.15 + order * 0.15})`;
+    ctx.fill();
+    ctx.strokeStyle = `rgba(${hue},${0.6 + order * 0.4})`;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Spin arrow (showing phase)
+    const arrowLen = r * 0.8;
+    const ax = x + Math.cos(angle) * arrowLen;
+    const ay = y + Math.sin(angle) * arrowLen;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(ax, ay);
+    ctx.strokeStyle = `rgba(${hue},${order})`;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    // Arrowhead
+    ctx.beginPath();
+    ctx.arc(ax, ay, 3, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(${hue},${order})`;
+    ctx.fill();
+
+    // Order number
+    ctx.fillStyle = `rgba(255,255,255,${order * 0.7})`;
+    ctx.font = '9px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText(Math.round(order * 100), x, y + r + 14);
+    ctx.textAlign = 'left';
+  });
+
+  // === MBL STRENGTH indicator ===
+  const mblW = 140;
+  const mblX = W - mblW - 16;
+  const mblY = BOT - 10;
+  ctx.fillStyle = '#111';
+  ctx.fillRect(mblX, mblY, mblW, 8);
+  ctx.fillStyle = '#00ff41';
+  ctx.fillRect(mblX, mblY, mblW * mblStrength, 8);
+  ctx.fillStyle = '#00ff41';
+  ctx.font = '10px Courier New';
+  ctx.fillText(`MBL ${Math.round(mblStrength * 100)}%`, mblX, mblY - 4);
+
+  // === HEAT BAR ===
+  const heatW = 140;
+  const heatX = 16;
+  const heatY = BOT - 10;
+  ctx.fillStyle = '#111';
+  ctx.fillRect(heatX, heatY, heatW, 8);
+  const heatColor = heat < 0.5 ? `rgb(255,${Math.round(255 * (1 - heat * 2))},0)` : `rgb(255,0,0)`;
+  ctx.fillStyle = heatColor;
+  ctx.fillRect(heatX, heatY, heatW * heat, 8);
+  ctx.fillStyle = '#ff6644';
+  ctx.font = '10px Courier New';
+  ctx.fillText(`CALOR DE FLOQUET ${Math.round(heat * 100)}%`, heatX, heatY - 4);
+
+  // Tap instruction when waiting for next pulse
+  if (!expectingTap || tapped) {
+    const nextPulse = expectingTap ? 0 : (drivePeriod - drivePhase);
+    const nextCrystal = (drivePeriod * 2 - (crystalPhase % (drivePeriod * 2)));
+    ctx.fillStyle = '#333';
+    ctx.font = '11px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText(`Próximo pulso de cristal: ${(nextCrystal / 1000).toFixed(1)}s`, W / 2, BOT - 24);
+    ctx.textAlign = 'left';
+  }
+
+  // Touch instruction
+  ctx.fillStyle = '#222';
+  ctx.font = '11px Courier New';
+  ctx.textAlign = 'center';
+  ctx.fillText('Toca la pantalla cuando el cristal pulse (barra cyan completa)', W / 2, BOT + 18);
+  ctx.textAlign = 'left';
+}
+
+function loop(ts) {
+  if (gameState !== 'playing') return;
+  const dt = Math.min(ts - lastTime, 100);
+  lastTime = ts;
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+
+function showGameOver() {
+  const msgs = funnyMsgs;
+  document.getElementById('score-big').textContent = score;
+  document.getElementById('funny').textContent = msgs[Math.floor(Math.random() * msgs.length)];
+  document.getElementById('final-level').textContent = level;
+  document.getElementById('final-heat').textContent = Math.round(heat * 100);
+  document.getElementById('screen-over').style.display = 'flex';
+  document.getElementById('ui').style.display = 'none';
+  beep(60, 'sawtooth', 1.5, 0.5);
+}
+
+// === EVENTS ===
+document.getElementById('btn-start').addEventListener('click', () => {
+  document.getElementById('screen').style.display = 'none';
+  document.getElementById('ui').style.display = 'flex';
+  try { getAudio().resume(); } catch(e) {}
+  initGame();
+});
+
+document.getElementById('btn-retry').addEventListener('click', () => {
+  document.getElementById('screen-over').style.display = 'none';
+  document.getElementById('ui').style.display = 'flex';
+  initGame();
+});
+
+canvas.addEventListener('click', onTap);
+canvas.addEventListener('touchstart', (e) => { e.preventDefault(); onTap(); }, { passive: false });
+document.addEventListener('keydown', (e) => { if (e.code === 'Space') { e.preventDefault(); onTap(); } });
+
+window.addEventListener('resize', () => {
+  resize();
+  if (gameState === 'playing') initSpins();
+});
+
+resize();
+</script>
+</body>
+</html>

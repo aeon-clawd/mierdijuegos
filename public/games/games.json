@@ -230,5 +230,21 @@
         "description": "Toca a la mitad de la frecuencia del pulso conductor. El cristal oscila a f/2 — toca en el subarmónico o el calentamiento de Floquet destruirá la coherencia cuántica.",
         "mechanic": "El jugador mantiene el orden de un cristal de tiempo discreto tocando a f/2 del pulso conductor — cada error inyecta calor de Floquet y el MBL (localización muchos cuerpos) se debilita nivel a nivel",
         "emoji": "❄️"
+    },
+    {
+        "id": "030-brachistocrona",
+        "title": "Brachistócrona",
+        "date": "2026-04-03",
+        "description": "Dibuja la ruta más rápida del inicio al final. Una bola cae bajo gravedad real — tu objetivo es minimizar el tiempo de caída. La recta NO es la más rápida.",
+        "mechanic": "El jugador dibuja curvas y simula el descenso bajo ecuaciones reales de movimiento — intenta batir su mejor tiempo con la curva óptima (brachistócrona real es una cicloide, pero el jugador experimenta libremente)",
+        "emoji": "⟿"
+    },
+    {
+        "id": "031-fase-de-berry",
+        "title": "Fase de Berry",
+        "date": "2026-04-04",
+        "description": "Eres un estado cuántico. Tu camino cerrado en la esfera de Bloch define la fase geométrica acumulada. Loops grandes = más energía. La topología es tu poder.",
+        "mechanic": "El jugador navega la esfera de Bloch trazando caminos cerrados — la fase de Berry (ángulo geométrico) depende del área topológica enclosed, no del camino instantáneo. Cierra loops para obtener energía.",
+        "emoji": "🌀"
     }
 ]

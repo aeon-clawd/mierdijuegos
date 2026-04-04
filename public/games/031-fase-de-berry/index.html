@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Fase de Berry</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            width: 100vw;
+            height: 100vh;
+            background: #0a0a0a;
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+            touch-action: none;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            background: #0a0a0a;
+        }
+        #ui {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 16px;
+            color: #00ff41;
+            font-size: 14px;
+            pointer-events: none;
+            text-shadow: 0 0 10px #00ff41;
+        }
+        #score { color: #00ffff; font-weight: bold; }
+        #phase { color: #ff00ff; margin-left: 20px; }
+        #instruction {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: #ffff00;
+            pointer-events: auto;
+            z-index: 100;
+        }
+        .start-screen, .end-screen { 
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            gap: 20px;
+        }
+        .start-screen h1, .end-screen h1 {
+            font-size: 48px;
+            color: #ff00ff;
+            text-shadow: 0 0 20px #ff00ff;
+            margin-bottom: 20px;
+        }
+        .start-screen p, .end-screen p {
+            max-width: 600px;
+            color: #00ffff;
+            font-size: 16px;
+            line-height: 1.6;
+            text-align: center;
+        }
+        button {
+            padding: 12px 24px;
+            background: #ff00ff;
+            border: 2px solid #ff00ff;
+            color: #0a0a0a;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-shadow: none;
+        }
+        button:hover {
+            background: #00ffff;
+            border-color: #00ffff;
+            box-shadow: 0 0 20px #00ffff;
+        }
+        .hidden { display: none !important; }
+        #endScore {
+            font-size: 36px;
+            color: #00ff41;
+            text-shadow: 0 0 10px #00ff41;
+        }
+        a {
+            color: #00ffff;
+            text-decoration: none;
+            text-shadow: 0 0 10px #00ffff;
+        }
+    </style>
+</head>
+<body>
+    <div id="instruction" class="start-screen">
+        <h1>FASE DE BERRY</h1>
+        <p>Navega una esfera cuántica de Bloch.</p>
+        <p>Tu camino define tu poder: la <strong>fase geométrica</strong> acumulada es no-local.</p>
+        <p>Cierra loops para obtener energía. Los loops más grandes = más fase = más poder.</p>
+        <p style="font-size: 12px; margin-top: 10px;">La Fase de Berry es el ángulo geométrico adquirido por un estado cuántico tras evolucionar adiabáticamente a lo largo de un camino cerrado en el espacio de parámetros. Es real, es fundamental, y controla tecnologías cuánticas. Aquí, tú eres el estado.</p>
+        <button onclick="startGame()">JUGAR</button>
+    </div>
+    <div id="ui">
+        <div style="display: flex; align-items: center;">
+            <span id="score">Energía: 0</span>
+            <span id="phase">Fase: 0°</span>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas') || document.createElement('canvas');
+        canvas.id = 'canvas';
+        document.body.appendChild(canvas);
+        const ctx = canvas.getContext('2d');
+        
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+
+        let gameState = 'menu';
+        let score = 0;
+        let berryPhase = 0;
+        let pathPoints = [];
+        let enemies = [];
+        let particleSystem = [];
+        let gameTime = 0;
+        let gameOver = false;
+        let health = 100;
+
+        const player = {
+            theta: Math.PI / 2,
+            phi: 0,
+            radius: 150,
+            speed: 0.03,
+            size: 8
+        };
+
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+
+        function blochPointToScreen(theta, phi) {
+            // Project Bloch sphere to 2D
+            const x = player.radius * Math.sin(theta) * Math.cos(phi);
+            const y = player.radius * Math.sin(theta) * Math.sin(phi);
+            return [centerX + x, centerY + y];
+        }
+
+        function computeBerryPhase() {
+            if (pathPoints.length < 3) return 0;
+            
+            // Simplified Berry phase: solid angle approximation
+            // For a closed path, Berry phase ≈ (solid angle enclosed) / 2
+            let area = 0;
+            for (let i = 0; i < pathPoints.length; i++) {
+                const p1 = pathPoints[i];
+                const p2 = pathPoints[(i + 1) % pathPoints.length];
+                area += p1.theta * p2.phi - p2.theta * p1.phi;
+            }
+            area = Math.abs(area) / 2;
+            
+            // Convert to degrees, modulo 360
+            return (area * 180 / Math.PI) % 360;
+        }
+
+        function isPathClosed() {
+            if (pathPoints.length < 4) return false;
+            const start = pathPoints[0];
+            const end = pathPoints[pathPoints.length - 1];
+            const dist = Math.hypot(start.theta - end.theta, start.phi - end.phi);
+            return dist < 0.1;
+        }
+
+        function updateGame() {
+            gameTime++;
+            
+            // Input handling (simulate with keyboard for testing, touch for real)
+            if (gameState !== 'menu' && gameState !== 'end') {
+                // Auto-rotate for demo, allow touch override
+                player.phi += player.speed * 0.5;
+                
+                // Record path
+                pathPoints.push({theta: player.theta, phi: player.phi});
+                if (pathPoints.length > 500) pathPoints.shift();
+            }
+
+            // Update enemies
+            enemies.forEach((enemy, i) => {
+                enemy.phi += 0.01 * Math.sin(gameTime / 50);
+                enemy.theta = Math.PI / 2 + 0.3 * Math.cos(gameTime / 100);
+                
+                // Check collision with player
+                const [px, py] = blochPointToScreen(player.theta, player.phi);
+                const [ex, ey] = blochPointToScreen(enemy.theta, enemy.phi);
+                if (Math.hypot(px - ex, py - ey) < 20) {
+                    health -= 1;
+                    particleSystem.push({x: px, y: py, vx: (Math.random()-0.5)*4, vy: (Math.random()-0.5)*4, life: 20, color: '#ff0040'});
+                }
+            });
+
+            // Check if path is closed
+            if (isPathClosed() && pathPoints.length > 20) {
+                berryPhase = computeBerryPhase();
+                score += Math.floor(berryPhase / 10);
+                health = Math.min(100, health + 10);
+                pathPoints = [];
+                
+                // Add particles
+                const [px, py] = blochPointToScreen(player.theta, player.phi);
+                for (let i = 0; i < 15; i++) {
+                    particleSystem.push({
+                        x: px, y: py,
+                        vx: (Math.random()-0.5)*6, vy: (Math.random()-0.5)*6,
+                        life: 30,
+                        color: '#ff00ff'
+                    });
+                }
+
+                // Spawn new enemy
+                if (Math.random() < 0.5) {
+                    enemies.push({
+                        theta: Math.random() * Math.PI,
+                        phi: Math.random() * 2 * Math.PI
+                    });
+                }
+            }
+
+            // Update particles
+            particleSystem = particleSystem.filter(p => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.1; // gravity
+                p.life--;
+                return p.life > 0;
+            });
+
+            if (health <= 0) {
+                gameState = 'end';
+                gameOver = true;
+            }
+        }
+
+        function drawGame() {
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            if (gameState === 'menu') {
+                return;
+            }
+
+            // Draw Bloch sphere wireframe
+            ctx.strokeStyle = '#00ffff';
+            ctx.globalAlpha = 0.3;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, player.radius, 0, Math.PI * 2);
+            ctx.stroke();
+            
+            // Draw equator
+            ctx.beginPath();
+            ctx.ellipse(centerX, centerY, player.radius, player.radius * 0.3, 0, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.globalAlpha = 1;
+
+            // Draw path
+            if (pathPoints.length > 1) {
+                ctx.strokeStyle = '#8B5CF6';
+                ctx.lineWidth = 2;
+                ctx.globalAlpha = 0.6;
+                ctx.beginPath();
+                const [x0, y0] = blochPointToScreen(pathPoints[0].theta, pathPoints[0].phi);
+                ctx.moveTo(x0, y0);
+                for (let i = 1; i < pathPoints.length; i++) {
+                    const [x, y] = blochPointToScreen(pathPoints[i].theta, pathPoints[i].phi);
+                    ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+                ctx.globalAlpha = 1;
+            }
+
+            // Draw enemies
+            enemies.forEach(enemy => {
+                const [ex, ey] = blochPointToScreen(enemy.theta, enemy.phi);
+                ctx.fillStyle = '#ff0040';
+                ctx.beginPath();
+                ctx.arc(ex, ey, 6, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.strokeStyle = '#ff00ff';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(ex, ey, 12, 0, Math.PI * 2);
+                ctx.stroke();
+            });
+
+            // Draw player
+            const [px, py] = blochPointToScreen(player.theta, player.phi);
+            ctx.fillStyle = '#00ff41';
+            ctx.beginPath();
+            ctx.arc(px, py, player.size, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.strokeStyle = '#00ffff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(px, py, player.size + 4, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // Draw particles
+            particleSystem.forEach(p => {
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.life / 30;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+            });
+
+            // Draw health bar
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(20, canvas.height - 40, 200, 30);
+            ctx.strokeStyle = '#00ffff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(20, canvas.height - 40, 200, 30);
+            
+            ctx.fillStyle = health > 50 ? '#00ff41' : health > 25 ? '#ffff00' : '#ff0040';
+            ctx.fillRect(22, canvas.height - 38, (health / 100) * 196, 26);
+        }
+
+        function gameLoop() {
+            updateGame();
+            drawGame();
+            
+            // Update UI
+            document.getElementById('score').textContent = `Energía: ${score}`;
+            document.getElementById('phase').textContent = `Fase: ${Math.floor(berryPhase)}°`;
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function startGame() {
+            gameState = 'playing';
+            document.getElementById('instruction').classList.add('hidden');
+            score = 0;
+            berryPhase = 0;
+            pathPoints = [];
+            enemies = [{theta: Math.PI / 3, phi: 0}];
+            health = 100;
+            gameTime = 0;
+            gameOver = false;
+        }
+
+        // Touch controls
+        let touchActive = false;
+        document.addEventListener('touchstart', (e) => {
+            if (gameState === 'playing') {
+                touchActive = true;
+            }
+        });
+
+        document.addEventListener('touchmove', (e) => {
+            if (gameState === 'playing' && touchActive) {
+                const touch = e.touches[0];
+                const x = touch.clientX - centerX;
+                const y = touch.clientY - centerY;
+                const angle = Math.atan2(y, x);
+                const r = Math.hypot(x, y);
+                
+                if (r < player.radius) {
+                    player.phi = angle;
+                    player.theta = Math.PI * (1 - r / player.radius);
+                }
+            }
+        });
+
+        document.addEventListener('touchend', () => {
+            touchActive = false;
+        });
+
+        // Show end screen
+        function showEnd() {
+            if (gameState === 'end') {
+                ctx.fillStyle = 'rgba(10, 10, 20, 0.8)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.fillStyle = '#ff00ff';
+                ctx.font = 'bold 48px Courier New';
+                ctx.textAlign = 'center';
+                ctx.fillText('FASE COLAPSADA', canvas.width / 2, canvas.height / 2 - 60);
+                
+                ctx.fillStyle = '#00ffff';
+                ctx.font = '24px Courier New';
+                ctx.fillText(`Energía Final: ${score}`, canvas.width / 2, canvas.height / 2 + 20);
+                ctx.fillText(`Fase Máxima: ${Math.floor(berryPhase)}°`, canvas.width / 2, canvas.height / 2 + 60);
+                
+                ctx.fillStyle = '#00ff41';
+                ctx.font = '16px Courier New';
+                ctx.fillText('Toca para reintentar | ', canvas.width / 2 - 80, canvas.height / 2 + 120);
+            }
+        }
+
+        // Override gameLoop to show end screen
+        const originalGameLoop = gameLoop;
+        gameLoop = function() {
+            updateGame();
+            drawGame();
+            
+            if (gameState === 'end') {
+                showEnd();
+            }
+            
+            document.getElementById('score').textContent = `Energía: ${score}`;
+            document.getElementById('phase').textContent = `Fase: ${Math.floor(berryPhase)}°`;
+
+            requestAnimationFrame(gameLoop);
+        };
+
+        // Handle click for end screen
+        document.addEventListener('click', () => {
+            if (gameState === 'end') {
+                location.reload();
+            }
+        });
+
+        // Start the game loop
+        gameLoop();
+    </script>
+</body>
+</html>

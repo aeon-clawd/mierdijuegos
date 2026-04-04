@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Brachistócrona</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #0a0a0a;
+            color: #fff;
+            font-family: 'Courier New', monospace;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+        
+        #gameContainer {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(135deg, #0a0a0a, #1a1a2e);
+        }
+        
+        canvas {
+            display: block;
+            background: #0a0a0a;
+            border: 2px solid #00ffff;
+            max-width: 100vw;
+            max-height: 100vh;
+        }
+        
+        #startScreen, #gameOverScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+        }
+        
+        #startScreen.hidden, #gameOverScreen.hidden {
+            display: none;
+        }
+        
+        .screen-content {
+            text-align: center;
+            padding: 20px;
+            max-width: 90%;
+        }
+        
+        h1 {
+            font-size: 3em;
+            color: #00ffff;
+            text-shadow: 0 0 20px #00ffff, 0 0 40px #8b5cf6;
+            margin-bottom: 20px;
+            letter-spacing: 3px;
+        }
+        
+        .subtitle {
+            font-size: 1.2em;
+            color: #ffff00;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+        
+        .instructions {
+            font-size: 1em;
+            color: #00ff41;
+            margin-bottom: 40px;
+            text-align: left;
+            line-height: 1.8;
+            max-width: 500px;
+        }
+        
+        button {
+            padding: 15px 40px;
+            font-size: 1.2em;
+            background: linear-gradient(90deg, #00ffff, #8b5cf6);
+            color: #0a0a0a;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            transition: all 0.3s;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+        }
+        
+        button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 40px rgba(0, 255, 255, 0.8), 0 0 20px rgba(139, 92, 246, 0.8);
+        }
+        
+        button:active {
+            transform: scale(0.95);
+        }
+        
+        .score-display {
+            margin-top: 30px;
+            font-size: 1.5em;
+            color: #ff00ff;
+        }
+        
+        .time-display {
+            margin-top: 10px;
+            font-size: 1.3em;
+            color: #ffff00;
+        }
+        
+        .back-link {
+            margin-top: 30px;
+        }
+        
+        .back-link a {
+            color: #00ffff;
+            text-decoration: none;
+            font-size: 1.1em;
+            transition: all 0.3s;
+        }
+        
+        .back-link a:hover {
+            color: #ffff00;
+            text-shadow: 0 0 10px #ffff00;
+        }
+        
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 1.2em;
+            color: #00ff41;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .ui-item {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 20px;
+            border: 1px solid #00ffff;
+            border-radius: 3px;
+        }
+        
+        .hint {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            font-size: 0.9em;
+            color: #8b5cf6;
+            max-width: 300px;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="canvas"></canvas>
+        <div id="ui">
+            <div class="ui-item">Mejor tiempo: <span id="bestTime">∞</span>s</div>
+            <div class="ui-item">Tiempo actual: <span id="currentTime">0.0</span>s</div>
+            <div class="ui-item">Estado: <span id="status">DIBUJANDO</span></div>
+        </div>
+        <div class="hint" id="hint">Dibuja la curva más rápida. Toca para trazar, suelta para simular.</div>
+    </div>
+    
+    <div id="startScreen">
+        <div class="screen-content">
+            <h1>⟿ BRACHISTÓCRONA</h1>
+            <div class="subtitle">La Ruta Más Rápida</div>
+            <div class="instructions">
+                <strong>Mecánica:</strong><br>
+                Dibuja una curva del inicio al final. Una bola caerá por tu curva bajo gravedad real. Tu objetivo es minimizar el tiempo de caída.<br><br>
+                <strong>Controls:</strong><br>
+                1️⃣ Toca y arrastra para dibujar<br>
+                2️⃣ Suelta para soltar la bola<br>
+                3️⃣ Espera a que simule<br>
+                4️⃣ Intenta batir tu mejor tiempo<br><br>
+                <strong>Consejo:</strong> La ruta recta NO es la más rápida. Busca curvas que caigan rápido al principio.
+            </div>
+            <button onclick="startGame()">JUGAR</button>
+        </div>
+    </div>
+    
+    <div id="gameOverScreen" class="hidden">
+        <div class="screen-content">
+            <h1>¡SIMULACIÓN COMPLETA!</h1>
+            <div class="score-display">Tiempo: <span id="finalTime">0</span>s</div>
+            <div class="time-display">Mejor: <span id="bestTimeDisplay">∞</span>s</div>
+            <div style="margin-top: 20px; font-size: 1.1em; color: #ffff00;" id="message"></div>
+            <button onclick="resetGame()" style="margin-top: 30px;">INTENTAR DE NUEVO</button>
+            <div class="back-link">
+                <a href="/">← más mierdijuegos</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Responsiveness
+        function resizeCanvas() {
+            canvas.width = Math.min(window.innerWidth, 800);
+            canvas.height = Math.min(window.innerHeight, 600);
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        
+        // Game state
+        let gameState = 'start';
+        let drawing = false;
+        let curve = [];
+        let ballTrail = [];
+        let ballPosition = null;
+        let ballVelocity = null;
+        let simulating = false;
+        let currentTime = 0;
+        let bestTime = Infinity;
+        let messages = [
+            "¡La gravedad no miente!",
+            "Casi... pero la física es cruel.",
+            "Ese fue un buen intento.",
+            "La cicloide te vencerá siempre.",
+            "Newton estaría orgulloso.",
+            "¿Mañana será mejor?",
+            "El tiempo vuela (literalmente).",
+            "La curva clásica es imbatible.",
+            "Sigue intentando, matemático.",
+            "La brachistócrona es pura magia."
+        ];
+        
+        // Constants
+        const GRAVITY = 9.81;
+        const START_X = 50;
+        const START_Y = 50;
+        const END_X = canvas.width - 50;
+        const END_Y = canvas.height - 50;
+        const BALL_RADIUS = 5;
+        const DT = 0.016; // ~60fps
+        
+        function startGame() {
+            document.getElementById('startScreen').classList.add('hidden');
+            gameState = 'playing';
+            curve = [];
+            ballPosition = {x: START_X, y: START_Y};
+            ballVelocity = {x: 0, y: 0};
+            ballTrail = [];
+            currentTime = 0;
+            simulating = false;
+            draw();
+        }
+        
+        function resetGame() {
+            document.getElementById('gameOverScreen').classList.add('hidden');
+            startGame();
+        }
+        
+        // Drawing
+        canvas.addEventListener('mousedown', (e) => {
+            if (gameState !== 'playing' || simulating) return;
+            drawing = true;
+            curve = [];
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            curve.push({x, y});
+        });
+        
+        canvas.addEventListener('mousemove', (e) => {
+            if (!drawing || gameState !== 'playing') return;
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            curve.push({x, y});
+        });
+        
+        canvas.addEventListener('mouseup', () => {
+            if (drawing && gameState === 'playing') {
+                drawing = false;
+                if (curve.length > 2) {
+                    simulate();
+                }
+            }
+        });
+        
+        // Touch support
+        canvas.addEventListener('touchstart', (e) => {
+            if (gameState !== 'playing' || simulating) return;
+            drawing = true;
+            curve = [];
+            const rect = canvas.getBoundingClientRect();
+            const touch = e.touches[0];
+            const x = touch.clientX - rect.left;
+            const y = touch.clientY - rect.top;
+            curve.push({x, y});
+        });
+        
+        canvas.addEventListener('touchmove', (e) => {
+            if (!drawing || gameState !== 'playing') return;
+            const rect = canvas.getBoundingClientRect();
+            const touch = e.touches[0];
+            const x = touch.clientX - rect.left;
+            const y = touch.clientY - rect.top;
+            curve.push({x, y});
+            e.preventDefault();
+        });
+        
+        canvas.addEventListener('touchend', () => {
+            if (drawing && gameState === 'playing') {
+                drawing = false;
+                if (curve.length > 2) {
+                    simulate();
+                }
+            }
+        });
+        
+        // Simulate physics
+        function simulate() {
+            simulating = true;
+            document.getElementById('status').textContent = 'SIMULANDO';
+            document.getElementById('hint').textContent = 'Observando la física...';
+            
+            ballPosition = {x: START_X, y: START_Y};
+            ballVelocity = {x: 0, y: 0};
+            ballTrail = [{x: START_X, y: START_Y}];
+            currentTime = 0;
+            
+            // Run simulation
+            const maxIterations = 10000;
+            let iterations = 0;
+            
+            const simulationLoop = () => {
+                if (iterations > maxIterations) {
+                    finishSimulation();
+                    return;
+                }
+                
+                // Find current position on curve (closest point)
+                let closestT = 0;
+                let closestDist = Infinity;
+                
+                for (let i = 0; i < curve.length - 1; i++) {
+                    const p1 = curve[i];
+                    const p2 = curve[i + 1];
+                    const dist = pointToLineDistance(ballPosition, p1, p2);
+                    if (dist < closestDist) {
+                        closestDist = dist;
+                        closestT = i;
+                    }
+                }
+                
+                if (closestT >= curve.length - 1) {
+                    finishSimulation();
+                    return;
+                }
+                
+                const p1 = curve[closestT];
+                const p2 = curve[closestT + 1];
+                
+                // Calculate angle of curve at this point
+                const dx = p2.x - p1.x;
+                const dy = p2.y - p1.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                if (dist < 0.1) {
+                    iterations++;
+                    simulationLoop();
+                    return;
+                }
+                
+                const angle = Math.atan2(dy, dx);
+                
+                // Gravity component along curve
+                const g_along = GRAVITY * Math.sin(angle);
+                
+                // Update velocity and position
+                const speed = Math.sqrt(ballVelocity.x ** 2 + ballVelocity.y ** 2);
+                const newSpeed = Math.sqrt(speed * speed + 2 * g_along * DT);
+                
+                ballVelocity.x = newSpeed * Math.cos(angle);
+                ballVelocity.y = newSpeed * Math.sin(angle);
+                
+                ballPosition.x += ballVelocity.x * DT;
+                ballPosition.y += ballVelocity.y * DT;
+                
+                ballTrail.push({x: ballPosition.x, y: ballPosition.y});
+                currentTime += DT;
+                
+                // Check if reached end
+                const distToEnd = Math.sqrt(
+                    (ballPosition.x - END_X) ** 2 + 
+                    (ballPosition.y - END_Y) ** 2
+                );
+                
+                if (distToEnd < 15 || currentTime > 10) {
+                    finishSimulation();
+                    return;
+                }
+                
+                iterations++;
+                requestAnimationFrame(simulationLoop);
+            };
+            
+            simulationLoop();
+        }
+        
+        function pointToLineDistance(point, p1, p2) {
+            const a = p2.y - p1.y;
+            const b = p1.x - p2.x;
+            const c = a * p1.x + b * p1.y;
+            const dist = Math.abs(a * point.x + b * point.y - c) / Math.sqrt(a * a + b * b);
+            return dist;
+        }
+        
+        function finishSimulation() {
+            simulating = false;
+            currentTime = Math.round(currentTime * 100) / 100;
+            
+            if (currentTime < bestTime) {
+                bestTime = currentTime;
+                document.getElementById('bestTime').textContent = bestTime.toFixed(2);
+            }
+            
+            document.getElementById('finalTime').textContent = currentTime.toFixed(2);
+            document.getElementById('bestTimeDisplay').textContent = bestTime === Infinity ? '∞' : bestTime.toFixed(2);
+            
+            const msg = messages[Math.floor(Math.random() * messages.length)];
+            document.getElementById('message').textContent = msg;
+            
+            document.getElementById('gameOverScreen').classList.remove('hidden');
+        }
+        
+        // Drawing
+        function draw() {
+            // Clear
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw grid
+            ctx.strokeStyle = 'rgba(0, 255, 255, 0.1)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < canvas.width; i += 50) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i, canvas.height);
+                ctx.stroke();
+            }
+            for (let i = 0; i < canvas.height; i += 50) {
+                ctx.beginPath();
+                ctx.moveTo(0, i);
+                ctx.lineTo(canvas.width, i);
+                ctx.stroke();
+            }
+            
+            // Draw start and end points
+            ctx.fillStyle = '#00ff41';
+            ctx.beginPath();
+            ctx.arc(START_X, START_Y, 8, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = '#ff0040';
+            ctx.beginPath();
+            ctx.arc(END_X, END_Y, 8, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Draw user curve
+            if (curve.length > 1) {
+                ctx.strokeStyle = '#00ffff';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(curve[0].x, curve[0].y);
+                for (let i = 1; i < curve.length; i++) {
+                    ctx.lineTo(curve[i].x, curve[i].y);
+                }
+                ctx.stroke();
+            }
+            
+            // Draw ball trail
+            if (ballTrail.length > 1) {
+                ctx.strokeStyle = '#ffff00';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(ballTrail[0].x, ballTrail[0].y);
+                for (let i = 1; i < ballTrail.length; i++) {
+                    ctx.lineTo(ballTrail[i].x, ballTrail[i].y);
+                }
+                ctx.stroke();
+            }
+            
+            // Draw ball
+            if (ballPosition) {
+                ctx.fillStyle = '#ff00ff';
+                ctx.beginPath();
+                ctx.arc(ballPosition.x, ballPosition.y, BALL_RADIUS, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            if (gameState === 'playing') {
+                document.getElementById('currentTime').textContent = currentTime.toFixed(2);
+            }
+            
+            requestAnimationFrame(draw);
+        }
+        
+        // Start
+        draw();
+    </script>
+</body>
+</html>

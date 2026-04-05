@@ -246,5 +246,13 @@
         "description": "Eres un estado cuántico. Tu camino cerrado en la esfera de Bloch define la fase geométrica acumulada. Loops grandes = más energía. La topología es tu poder.",
         "mechanic": "El jugador navega la esfera de Bloch trazando caminos cerrados — la fase de Berry (ángulo geométrico) depende del área topológica enclosed, no del camino instantáneo. Cierra loops para obtener energía.",
         "emoji": "🌀"
+    },
+    {
+        "id": "032-resonancia-forzada",
+        "title": "Resonancia Forzada",
+        "date": "2026-04-05",
+        "description": "Eres un oscilador. Los enemigos vibran a sus frecuencias. Cuando coinciden, resuenas — ganas energía pero te fragmentas. Sincroniza frecuencia sin perder el control.",
+        "mechanic": "Control de frecuencia propia para resonancia selectiva — el jugador sintoniza su oscilador contra enemigos que vibran a frecuencias fijas, maximizando puntos de resonancia (Match) sin quedar atrapado en colapso caótico (Mismatch)",
+        "emoji": "〰️"
     }
 ]

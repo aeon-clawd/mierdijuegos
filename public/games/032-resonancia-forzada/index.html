@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Resonancia Forzada</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            width: 100vw;
+            height: 100vh;
+            background: #0a0a0a;
+            font-family: monospace;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        canvas {
+            display: block;
+            background: #0a0a0a;
+            border: 2px solid #00ffff;
+        }
+        
+        #ui {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #00ff41;
+            font-size: 12px;
+            text-shadow: 0 0 10px #00ff41;
+            z-index: 10;
+        }
+        
+        #screen {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #0a0a0a;
+            z-index: 100;
+            color: #00ffff;
+            text-align: center;
+            padding: 20px;
+            font-family: monospace;
+        }
+        
+        #screen.hidden {
+            display: none;
+        }
+        
+        #screen h1 {
+            font-size: 36px;
+            margin: 20px 0;
+            color: #00d4ff;
+            text-shadow: 0 0 20px #00d4ff;
+        }
+        
+        #screen p {
+            font-size: 14px;
+            margin: 10px 0;
+            color: #00ff41;
+            max-width: 500px;
+            line-height: 1.6;
+        }
+        
+        button {
+            margin-top: 20px;
+            padding: 12px 30px;
+            font-size: 16px;
+            background: linear-gradient(90deg, #00d4ff, #8B5CF6);
+            color: #0a0a0a;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            text-transform: uppercase;
+            transition: all 0.3s;
+        }
+        
+        button:active {
+            transform: scale(0.95);
+        }
+        
+        #gameOverText {
+            color: #ff0040;
+            font-size: 18px;
+            margin: 20px 0;
+            text-shadow: 0 0 10px #ff0040;
+        }
+        
+        a {
+            color: #00d4ff;
+            text-decoration: none;
+            border-bottom: 1px solid #00d4ff;
+        }
+        
+        a:hover {
+            color: #8B5CF6;
+            border-color: #8B5CF6;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    <div id="ui">
+        <div>Puntuación: <span id="score">0</span></div>
+        <div>Energía: <span id="energy">100</span>%</div>
+        <div>Tu freq: <span id="freq">1.0</span>Hz</div>
+        <div>Vidas: <span id="lives">3</span></div>
+    </div>
+    
+    <div id="screen">
+        <h1>RESONANCIA FORZADA</h1>
+        <p>Eres un oscilador. Los enemigos vibran a sus frecuencias. Cuando coinciden, resuenas — ganas energía pero te fragmetas.</p>
+        <p><strong>Controles:</strong></p>
+        <p>← → Aumenta/reduce tu frecuencia propia</p>
+        <p>TAP PANTALLA: Acelera cambio de frecuencia</p>
+        <p><strong>Objetivo:</strong> Sincroniza con enemigos verdes (ganas puntos), evita rojos (te destruyen).</p>
+        <button onclick="startGame()">COMENZAR</button>
+    </div>
+    
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Set canvas size
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        
+        // Game states
+        const GAME_STATE = {
+            MENU: 0,
+            PLAYING: 1,
+            GAME_OVER: 2
+        };
+        
+        // Game variables
+        let gameState = GAME_STATE.MENU;
+        let score = 0;
+        let lives = 3;
+        let playerEnergy = 100;
+        let playerFreq = 1.0; // Hz
+        let gameTime = 0;
+        
+        // Player
+        const player = {
+            x: canvas.width / 2,
+            y: canvas.height / 2,
+            radius: 15,
+            vx: 0,
+            vy: 0
+        };
+        
+        // Enemies (vibrate at different frequencies)
+        let enemies = [];
+        
+        function createEnemy() {
+            return {
+                x: Math.random() * (canvas.width - 100) + 50,
+                y: Math.random() * (canvas.height - 100) + 50,
+                radius: 10,
+                freq: 0.5 + Math.random() * 2.5, // 0.5-3Hz
+                type: Math.random() < 0.6 ? 'green' : 'red', // 60% good, 40% bad
+                phase: Math.random() * Math.PI * 2,
+                amplitude: 5,
+                vx: 0,
+                vy: 0
+            };
+        }
+        
+        function startGame() {
+            document.getElementById('screen').classList.add('hidden');
+            gameState = GAME_STATE.PLAYING;
+            score = 0;
+            lives = 3;
+            playerEnergy = 100;
+            playerFreq = 1.0;
+            gameTime = 0;
+            player.x = canvas.width / 2;
+            player.y = canvas.height / 2;
+            player.vx = 0;
+            player.vy = 0;
+            enemies = [];
+            for (let i = 0; i < 3; i++) {
+                enemies.push(createEnemy());
+            }
+            gameLoop();
+        }
+        
+        function endGame() {
+            gameState = GAME_STATE.GAME_OVER;
+            const screen = document.getElementById('screen');
+            screen.innerHTML = `
+                <h1>RESONANCIA FORZADA</h1>
+                <div id="gameOverText">¡OSCILACIÓN CRÍTICA!</div>
+                <p>Puntuación final: <strong>${score}</strong></p>
+                <p>Duraste: <strong>${(gameTime / 1000).toFixed(1)}s</strong></p>
+                <p style="margin-top: 30px; color: #ffff00;">La resonancia perfecta requiere sincronización total.</p>
+                <button onclick="location.href = '/'; style.marginTop = '30px'">MÁS MIERDIJUEGOS</button>
+                <button onclick="startGame()" style="margin-top: 10px">REINTENTAR</button>
+            `;
+            screen.classList.remove('hidden');
+        }
+        
+        // Keyboard input
+        let keys = {};
+        window.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+            if (gameState === GAME_STATE.PLAYING) {
+                if (e.key === 'ArrowLeft') playerFreq = Math.max(0.5, playerFreq - 0.1);
+                if (e.key === 'ArrowRight') playerFreq = Math.min(3.5, playerFreq + 0.1);
+            }
+        });
+        window.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+        
+        // Touch input
+        canvas.addEventListener('touchstart', (e) => {
+            if (gameState === GAME_STATE.PLAYING) {
+                const touch = e.touches[0];
+                const rect = canvas.getBoundingClientRect();
+                const x = touch.clientX - rect.left;
+                // Left side: decrease freq, Right side: increase freq
+                if (x < canvas.width / 2) {
+                    playerFreq = Math.max(0.5, playerFreq - 0.15);
+                } else {
+                    playerFreq = Math.min(3.5, playerFreq + 0.15);
+                }
+            }
+        });
+        
+        function update(deltaTime) {
+            if (gameState !== GAME_STATE.PLAYING) return;
+            
+            gameTime += deltaTime;
+            
+            // Update player position with slight drift based on frequency
+            const driftSpeed = (playerFreq - 1.5) * 2;
+            player.x += driftSpeed * 0.5;
+            player.y += Math.sin(gameTime * playerFreq * 0.01) * 0.5;
+            
+            // Keep player in bounds
+            player.x = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x));
+            player.y = Math.max(player.radius, Math.min(canvas.height - player.radius, player.y));
+            
+            // Update enemies
+            for (let i = 0; i < enemies.length; i++) {
+                const enemy = enemies[i];
+                
+                // Vibrate at their frequency
+                const vibration = Math.sin(gameTime * enemy.freq * 0.01 + enemy.phase) * enemy.amplitude;
+                const vibration2 = Math.cos(gameTime * enemy.freq * 0.015 + enemy.phase) * enemy.amplitude;
+                enemy.vx = vibration * 0.5;
+                enemy.vy = vibration2 * 0.5;
+                enemy.x += enemy.vx;
+                enemy.y += enemy.vy;
+                
+                // Bounce off walls
+                if (enemy.x - enemy.radius < 0 || enemy.x + enemy.radius > canvas.width) {
+                    enemy.vx *= -1;
+                }
+                if (enemy.y - enemy.radius < 0 || enemy.y + enemy.radius > canvas.height) {
+                    enemy.vy *= -1;
+                }
+                enemy.x = Math.max(enemy.radius, Math.min(canvas.width - enemy.radius, enemy.x));
+                enemy.y = Math.max(enemy.radius, Math.min(canvas.height - enemy.radius, enemy.y));
+            }
+            
+            // Check collisions with enemies
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                const enemy = enemies[i];
+                const dx = player.x - enemy.x;
+                const dy = player.y - enemy.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                if (dist < player.radius + enemy.radius) {
+                    const freqDiff = Math.abs(playerFreq - enemy.freq);
+                    const resonanceFactor = 1 - Math.pow(freqDiff / 3, 2); // 0-1, 1 = perfect resonance
+                    
+                    if (enemy.type === 'green') {
+                        // Good resonance: gain points but lose energy
+                        const points = Math.floor(resonanceFactor * 50);
+                        score += points;
+                        playerEnergy = Math.max(0, playerEnergy - 10);
+                    } else {
+                        // Bad resonance: lose energy and life
+                        playerEnergy = Math.max(0, playerEnergy - 25);
+                        lives--;
+                    }
+                    
+                    // Remove enemy and create new one
+                    enemies.splice(i, 1);
+                    if (enemies.length < 4 + Math.floor(gameTime / 10000)) {
+                        enemies.push(createEnemy());
+                    }
+                }
+            }
+            
+            // Energy decay
+            playerEnergy = Math.max(0, playerEnergy - 0.1);
+            
+            // Game over conditions
+            if (playerEnergy <= 0 || lives <= 0) {
+                endGame();
+            }
+            
+            // Update UI
+            document.getElementById('score').textContent = score;
+            document.getElementById('energy').textContent = Math.floor(playerEnergy);
+            document.getElementById('freq').textContent = playerFreq.toFixed(1);
+            document.getElementById('lives').textContent = lives;
+        }
+        
+        function draw() {
+            // Clear canvas
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            if (gameState !== GAME_STATE.PLAYING) return;
+            
+            // Draw grid background
+            ctx.strokeStyle = '#1a1a2e';
+            ctx.lineWidth = 1;
+            for (let x = 0; x < canvas.width; x += 40) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            for (let y = 0; y < canvas.height; y += 40) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+            
+            // Draw frequency indicator bars
+            ctx.fillStyle = 'rgba(0, 255, 65, 0.2)';
+            const freqWidth = (playerFreq / 3.5) * 200;
+            ctx.fillRect(10, canvas.height - 50, freqWidth, 10);
+            ctx.strokeStyle = '#00ff41';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(10, canvas.height - 50, 200, 10);
+            ctx.fillStyle = '#00ff41';
+            ctx.font = '12px monospace';
+            ctx.fillText('FREQ', 10, canvas.height - 25);
+            
+            // Draw player oscillator
+            const playerColor = `hsl(${playerEnergy * 1.2}, 100%, 50%)`;
+            ctx.fillStyle = playerColor;
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Draw frequency waveform around player
+            ctx.strokeStyle = playerColor;
+            ctx.lineWidth = 2;
+            ctx.globalAlpha = 0.5;
+            ctx.beginPath();
+            for (let i = 0; i < 8; i++) {
+                const angle = (gameTime * playerFreq * 0.005 + i * Math.PI / 4);
+                const x = player.x + Math.cos(angle) * (player.radius + 10);
+                const y = player.y + Math.sin(angle) * (player.radius + 10);
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+            
+            // Draw enemies
+            for (const enemy of enemies) {
+                const color = enemy.type === 'green' ? '#00ff41' : '#ff0040';
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(enemy.x, enemy.y, enemy.radius, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Draw frequency marker
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1;
+                ctx.globalAlpha = 0.6;
+                const freqMarkerSize = 20;
+                ctx.beginPath();
+                ctx.moveTo(enemy.x - freqMarkerSize, enemy.y);
+                ctx.lineTo(enemy.x + freqMarkerSize, enemy.y);
+                ctx.stroke();
+                ctx.globalAlpha = 1;
+                
+                // Draw frequency text
+                ctx.fillStyle = color;
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText(enemy.freq.toFixed(1), enemy.x, enemy.y - enemy.radius - 12);
+            }
+            
+            // Draw danger zones (high frequency regions pulsate red)
+            const dangerAlpha = 0.1 + Math.sin(gameTime * 0.01) * 0.05;
+            ctx.fillStyle = `rgba(255, 0, 64, ${dangerAlpha})`;
+            for (let i = 0; i < 2; i++) {
+                const cx = canvas.width * (0.3 + i * 0.4);
+                const cy = canvas.height * 0.3;
+                const radius = 80 + Math.sin(gameTime * 0.005) * 20;
+                ctx.beginPath();
+                ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        
+        let lastTime = Date.now();
+        function gameLoop() {
+            const now = Date.now();
+            const deltaTime = Math.min(now - lastTime, 50);
+            lastTime = now;
+            
+            update(deltaTime);
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // Start the game loop even on menu
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>

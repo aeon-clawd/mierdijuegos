@@ -254,5 +254,13 @@
         "description": "Eres un oscilador. Los enemigos vibran a sus frecuencias. Cuando coinciden, resuenas — ganas energía pero te fragmentas. Sincroniza frecuencia sin perder el control.",
         "mechanic": "Control de frecuencia propia para resonancia selectiva — el jugador sintoniza su oscilador contra enemigos que vibran a frecuencias fijas, maximizando puntos de resonancia (Match) sin quedar atrapado en colapso caótico (Mismatch)",
         "emoji": "〰️"
+    },
+    {
+        "id": "033-mobius-persecucion",
+        "title": "Möbius Persecución",
+        "date": "2026-04-06",
+        "description": "Corre por una cinta de Möbius perseguido por un enemigo. Cuando completas una vuelta, cambias de lado — los muros se vuelven piso. Usa la topología para confundir al perseguidor.",
+        "mechanic": "Navegación topológica en cinta de Möbius — la topología es el arma defensiva",
+        "emoji": "〰️"
     }
 ]

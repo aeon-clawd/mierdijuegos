@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Möbius Persecución</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #0a0a0a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Arial', sans-serif;
+            color: #00ff41;
+            overflow: hidden;
+        }
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: #0a0a0a;
+        }
+        #gameScreen {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            height: 100%;
+        }
+        #gameCanvas {
+            display: block;
+            background: #0a0a0a;
+            cursor: none;
+            touch-action: none;
+        }
+        #startScreen, #gameOverScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(10, 10, 20, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            color: #00ff41;
+            text-align: center;
+            padding: 20px;
+        }
+        #gameOverScreen {
+            display: none;
+        }
+        h1 {
+            font-size: 3em;
+            color: #00ffff;
+            text-shadow: 0 0 20px #00ffff;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+        .subtitle {
+            font-size: 1.2em;
+            color: #ff00ff;
+            margin-bottom: 30px;
+        }
+        .description {
+            font-size: 1em;
+            color: #ffff00;
+            max-width: 500px;
+            margin-bottom: 40px;
+            line-height: 1.6;
+        }
+        button {
+            padding: 15px 40px;
+            font-size: 1.2em;
+            background: linear-gradient(90deg, #00ffff, #ff00ff);
+            color: #000;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 20px #00ffff;
+        }
+        button:active {
+            transform: scale(0.95);
+        }
+        #score {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 1.5em;
+            color: #ffff00;
+            z-index: 10;
+        }
+        #timer {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 1.5em;
+            color: #ff0040;
+            z-index: 10;
+        }
+        #survivalTime {
+            font-size: 2em;
+            color: #ff00ff;
+            margin-bottom: 30px;
+        }
+        .gameOverMessage {
+            font-size: 1.3em;
+            color: #ffff00;
+            margin-bottom: 20px;
+            font-style: italic;
+        }
+        .backLink {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #00ffff;
+            text-decoration: none;
+            font-size: 0.9em;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+        .backLink:hover {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="startScreen">
+            <h1>Möbius Persecución</h1>
+            <div class="subtitle">La topología es tu arma</div>
+            <div class="description">
+                Corre por una cinta de Möbius mientras te persiguen.<br>
+                <strong>La mecánica:</strong> Cuando completas una vuelta, cambias de lado.<br>
+                Los muros se vuelven piso. El piso se vuelve muro.<br>
+                Usa la topología para confundir al perseguidor.
+            </div>
+            <button onclick="startGame()">Jugar</button>
+        </div>
+        
+        <div id="gameOverScreen">
+            <h1>Game Over</h1>
+            <div class="gameOverMessage" id="gameOverMessage">Te atraparon.</div>
+            <div id="survivalTime">Sobreviviste: 0s</div>
+            <button onclick="startGame()">Reintentar</button>
+            <a href="/" class="backLink">← Más mierdijuegos</a>
+        </div>
+
+        <div id="gameScreen">
+            <canvas id="gameCanvas"></canvas>
+        </div>
+
+        <div id="score">Puntos: <span id="scoreValue">0</span></div>
+        <div id="timer">Tiempo: <span id="timerValue">0s</span></div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        let gameRunning = false;
+        let gameTime = 0;
+        let score = 0;
+        
+        // Redimensionar canvas responsivamente
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // Mobius strip parameters
+        const MOBIUS_RADIUS = 150;  // Radio del anillo central
+        const MOBIUS_WIDTH = 40;    // Ancho de la cinta
+        const STRIP_LENGTH = 400;   // Longitud de la cinta en pixeles
+
+        // Player
+        const player = {
+            position: 0,      // 0-1, donde 1 es una vuelta completa
+            sideOffset: 0,    // -1 a 1, posición en el ancho de la cinta
+            velocity: 0,
+            radius: 6,
+            speedMax: 4,
+            acceleration: 0.08,
+            flipped: false    // El jugador está de cabeza?
+        };
+
+        // Enemy
+        const enemy = {
+            position: 0.3,
+            sideOffset: 0,
+            velocity: 2.5,
+            radius: 8,
+            flipped: false
+        };
+
+        // Crystals
+        let crystals = [];
+        
+        function generateCrystals() {
+            crystals = [];
+            for (let i = 0; i < 3; i++) {
+                crystals.push({
+                    position: Math.random(),
+                    sideOffset: (Math.random() - 0.5) * 0.6,
+                    collected: false
+                });
+            }
+        }
+
+        // Input handling
+        let touchX = 0, touchY = 0;
+        let inputActive = false;
+
+        document.addEventListener('mousemove', (e) => {
+            if (!gameRunning) return;
+            touchX = e.clientX;
+            touchY = e.clientY;
+            inputActive = true;
+        });
+
+        document.addEventListener('touchmove', (e) => {
+            if (!gameRunning) return;
+            const touch = e.touches[0];
+            touchX = touch.clientX;
+            touchY = touch.clientY;
+            inputActive = true;
+        });
+
+        document.addEventListener('touchstart', () => { inputActive = true; });
+        document.addEventListener('touchend', () => { inputActive = false; });
+        document.addEventListener('mouseleave', () => { inputActive = false; });
+
+        // Convertir posición 2D a posición en la cinta de Möbius
+        function screenToMobius(screenX, screenY) {
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            
+            const relX = screenX - centerX;
+            const relY = screenY - centerY;
+            
+            // Distancia desde el centro
+            const dist = Math.sqrt(relX * relX + relY * relY);
+            const angle = Math.atan2(relY, relX);
+            
+            // Mapear a posición en la cinta
+            const sideOffset = (dist - MOBIUS_RADIUS) / MOBIUS_WIDTH;
+            const position = (angle + Math.PI) / (2 * Math.PI); // Normalizar a 0-1
+            
+            return { position: ((position + 1) % 1 + 1) % 1, sideOffset: Math.max(-0.9, Math.min(0.9, sideOffset)) };
+        }
+
+        // Dibujar la cinta de Möbius
+        function drawMobius() {
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            
+            // Dibujar la cinta como una serie de segmentos
+            const segments = 100;
+            for (let i = 0; i < segments; i++) {
+                const t1 = i / segments;
+                const t2 = (i + 1) / segments;
+                
+                // En una cinta de Möbius, cuando t llega a 0.5, los lados se invierten
+                // Esto crea el efecto de giro
+                const twist1 = t1 * Math.PI;
+                const twist2 = t2 * Math.PI;
+                
+                // Lado izquierdo de la cinta
+                const x1 = centerX + (MOBIUS_RADIUS + MOBIUS_WIDTH/2 * Math.cos(twist1)) * Math.cos(t1 * 2 * Math.PI);
+                const y1 = centerY + (MOBIUS_RADIUS + MOBIUS_WIDTH/2 * Math.cos(twist1)) * Math.sin(t1 * 2 * Math.PI);
+                
+                const x2 = centerX + (MOBIUS_RADIUS + MOBIUS_WIDTH/2 * Math.cos(twist2)) * Math.cos(t2 * 2 * Math.PI);
+                const y2 = centerY + (MOBIUS_WIDTH/2 * Math.cos(twist2)) * Math.sin(t2 * 2 * Math.PI);
+                
+                ctx.strokeStyle = '#00ff41';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.stroke();
+            }
+            
+            // Dibujar el contorno de la cinta de Möbius
+            ctx.strokeStyle = '#00ffff';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            for (let i = 0; i <= segments; i++) {
+                const t = i / segments;
+                const twist = t * Math.PI;
+                const x = centerX + (MOBIUS_RADIUS + MOBIUS_WIDTH/2) * Math.cos(twist) * Math.cos(t * 2 * Math.PI);
+                const y = centerY + (MOBIUS_RADIUS + MOBIUS_WIDTH/2) * Math.cos(twist) * Math.sin(t * 2 * Math.PI);
+                
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+        }
+
+        // Convertir posición en la cinta a coordenadas de pantalla
+        function mobiusToScreen(position, sideOffset) {
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            
+            const angle = position * 2 * Math.PI;
+            const twist = position * Math.PI;
+            
+            const radiusWithOffset = MOBIUS_RADIUS + (sideOffset * MOBIUS_WIDTH/2) * Math.cos(twist);
+            
+            const x = centerX + radiusWithOffset * Math.cos(angle);
+            const y = centerY + radiusWithOffset * Math.sin(angle);
+            
+            return { x, y, angle };
+        }
+
+        // Actualizar posiciones
+        function update() {
+            if (!gameRunning) return;
+            
+            gameTime += 0.016; // ~60fps
+            
+            // Input del jugador
+            if (inputActive) {
+                const mobius = screenToMobius(touchX, touchY);
+                const targetPosition = mobius.position;
+                
+                // Movimiento suave hacia el objetivo
+                let diff = targetPosition - player.position;
+                if (diff > 0.5) diff -= 1;
+                if (diff < -0.5) diff += 1;
+                
+                player.velocity = diff * 0.15;
+                player.sideOffset = mobius.sideOffset;
+            } else {
+                player.velocity *= 0.85; // Fricción
+            }
+            
+            // Actualizar posición del jugador
+            player.position += player.velocity;
+            if (player.position > 1) player.position -= 1;
+            if (player.position < 0) player.position += 1;
+            
+            // El enemigo persigue constantemente
+            let diffEnemy = player.position - enemy.position;
+            if (diffEnemy > 0.5) diffEnemy -= 1;
+            if (diffEnemy < -0.5) diffEnemy += 1;
+            
+            enemy.position += (diffEnemy > 0 ? 1 : -1) * 0.02;
+            if (enemy.position > 1) enemy.position -= 1;
+            if (enemy.position < 0) enemy.position += 1;
+            
+            enemy.sideOffset += (Math.random() - 0.5) * 0.05;
+            enemy.sideOffset = Math.max(-0.8, Math.min(0.8, enemy.sideOffset));
+            
+            // Comprobar colisión con el enemigo
+            const playerDist = Math.sqrt(
+                Math.pow((player.position - enemy.position) * 200, 2) +
+                Math.pow((player.sideOffset - enemy.sideOffset) * MOBIUS_WIDTH, 2)
+            );
+            
+            if (playerDist < player.radius + enemy.radius) {
+                gameRunning = false;
+                endGame();
+            }
+            
+            // Recopilar cristales
+            crystals.forEach(crystal => {
+                if (!crystal.collected) {
+                    const dist = Math.sqrt(
+                        Math.pow((player.position - crystal.position) * 200, 2) +
+                        Math.pow((player.sideOffset - crystal.sideOffset) * MOBIUS_WIDTH, 2)
+                    );
+                    
+                    if (dist < player.radius + 8) {
+                        crystal.collected = true;
+                        score += 10;
+                    }
+                }
+            });
+            
+            // Regenerar cristales recogidos
+            if (crystals.every(c => c.collected)) {
+                generateCrystals();
+            }
+            
+            // Actualizar UI
+            document.getElementById('scoreValue').textContent = score;
+            document.getElementById('timerValue').textContent = Math.floor(gameTime) + 's';
+        }
+
+        // Dibujar el juego
+        function draw() {
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            drawMobius();
+            
+            // Dibujar cristales
+            crystals.forEach(crystal => {
+                if (!crystal.collected) {
+                    const screen = mobiusToScreen(crystal.position, crystal.sideOffset);
+                    ctx.fillStyle = '#ffff00';
+                    ctx.beginPath();
+                    ctx.arc(screen.x, screen.y, 6, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    ctx.strokeStyle = '#ff00ff';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                }
+            });
+            
+            // Dibujar jugador
+            const playerScreen = mobiusToScreen(player.position, player.sideOffset);
+            ctx.fillStyle = '#00ff41';
+            ctx.beginPath();
+            ctx.arc(playerScreen.x, playerScreen.y, player.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#00ffff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // Dibujar enemigo
+            const enemyScreen = mobiusToScreen(enemy.position, enemy.sideOffset);
+            ctx.fillStyle = '#ff0040';
+            ctx.beginPath();
+            ctx.arc(enemyScreen.x, enemyScreen.y, enemy.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#ff00ff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // Línea de seguimiento del enemigo
+            ctx.strokeStyle = 'rgba(255, 0, 64, 0.3)';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.moveTo(playerScreen.x, playerScreen.y);
+            ctx.lineTo(enemyScreen.x, enemyScreen.y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function startGame() {
+            score = 0;
+            gameTime = 0;
+            gameRunning = true;
+            player.position = 0;
+            player.sideOffset = 0;
+            player.velocity = 0;
+            enemy.position = 0.3;
+            enemy.sideOffset = 0;
+            generateCrystals();
+            
+            document.getElementById('startScreen').style.display = 'none';
+            document.getElementById('gameOverScreen').style.display = 'none';
+            document.getElementById('score').style.display = 'block';
+            document.getElementById('timer').style.display = 'block';
+        }
+
+        function endGame() {
+            document.getElementById('gameOverScreen').style.display = 'flex';
+            document.getElementById('score').style.display = 'none';
+            document.getElementById('timer').style.display = 'none';
+            document.getElementById('survivalTime').textContent = `Sobreviviste: ${Math.floor(gameTime)}s`;
+            
+            const messages = [
+                '¡La topología te traicionó!',
+                'El perseguidor domina la Möbius.',
+                'Tu vuelta no fue suficiente.',
+                'La gravedad de la cinta gana.',
+                'Un lado se convierte en tragedia.'
+            ];
+            document.getElementById('gameOverMessage').textContent = messages[Math.floor(Math.random() * messages.length)];
+        }
+
+        // Iniciar
+        document.getElementById('startScreen').style.display = 'flex';
+        document.getElementById('gameOverScreen').style.display = 'none';
+        document.getElementById('score').style.display = 'none';
+        document.getElementById('timer').style.display = 'none';
+        gameLoop();
+    </script>
+</body>
+</html>

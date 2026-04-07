@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Topológico</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            width: 100vw;
+            height: 100vh;
+            background: #0a0a0a;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        #gameContainer {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            background: linear-gradient(135deg, #0a0a0a 0%, #0f0f20 100%);
+        }
+        
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            background: #0a0a0a;
+            touch-action: none;
+        }
+        
+        #startScreen, #gameOverScreen {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: #0a0a0a;
+            z-index: 100;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        #gameOverScreen {
+            display: none;
+        }
+        
+        .screen-title {
+            font-size: 3rem;
+            font-weight: bold;
+            color: #00ffff;
+            margin-bottom: 20px;
+            text-shadow: 0 0 20px #00ffff;
+        }
+        
+        .screen-description {
+            font-size: 1rem;
+            color: #8B5CF6;
+            margin-bottom: 30px;
+            max-width: 90%;
+            line-height: 1.6;
+        }
+        
+        .screen-score {
+            font-size: 2rem;
+            color: #ffff00;
+            margin-bottom: 20px;
+        }
+        
+        .play-button, .retry-button, .back-button {
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            background: linear-gradient(90deg, #00ffff, #8B5CF6);
+            border: 2px solid #00ffff;
+            color: #0a0a0a;
+            cursor: pointer;
+            border-radius: 10px;
+            margin: 10px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        
+        .play-button:hover, .retry-button:hover, .back-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px #00ffff;
+        }
+        
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #00ffff;
+            font-size: 1.2rem;
+            z-index: 50;
+            text-shadow: 0 0 10px #00ffff;
+        }
+        
+        .hud-item {
+            margin-bottom: 10px;
+        }
+        
+        .hud-label {
+            color: #8B5CF6;
+        }
+        
+        .hud-value {
+            color: #ffff00;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="startScreen">
+            <div class="screen-title">🧬 TOPOLÓGICO</div>
+            <div class="screen-description">
+                Traza un camino de Euler: recorre CADA ARISTA exactamente una vez.
+                <br><br>
+                El grafo muta con cada arista completada. La topología es tu enemiga.
+                <br><br>
+                Toca dos nodos conectados para mover. Tienes 60 segundos.
+            </div>
+            <button class="play-button">JUGAR</button>
+        </div>
+        
+        <div id="gameOverScreen">
+            <div class="screen-title">TOPOLOGÍA ROTA</div>
+            <div class="screen-score" id="finalScore">Puntuación: 0</div>
+            <div class="screen-description" id="gameOverMessage"></div>
+            <button class="retry-button">REINTENTAR</button>
+            <a href="/"><button class="back-button">← MÁS MIERDIJUEGOS</button></a>
+        </div>
+        
+        <div id="hud">
+            <div class="hud-item">
+                <span class="hud-label">ARISTAS:</span>
+                <span class="hud-value" id="edgesCount">0/0</span>
+            </div>
+            <div class="hud-item">
+                <span class="hud-label">TIEMPO:</span>
+                <span class="hud-value" id="timer">60s</span>
+            </div>
+            <div class="hud-item">
+                <span class="hud-label">PUNTOS:</span>
+                <span class="hud-value" id="score">0</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        
+        // Game state
+        const gameState = {
+            running: false,
+            score: 0,
+            edgesTraversed: 0,
+            totalEdges: 0,
+            timeLeft: 60,
+            nodes: [],
+            edges: [],
+            currentNode: null,
+            selectedNode: null,
+            visitedEdges: new Set(),
+            mutations: 0
+        };
+        
+        // Graph generation
+        function generateGraph() {
+            gameState.nodes = [];
+            gameState.edges = [];
+            gameState.visitedEdges.clear();
+            gameState.edgesTraversed = 0;
+            
+            const nodeCount = 5 + Math.floor(gameState.mutations * 0.5);
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const radius = Math.min(canvas.width, canvas.height) * 0.25;
+            
+            // Create nodes in circle
+            for (let i = 0; i < nodeCount; i++) {
+                const angle = (i / nodeCount) * Math.PI * 2;
+                gameState.nodes.push({
+                    id: i,
+                    x: centerX + Math.cos(angle) * radius,
+                    y: centerY + Math.sin(angle) * radius,
+                    degree: 0
+                });
+            }
+            
+            // Create edges to form connected graph with even-degree nodes (for Eulerian path)
+            const edgeSet = new Set();
+            
+            // Connect adjacent nodes
+            for (let i = 0; i < nodeCount; i++) {
+                const next = (i + 1) % nodeCount;
+                edgeSet.add([Math.min(i, next), Math.max(i, next)].join('-'));
+            }
+            
+            // Add random edges
+            const targetEdges = 5 + gameState.mutations;
+            while (edgeSet.size < targetEdges) {
+                const a = Math.floor(Math.random() * nodeCount);
+                const b = Math.floor(Math.random() * nodeCount);
+                if (a !== b) {
+                    edgeSet.add([Math.min(a, b), Math.max(a, b)].join('-'));
+                }
+            }
+            
+            // Convert to edge array
+            edgeSet.forEach(edge => {
+                const [a, b] = edge.split('-').map(Number);
+                gameState.edges.push({ from: a, to: b, id: edge });
+                gameState.nodes[a].degree++;
+                gameState.nodes[b].degree++;
+            });
+            
+            gameState.totalEdges = gameState.edges.length;
+            gameState.currentNode = 0;
+            gameState.selectedNode = null;
+        }
+        
+        function traverseEdge(from, to) {
+            const edgeId = [Math.min(from, to), Math.max(from, to)].join('-');
+            if (gameState.visitedEdges.has(edgeId)) {
+                return false; // Already traversed
+            }
+            
+            const edgeExists = gameState.edges.some(e => 
+                (e.from === from && e.to === to) || (e.from === to && e.to === from)
+            );
+            
+            if (!edgeExists) return false;
+            
+            gameState.visitedEdges.add(edgeId);
+            gameState.currentNode = to;
+            gameState.edgesTraversed++;
+            gameState.score += 10;
+            
+            // Check if all edges are traversed
+            if (gameState.edgesTraversed === gameState.totalEdges) {
+                gameState.mutations++;
+                gameState.score += 100;
+                generateGraph();
+            }
+            
+            return true;
+        }
+        
+        function handleCanvasClick(e) {
+            if (!gameState.running) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            // Find clicked node
+            let clickedNode = null;
+            for (let node of gameState.nodes) {
+                const dist = Math.hypot(node.x - x, node.y - y);
+                if (dist < 25) {
+                    clickedNode = node.id;
+                    break;
+                }
+            }
+            
+            if (clickedNode !== null) {
+                if (gameState.selectedNode === null) {
+                    gameState.selectedNode = clickedNode;
+                } else if (gameState.selectedNode === clickedNode) {
+                    gameState.selectedNode = null;
+                } else {
+                    // Try to traverse edge
+                    traverseEdge(gameState.currentNode, clickedNode);
+                    gameState.selectedNode = null;
+                }
+            }
+        }
+        
+        function draw() {
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw edges
+            ctx.strokeStyle = '#8B5CF6';
+            ctx.lineWidth = 2;
+            for (let edge of gameState.edges) {
+                const from = gameState.nodes[edge.from];
+                const to = gameState.nodes[edge.to];
+                const edgeId = edge.id;
+                
+                if (gameState.visitedEdges.has(edgeId)) {
+                    ctx.strokeStyle = '#00ff41';
+                    ctx.lineWidth = 3;
+                } else {
+                    ctx.strokeStyle = '#8B5CF6';
+                    ctx.lineWidth = 2;
+                }
+                
+                ctx.beginPath();
+                ctx.moveTo(from.x, from.y);
+                ctx.lineTo(to.x, to.y);
+                ctx.stroke();
+            }
+            
+            // Draw nodes
+            for (let node of gameState.nodes) {
+                const isCurrentNode = node.id === gameState.currentNode;
+                const isSelectedNode = node.id === gameState.selectedNode;
+                
+                ctx.fillStyle = isCurrentNode ? '#ffff00' : 
+                               isSelectedNode ? '#00ffff' : '#ff00ff';
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, 20, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.strokeStyle = '#00ffff';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, 22, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                // Draw degree
+                ctx.fillStyle = '#0a0a0a';
+                ctx.font = 'bold 12px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(node.degree, node.x, node.y);
+            }
+        }
+        
+        function updateHUD() {
+            document.getElementById('edgesCount').textContent = 
+                `${gameState.edgesTraversed}/${gameState.totalEdges}`;
+            document.getElementById('timer').textContent = `${gameState.timeLeft}s`;
+            document.getElementById('score').textContent = gameState.score;
+        }
+        
+        function gameLoop() {
+            draw();
+            updateHUD();
+            requestAnimationFrame(gameLoop);
+        }
+        
+        function startGame() {
+            gameState.running = true;
+            gameState.score = 0;
+            gameState.mutations = 0;
+            gameState.timeLeft = 60;
+            document.getElementById('startScreen').style.display = 'none';
+            document.getElementById('gameOverScreen').style.display = 'none';
+            generateGraph();
+            
+            const timerInterval = setInterval(() => {
+                gameState.timeLeft--;
+                if (gameState.timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    endGame();
+                }
+            }, 1000);
+        }
+        
+        function endGame() {
+            gameState.running = false;
+            
+            const messages = [
+                `¡Completaste ${gameState.mutations} grafos! La topología nunca duerme.`,
+                `${gameState.mutations} mutaciones. Las matemáticas son despiadadas.`,
+                `${gameState.edgesTraversed} aristas. Casi lo logras.`,
+                `La forma del universo se te escapó de las manos.`
+            ];
+            
+            document.getElementById('finalScore').textContent = `PUNTUACIÓN: ${gameState.score}`;
+            document.getElementById('gameOverMessage').textContent = 
+                messages[Math.floor(Math.random() * messages.length)];
+            document.getElementById('gameOverScreen').style.display = 'flex';
+        }
+        
+        // Event listeners
+        document.querySelector('.play-button').addEventListener('click', startGame);
+        document.querySelector('.retry-button').addEventListener('click', startGame);
+        canvas.addEventListener('click', handleCanvasClick);
+        
+        gameLoop();
+    </script>
+</body>
+</html>

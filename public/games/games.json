@@ -262,5 +262,13 @@
         "description": "Corre por una cinta de Möbius perseguido por un enemigo. Cuando completas una vuelta, cambias de lado — los muros se vuelven piso. Usa la topología para confundir al perseguidor.",
         "mechanic": "Navegación topológica en cinta de Möbius — la topología es el arma defensiva",
         "emoji": "〰️"
+    },
+    {
+        "id": "034-topologico",
+        "title": "Topológico",
+        "date": "2026-04-07",
+        "description": "Traza un camino de Euler: recorre CADA ARISTA exactamente una vez. El grafo muta con cada logro. La topología es tu enemiga y tu aliada.",
+        "mechanic": "Problema del Camino de Euler en tiempo real — el jugador navega un grafo mutante, completando aristas una sola vez antes de que el grafo se reconfigure",
+        "emoji": "🧬"
     }
 ]

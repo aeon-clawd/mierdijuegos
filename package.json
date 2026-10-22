@@ -11,6 +11,7 @@
     "preflight": "node scripts/cli.mjs preflight",
     "nightly": "node scripts/cli.mjs nightly",
     "publish": "node scripts/cli.mjs publish",
+    "verify:published": "node scripts/verify-published.mjs",
     "smoke:legacy": "node scripts/legacy-smoke.mjs"
   },
   "dependencies": {

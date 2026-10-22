@@ -27,6 +27,7 @@ npm run publish -- NNN-slug --yes  # reintento explícito de publicar un juego p
 5. Solo si todo pasa, añade el juego y el catálogo de forma atómica y escribe `.local/ready.json` (`status: "ready"`).
 
 `publishGame` revalida (hashes, tests, smoke, build), hace commit solo de esos dos ficheros, despliega con `vercel deploy --prod`, comprueba el HTML en la URL de Vercel y en mierdijuegos.com, hace push y verifica el commit remoto. Solo entonces marca `ready.json` como `published`.
+La URL `*.vercel.app` está protegida por SSO, así que se lee con el CLI autenticado (`vercel curl --deployment`, sin desactivar la protección) y mierdijuegos.com con un fetch público; `npm run verify:published` repite ambas comprobaciones y el commit remoto sin desplegar y guarda `.local/deploy-verification.json`.
 
 ## Fallos y recuperación
 

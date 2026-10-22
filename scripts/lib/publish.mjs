@@ -21,6 +21,21 @@ export async function verifiedGame(origin,id,expected,fetcher=fetch) {
   if(response.status!==200||await response.text()!==expected) throw new Error(`deployment readback failed: ${u.origin}/games/${id}/`);
   return true;
 }
+// Deployment URLs are SSO-protected: read back through the authenticated Vercel CLI, never by disabling protection.
+export async function verifiedDeployment(deployment,id,expected,{cwd,run=command}={}) {
+  let u;
+  try {u=new URL(deployment);} catch {throw new Error('invalid deployment URL');}
+  if(u.protocol!=='https:'||!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?\.vercel\.app$/.test(u.hostname)||u.port||u.username||u.password||u.pathname!=='/'||u.search||u.hash) throw new Error('unexpected deployment host');
+  if(!parseId(id)) throw new Error('invalid game id');
+  const body=run('vercel',['curl',`/games/${id}/`,'--deployment',u.origin,'--','--fail','--silent','--show-error','--max-time','20'],{cwd,timeout:30000});
+  if(body!==expected) throw new Error(`deployment readback failed: ${u.origin}/games/${id}/`);
+  return true;
+}
+export function verifiedRemoteCommit(git,branch,commit) {
+  const remote=git(['ls-remote','origin',`refs/heads/${branch}`]).split(/\s/)[0];
+  if(remote!==commit) throw new Error('GitHub commit readback mismatch');
+  return true;
+}
 export async function publishGame({root,id}) {
   const p=repoPaths(root),release=acquireLock(p.lock);
   let record;
@@ -56,12 +71,11 @@ export async function publishGame({root,id}) {
     const urls=output.match(/https:\/\/[a-z0-9.-]+\.vercel\.app/gi)||[];
     if(!urls.length) throw new Error('Vercel did not return a deployment URL');
     record.deployment=urls.at(-1);record.status='deployed-unverified';save();
-    await verifiedGame(record.deployment,id,html);
+    await verifiedDeployment(record.deployment,id,html,{cwd:root});
     await verifiedGame('https://mierdijuegos.com',id,html);
     record.status='deployed-verified';save();
     git(['push','origin',branch]);
-    const remote=git(['ls-remote','origin',`refs/heads/${branch}`]).split(/\s/)[0];
-    if(remote!==record.commit) throw new Error('GitHub commit readback mismatch');
+    verifiedRemoteCommit(git,branch,record.commit);
     record.status='published';record.url=`https://mierdijuegos.com/games/${id}/`;save();
     // Only full success clears the pending pointer; any earlier throw leaves it 'ready' for retry.
     writeFileSync(join(p.local,'ready.json'),JSON.stringify({...ready,status:'published',publishedAt:new Date().toISOString(),commit:record.commit,url:record.url},null,2));

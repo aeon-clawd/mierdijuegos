@@ -6,9 +6,17 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "test": "node --test test/*.test.mjs",
+    "preflight": "node scripts/cli.mjs preflight",
+    "nightly": "node scripts/cli.mjs nightly",
+    "publish": "node scripts/cli.mjs publish",
+    "smoke:legacy": "node scripts/legacy-smoke.mjs"
   },
   "dependencies": {
     "astro": "^5.17.1"
+  },
+  "devDependencies": {
+    "playwright": "1.58.2"
   }
 }

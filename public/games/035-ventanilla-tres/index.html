@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Ventanilla 3 — Mierdijuegos</title>
+<style>
+html,body{margin:0;height:100%;background:#0a0a0a;color:#eee;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;box-sizing:border-box;background:rgba(10,10,10,.93);text-align:center;z-index:2;overflow:auto}
+.hidden{display:none}
+h1{margin:0;font-size:clamp(32px,10vw,56px);color:#ff2bd6;text-shadow:0 0 14px #ff2bd6;letter-spacing:1px}
+p{margin:0;max-width:420px;line-height:1.4}
+ul{text-align:left;margin:0;padding-left:20px;max-width:390px;line-height:1.5;font-size:15px}
+button{font:inherit;font-weight:800;font-size:22px;padding:14px 38px;border-radius:14px;border:2px solid #39ff14;background:#0f2a0f;color:#39ff14;box-shadow:0 0 16px #39ff1466;cursor:pointer}
+a{color:#00f0ff;font-weight:700;text-decoration:none;margin-top:6px}
+.k{color:#ffe600}.g{color:#39ff14}.m{color:#ff2bd6}.c{color:#00f0ff}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="menu" class="ov">
+<div style="font-size:54px">📋</div>
+<h1>VENTANILLA 3</h1>
+<p>Eres funcionario. Llegan solicitudes absurdas de animales.</p>
+<ul>
+<li>Desliza <b class="g">→</b> para <b class="g">APROBAR</b> y <b class="m">←</b> para <b class="m">DENEGAR</b> (o usa los botones de abajo).</li>
+<li>Por defecto <b>todo se aprueba</b>… salvo lo que prohíba la <b class="k">NORMATIVA</b>.</li>
+<li>Cada 5 trámites llega una norma nueva, y se acumulan.</li>
+<li>Si tardas, el ciudadano se queja. <b class="m">5 errores = despido.</b></li>
+</ul>
+<button data-action="start">JUGAR</button>
+<p id="rec" class="k"></p>
+</div>
+<div id="over" class="ov hidden">
+<div style="font-size:54px">📮</div>
+<h1>¡DESPEDIDO!</h1>
+<p id="res"></p>
+<p id="rank" class="k"></p>
+<button data-action="retry">REINTENTAR</button>
+<a href="/" data-action="back">← MÁS MIERDIJUEGOS</a>
+</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W=0,H=0,dpr=1;
+function resize(){dpr=Math.min(window.devicePixelRatio||1,3);W=cv.clientWidth||innerWidth;H=cv.clientHeight||innerHeight;cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);}
+addEventListener('resize',resize);resize();
+
+const FONT='system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
+const EFONT='"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+const KEY='mierdi-ventanilla3-record';
+const YEAR=2026;
+const ANIMALS=[{k:'gato',e:'🐱'},{k:'perro',e:'🐶'},{k:'rana',e:'🐸'},{k:'pato',e:'🦆'},{k:'cerdo',e:'🐷'}];
+const TRAM=['Hipoteca','Permiso de siesta','Licencia de pesca','Cambio de nombre'];
+const SELLOS=[{k:'verde',c:'#39ff14'},{k:'magenta',c:'#ff2bd6'},{k:'cian',c:'#00f0ff'}];
+const RULES=[
+{t:'Sin FIRMA → DENEGAR',f:d=>!d.firma},
+{t:'Caducado (año < '+YEAR+') → DENEGAR',f:d=>d.year<YEAR},
+{t:'Los GATOS no piden HIPOTECA',f:d=>d.a.k==='gato'&&d.tr==='Hipoteca'},
+{t:'Sello MAGENTA → DENEGAR',f:d=>d.s.k==='magenta'},
+{t:'Formulario C: solo RANAS',f:d=>d.form==='C'&&d.a.k!=='rana'},
+{t:'Los PATOS se aprueban SIEMPRE',f:d=>d.a.k==='pato',ov:1},
+{t:'PERMISO DE SIESTA solo con sello CIAN',f:d=>d.tr==='Permiso de siesta'&&d.s.k!=='cian'},
+{t:'Número acabado en 7 → DENEGAR',f:d=>d.num%10===7}
+];
+
+let state='menu',score=0,inputCount=0;
+let best=0;try{best=+localStorage.getItem(KEY)||0}catch(_){}
+let lives=5,nRules=1,decisions=0,streak=0,sinceNew=0,doc=null;
+let card={x:0,phase:'idle',t:0,dir:0,stamp:null};
+let timer=0,limit=1,msg='',msgT=0,msgC='#fff',banner=null,bannerT=0,pending=0,shake=0,drag=null;
+
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+const ri=n=>Math.floor(Math.random()*n);
+const easeOut=t=>1-Math.pow(1-t,3);
+const mult=()=>Math.min(5,1+Math.floor(streak/3));
+const thr=()=>Math.min(110,W*0.22);
+
+let ac=null;
+function ensureAudio(){if(!ac){try{ac=new(window.AudioContext||window.webkitAudioContext)()}catch(_){ac=null}}if(ac&&ac.state==='suspended')ac.resume();}
+function beep(f,d,type){if(!ac)return;try{const o=ac.createOscillator(),g=ac.createGain(),t=ac.currentTime;o.type=type||'square';o.frequency.value=f;g.gain.setValueAtTime(.07,t);g.gain.exponentialRampToValueAtTime(.0001,t+d);o.connect(g);g.connect(ac.destination);o.start(t);o.stop(t+d);}catch(_){}}
+
+function randDoc(){return{a:pick(ANIMALS),tr:pick(TRAM),form:pick(['A','B','C']),num:10+ri(90),s:pick(SELLOS),firma:Math.random()<0.72,year:Math.random()<0.3?YEAR-1-ri(3):YEAR+ri(4)};}
+function evaluate(d){
+ for(let i=0;i<nRules;i++)if(RULES[i].ov&&RULES[i].f(d))return{v:'approve',r:i};
+ for(let i=0;i<nRules;i++)if(!RULES[i].ov&&RULES[i].f(d))return{v:'deny',r:i};
+ return{v:'approve',r:-1};
+}
+function anyDeny(d){for(let i=0;i<nRules;i++)if(!RULES[i].ov&&RULES[i].f(d))return true;return false;}
+function gen(){
+ const nr=RULES[nRules-1],focus=sinceNew===0,want=Math.random()<0.5?'deny':'approve';
+ let d;
+ for(let i=0;i<400;i++){
+  d=randDoc();const ev=evaluate(d);
+  if(focus){if(nr.ov?(nr.f(d)&&anyDeny(d)):(nr.f(d)&&ev.v==='deny'))break;}
+  else if(ev.v===want)break;
+ }
+ sinceNew++;return d;
+}
+function explain(ev){
+ if(ev.v==='deny')return'✘ Tocaba DENEGAR: '+RULES[ev.r].t;
+ if(ev.r>=0)return'✘ ¡'+RULES[ev.r].t+'!';
+ return'✘ Tocaba APROBAR: ninguna norma lo prohíbe';
+}
+function setMsg(t,c,d){msg=t;msgC=c;msgT=d||2.2;}
+
+function newCard(){
+ doc=gen();card={x:0,phase:'in',t:0,dir:0,stamp:null};
+ limit=Math.max(3,8-0.12*decisions)+0.35*nRules;timer=limit;
+}
+function decide(ap){
+ if(state!=='playing'||banner||card.phase!=='idle')return;
+ const ev=evaluate(doc),ok=ap===(ev.v==='approve');
+ decisions++;
+ if(ok){streak++;const m=mult(),pts=10*m+Math.ceil(timer);score+=pts;setMsg('✔ +'+pts+(m>1?'   combo x'+m:''),'#39ff14',1.2);beep(ap?660:520,.09);beep(ap?990:780,.12,'triangle');}
+ else{streak=0;lives--;setMsg(explain(ev),'#ff2bd6',2.6);beep(130,.3,'sawtooth');shake=.35;}
+ card.phase='out';card.t=0;card.dir=ap?1:-1;card.stamp=ap?'APROBADO':'DENEGADO';
+ pending=ok?0.35:1.2;
+}
+function timeoutDoc(){
+ const ev=evaluate(doc);decisions++;streak=0;lives--;
+ setMsg('😤 Tardaste: queja formal (era '+(ev.v==='deny'?'DENEGAR':'APROBAR')+')','#ff2bd6',2.4);
+ beep(110,.35,'sawtooth');shake=.35;
+ card.phase='out';card.t=0;card.dir=0;card.stamp=null;pending=1.2;
+}
+function next(){
+ if(lives<=0){endGame();return;}
+ if(decisions%5===0&&nRules<RULES.length){
+  nRules++;sinceNew=0;banner={h:'📜 NUEVA NORMATIVA',t:RULES[nRules-1].t,ov:RULES[nRules-1].ov};bannerT=3.6;beep(880,.12);beep(1320,.2,'triangle');
+ }
+ newCard();
+}
+function update(dt){
+ if(msgT>0)msgT-=dt;if(shake>0)shake-=dt;
+ if(banner){bannerT-=dt;if(bannerT<=0)banner=null;return;}
+ if(card.phase==='in'){card.t+=dt/0.3;if(card.t>=1){card.t=1;card.phase='idle';}}
+ else if(card.phase==='idle'){
+  if(!drag)card.x*=Math.pow(0.0005,dt);
+  timer-=dt;if(timer<=0){timer=0;timeoutDoc();}
+ }else if(card.phase==='out'){card.t=Math.min(1,card.t+dt/0.35);pending-=dt;if(pending<=0&&card.t>=1)next();}
+}
+
+function startGame(){
+ ensureAudio();
+ state='playing';score=0;lives=5;nRules=1;decisions=0;streak=0;sinceNew=0;
+ msgT=0;shake=0;drag=null;pending=0;
+ banner={h:'📜 NORMATIVA INICIAL',t:RULES[0].t};bannerT=3.6;
+ newCard();
+ document.getElementById('menu').classList.add('hidden');
+ document.getElementById('over').classList.add('hidden');
+ last=performance.now();
+}
+function endGame(){
+ if(state==='over')return;
+ state='over';drag=null;banner=null;
+ if(score>best){best=score;try{localStorage.setItem(KEY,String(best))}catch(_){}}
+ const rank=score<100?'Rango: Becario en prácticas 🥲':score<300?'Rango: Funcionario de carrera 📎':score<650?'Rango: Jefe de Negociado 🗄️':'Rango: Ministro del Sello 👑';
+ document.getElementById('res').innerHTML='Puntos: <b class="k">'+score+'</b> · Trámites: '+decisions+' · Normas: '+nRules+'<br>Récord: <b class="c">'+best+'</b>';
+ document.getElementById('rank').textContent=rank;
+ document.getElementById('over').classList.remove('hidden');
+}
+
+function pt(e){const r=cv.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};}
+function layout(){
+ const rl=28+nRules*20,top=44+rl+44,bot=H-122;
+ const cw=Math.min(W-40,340),ch=Math.max(150,Math.min(bot-top-8,300));
+ return{rulesY:44,rl,msgY:44+rl+26,cw,ch,cy:(top+bot)/2,timerY:H-104,by:H-84,bh:64};
+}
+function btnHit(p){const L=layout();if(p.y>=L.by&&p.y<=L.by+L.bh)return p.x<W/2?-1:1;return 0;}
+
+cv.addEventListener('pointerdown',e=>{
+ if(state!=='playing')return;
+ inputCount++;ensureAudio();e.preventDefault();
+ if(banner){banner=null;return;}
+ const p=pt(e);
+ try{cv.setPointerCapture(e.pointerId)}catch(_){}
+ drag={x0:p.x,id:e.pointerId,moved:false};
+});
+cv.addEventListener('pointermove',e=>{
+ if(!drag||e.pointerId!==drag.id)return;
+ const p=pt(e),dx=p.x-drag.x0;
+ if(Math.abs(dx)>8)drag.moved=true;
+ if(card.phase==='idle')card.x=dx;
+});
+function up(e){
+ if(!drag||e.pointerId!==drag.id)return;
+ const p=pt(e),dx=p.x-drag.x0,moved=drag.moved;drag=null;
+ if(state!=='playing'||card.phase!=='idle')return;
+ if(Math.abs(dx)>thr()){decide(dx>0);return;}
+ if(!moved){const b=btnHit(p);if(b)decide(b>0);}
+}
+cv.addEventListener('pointerup',up);
+cv.addEventListener('pointercancel',()=>{drag=null;});
+
+function font(sz,w){ctx.font=(w||'700')+' '+Math.max(8,Math.round(sz))+'px '+FONT;}
+function fitText(t,maxW,size,w){let s=size;do{font(s,w);if(ctx.measureText(t).width<=maxW)break;s-=1;}while(s>8);}
+function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+
+function drawHUD(){
+ ctx.textBaseline='alphabetic';
+ ctx.textAlign='left';ctx.fillStyle='#ffe600';font(18,'800');ctx.fillText('PUNTOS '+score,14,30);
+ ctx.textAlign='center';
+ const m=mult();
+ if(m>1){ctx.fillStyle='#ff2bd6';font(18,'900');ctx.fillText('COMBO x'+m,W/2,30);}
+ else{ctx.fillStyle='#888';font(14,'700');ctx.fillText('Trámite #'+(decisions+1),W/2,30);}
+ ctx.textAlign='right';ctx.fillStyle='#ff2bd6';font(20,'900');
+ ctx.fillText('♥'.repeat(Math.max(0,lives))+'♡'.repeat(Math.max(0,5-lives)),W-14,31);
+}
+function drawRules(L){
+ const x=12,y=L.rulesY,w=W-24;
+ rr(x,y,w,L.rl,10);ctx.fillStyle='#121208';ctx.fill();ctx.strokeStyle='#ffe60066';ctx.lineWidth=1.5;ctx.stroke();
+ ctx.textAlign='left';ctx.fillStyle='#ffe600';font(12,'800');ctx.fillText('TODO SE APRUEBA, SALVO:',x+10,y+18);
+ ctx.textAlign='right';ctx.fillStyle='#888';ctx.fillText('AÑO '+YEAR,x+w-10,y+18);
+ ctx.textAlign='left';
+ for(let i=0;i<nRules;i++){
+  const r=RULES[i],fresh=i===nRules-1&&sinceNew<=3&&nRules>1;
+  ctx.fillStyle=r.ov?'#39ff14':fresh?'#ffe600':'#cfefff';
+  fitText((i+1)+'. '+r.t+(fresh?'  ★':''),w-20,15,fresh?'800':'600');
+  ctx.fillText((i+1)+'. '+r.t+(fresh?'  ★':''),x+10,y+18+20*(i+1));
+ }
+}
+function drawMsg(L){
+ if(msgT<=0)return;
+ ctx.globalAlpha=Math.min(1,msgT*2);ctx.textAlign='center';ctx.fillStyle=msgC;
+ fitText(msg,W-24,16,'800');ctx.fillText(msg,W/2,L.msgY);ctx.globalAlpha=1;
+}
+function stampText(t,c,s,rot){
+ ctx.save();ctx.rotate(rot);font(40*s,'900');
+ const tw=ctx.measureText(t).width+24*s,th=54*s;
+ ctx.fillStyle='rgba(10,10,10,.7)';ctx.fillRect(-tw/2,-th/2,tw,th);
+ ctx.strokeStyle=c;ctx.lineWidth=4*s;ctx.strokeRect(-tw/2,-th/2,tw,th);
+ ctx.fillStyle=c;ctx.textAlign='center';ctx.textBaseline='middle';ctx.shadowColor=c;ctx.shadowBlur=12;
+ ctx.fillText(t,0,2*s);ctx.restore();
+}
+function drawCard(L){
+ if(!doc)return;
+ const s=L.ch/300,w=L.cw,h=L.ch,d=doc;
+ let ox=card.x,oy=0;
+ if(card.phase==='in')oy=-(1-easeOut(card.t))*(L.cy+h);
+ else if(card.phase==='out'){const e=card.t*card.t;if(card.dir)ox=card.x+card.dir*e*W;else oy=-e*(L.cy+h);}
+ ctx.save();ctx.translate(W/2+ox,L.cy+oy);ctx.rotate(ox/W*0.35);
+ const x=-w/2,y=-h/2;
+ ctx.shadowColor='#00f0ff';ctx.shadowBlur=18;rr(x,y,w,h,16);ctx.fillStyle='#13131b';ctx.fill();
+ ctx.shadowBlur=0;ctx.lineWidth=2;ctx.strokeStyle='#00f0ff';ctx.stroke();
+ ctx.textAlign='left';ctx.textBaseline='alphabetic';
+ ctx.fillStyle='#ffe600';font(22*s,'800');ctx.fillText('FORMULARIO '+d.form+'-'+d.num,x+18,y+38*s);
+ ctx.strokeStyle='#ffe60055';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x+14,y+52*s);ctx.lineTo(x+w-14,y+52*s);ctx.stroke();
+ ctx.font=Math.round(56*s)+'px '+EFONT;ctx.fillStyle='#fff';ctx.fillText(d.a.e,x+16,y+116*s);
+ ctx.fillStyle='#888';font(13*s,'700');ctx.fillText('SOLICITANTE',x+96*s,y+80*s);
+ ctx.fillStyle='#fff';font(28*s,'900');ctx.fillText(d.a.k.toUpperCase(),x+96*s,y+112*s);
+ ctx.fillStyle='#888';font(13*s,'700');ctx.fillText('TRÁMITE',x+18,y+150*s);
+ ctx.fillStyle='#fff';font(21*s,'800');ctx.fillText(d.tr,x+18,y+175*s);
+ ctx.fillStyle='#888';font(13*s,'700');ctx.fillText('CADUCA',x+18,y+206*s);
+ ctx.fillStyle='#fff';font(21*s,'800');ctx.fillText(String(d.year),x+82*s,y+207*s);
+ ctx.fillStyle='#888';font(13*s,'700');ctx.fillText('FIRMA',x+18,y+238*s);
+ if(d.firma){
+  ctx.strokeStyle='#00f0ff';ctx.lineWidth=2.5*s;ctx.beginPath();
+  for(let i=0;i<=24;i++){const px=x+18+i*5*s,py=y+264*s+Math.sin(i*0.9+d.num)*9*s*Math.sin(i*0.3+1);i?ctx.lineTo(px,py):ctx.moveTo(px,py);}
+  ctx.stroke();
+ }else{ctx.fillStyle='#666';font(16*s,'italic 600');ctx.fillText('— sin firma —',x+18,y+268*s);}
+ const sx=x+w-64*s,sy=y+234*s,r=32*s;
+ ctx.strokeStyle=d.s.c;ctx.shadowColor=d.s.c;ctx.shadowBlur=10;
+ ctx.lineWidth=4*s;ctx.beginPath();ctx.arc(sx,sy,r,0,7);ctx.stroke();
+ ctx.lineWidth=1.5*s;ctx.beginPath();ctx.arc(sx,sy,r-7*s,0,7);ctx.stroke();ctx.shadowBlur=0;
+ ctx.fillStyle=d.s.c;ctx.textAlign='center';font(11*s,'900');ctx.fillText('SELLO',sx,sy+4*s);
+ font(12*s,'900');ctx.fillText(d.s.k.toUpperCase(),sx,sy+r+16*s);
+ if(card.phase==='idle'&&Math.abs(card.x)>8){
+  const ap=card.x>0;ctx.globalAlpha=Math.min(1,Math.abs(card.x)/thr());
+  stampText(ap?'APROBAR':'DENEGAR',ap?'#39ff14':'#ff2bd6',s,ap?-0.2:0.2);ctx.globalAlpha=1;
+ }
+ if(card.phase==='out'&&card.stamp)stampText(card.stamp,card.stamp==='APROBADO'?'#39ff14':'#ff2bd6',s,-0.2);
+ ctx.restore();
+}
+function drawTimer(L){
+ const x=18,w=W-36,y=L.timerY,f=Math.max(0,Math.min(1,timer/limit));
+ ctx.textAlign='left';ctx.fillStyle='#888';font(11,'800');ctx.fillText('PACIENCIA DEL CIUDADANO',x,y-5);
+ rr(x,y,w,9,4);ctx.fillStyle='#222';ctx.fill();
+ const c=f>0.5?'#39ff14':f>0.25?'#ffe600':'#ff2bd6';
+ if(f>0){rr(x,y,Math.max(8,w*f),9,4);ctx.fillStyle=c;ctx.shadowColor=c;ctx.shadowBlur=8;ctx.fill();ctx.shadowBlur=0;}
+}
+function drawButtons(L){
+ const g=12,bw=(W-36-g)/2,lean=card.phase==='idle'?card.x/thr():0;
+ const bs=[{x:18,t:'← DENEGAR',c:'#ff2bd6',a:Math.max(0,-lean)},{x:18+bw+g,t:'APROBAR →',c:'#39ff14',a:Math.max(0,lean)}];
+ for(const b of bs){
+  rr(b.x,L.by,bw,L.bh,14);ctx.fillStyle='rgba(255,255,255,'+(0.03+Math.min(1,b.a)*0.15)+')';ctx.fill();
+  ctx.strokeStyle=b.c;ctx.lineWidth=2;ctx.shadowColor=b.c;ctx.shadowBlur=10+Math.min(1,b.a)*14;ctx.stroke();ctx.shadowBlur=0;
+  ctx.fillStyle=b.c;ctx.textAlign='center';ctx.textBaseline='middle';fitText(b.t,bw-16,20,'900');ctx.fillText(b.t,b.x+bw/2,L.by+L.bh/2+1);
+ }
+ ctx.textBaseline='alphabetic';
+}
+function drawBanner(){
+ ctx.fillStyle='rgba(10,10,10,.82)';ctx.fillRect(0,0,W,H);
+ const w=Math.min(W-32,440),h=190,x=(W-w)/2,y=H/2-h/2;
+ rr(x,y,w,h,16);ctx.fillStyle='#14140a';ctx.fill();ctx.strokeStyle='#ffe600';ctx.lineWidth=2;ctx.shadowColor='#ffe600';ctx.shadowBlur=16;ctx.stroke();ctx.shadowBlur=0;
+ ctx.textAlign='center';ctx.textBaseline='alphabetic';
+ ctx.fillStyle='#ffe600';fitText(banner.h,w-30,24,'900');ctx.fillText(banner.h,W/2,y+46);
+ ctx.fillStyle=banner.ov?'#39ff14':'#00f0ff';fitText(banner.t,w-30,26,'900');ctx.fillText(banner.t,W/2,y+104);
+ ctx.fillStyle='#aaa';font(13,'600');
+ ctx.fillText(banner.ov?'Esta norma manda sobre todas las demás':'Se suma a las normas anteriores',W/2,y+136);
+ ctx.fillStyle='#777';ctx.fillText('toca para seguir',W/2,y+168);
+}
+function draw(){
+ ctx.save();ctx.fillStyle='#0a0a0a';ctx.fillRect(0,0,W,H);
+ ctx.strokeStyle='#ffffff08';ctx.lineWidth=1;
+ for(let gx=0;gx<W;gx+=32){ctx.beginPath();ctx.moveTo(gx,0);ctx.lineTo(gx,H);ctx.stroke();}
+ if(shake>0)ctx.translate((Math.random()-.5)*30*shake,(Math.random()-.5)*20*shake);
+ if(state!=='menu'&&doc){
+  const L=layout();
+  drawHUD();drawRules(L);drawMsg(L);drawCard(L);drawTimer(L);drawButtons(L);
+  if(banner&&state==='playing')drawBanner();
+ }
+ ctx.restore();
+}
+let last=performance.now();
+function loop(now){
+ const dt=Math.min(0.05,Math.max(0,(now-last)/1000));last=now;
+ if(state==='playing')update(dt);
+ draw();requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+document.querySelectorAll('[data-action="start"],[data-action="retry"]').forEach(b=>b.addEventListener('click',startGame));
+if(best>0)document.getElementById('rec').textContent='Récord: '+best;
+
+window.mierdiTest={state:()=>state,score:()=>score,inputs:()=>inputCount,forceGameOver:endGame};
+</script>
+</body>
+</html>

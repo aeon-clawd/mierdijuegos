@@ -1,8 +1,9 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import games from '../../public/games/games.json';
+import { sortGamesNewestFirst } from '../lib/games.mjs';
 
-const sortedGames = [...games].reverse();
+const sortedGames = sortGamesNewestFirst(games);
 const todayGame = sortedGames[0];
 const archive = sortedGames.slice(1);
 ---

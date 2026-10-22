@@ -1,274 +1,282 @@
 [
-    {
-        "id": "001-espejo-invertido",
-        "title": "Espejo Invertido",
-        "date": "2026-02-17",
-        "description": "Tus controles están invertidos en un eje que rota constantemente. Tu cerebro tendrá que recalibrarse cada segundo.",
-        "mechanic": "Inversión dinámica de controles",
-        "emoji": "🪞"
-    },
-    {
-        "id": "002-memoria-ciega",
-        "title": "Memoria Ciega",
-        "date": "2026-02-18",
-        "description": "Tienes 3 segundos para memorizar el mapa. Luego oscuridad total. Llega a la meta sin chocar.",
-        "mechanic": "Navegación de memoria temporal",
-        "emoji": "🧠"
-    },
-    {
-        "id": "003-gravedad-liquida",
-        "title": "Gravedad Líquida",
-        "date": "2026-02-19",
-        "description": "Tú no controlas la bola — controlas la gravedad. Toca la pantalla y la física se dobla hacia tu dedo.",
-        "mechanic": "Control indirecto por gravedad",
-        "emoji": "🌊"
-    },
-    {
-        "id": "004-ritmo-caotico",
-        "title": "Ritmo Caótico",
-        "date": "2026-02-20",
-        "description": "Solo puedes actuar en el beat. Pero el ritmo es irregular y cambia. Tienes que sentirlo, no pensarlo.",
-        "mechanic": "Ritmo irregular como mecánica core",
-        "emoji": "🥁"
-    },
-    {
-        "id": "005-eco-temporal",
-        "title": "Eco Temporal",
-        "date": "2026-02-22",
-        "description": "Controlas a dos personajes a la vez: tú ahora, y tu eco que repite exactamente lo que hiciste hace 2 segundos. Ambos deben sobrevivir.",
-        "mechanic": "Doppelgänger temporal con delay de 2 segundos",
-        "emoji": "⏳"
-    },
-    {
-        "id": "006-latido",
-        "title": "Latido",
-        "date": "2026-02-23",
-        "description": "El tiempo se congela entre latidos. Solo puedes moverte en el instante del pulso. A medida que avanzas, el corazón se acelera.",
-        "mechanic": "Turn-based rítmico con latido cardíaco como reloj del mundo",
-        "emoji": "💓"
-    },
-    {
-        "id": "007-peso-muerto",
-        "title": "Peso Muerto",
-        "date": "2026-02-24",
-        "description": "No controlas al personaje — tú ERES la gravedad. Mueve tu dedo y la bola te persigue. Guíala al objetivo sin tocar los obstáculos.",
-        "mechanic": "El jugador es la fuente gravitacional: manipulas la física, no el avatar",
-        "emoji": "⚫"
-    },
-    {
-        "id": "008-tres-cuerpos",
-        "title": "Tres Cuerpos",
-        "date": "2026-02-24",
-        "description": "Dos estrellas orbitan entre sí. Tú eres el tercer cuerpo. Encuentra la órbita estable o desata el caos gravitacional. Física real computada por Wolfram.",
-        "mechanic": "Problema de los tres cuerpos real — el jugador ES el tercer cuerpo gravitacional",
-        "emoji": "🌌"
-    },
-    {
-        "id": "009-chladni",
-        "title": "Chladni",
-        "date": "2026-02-25",
-        "description": "Eres un grano de arena sobre una placa vibratoria. Las zonas rojas vibran y te destruyen. Sobrevive en los nodos estables mientras el patrón se transforma.",
-        "mechanic": "Patrones de Chladni reales como zonas de peligro — el jugador es el grano que busca los nodos",
-        "emoji": "〰️"
-    },
-    {
-        "id": "010-pulsar",
-        "title": "Pulsar",
-        "date": "2026-02-26",
-        "description": "Tres estrellas de neutrones pulsan a sus frecuencias reales. Toca cada una justo cuando emite. Múltiples ritmos simultáneos. El universo no espera.",
-        "mechanic": "Generación simultánea de múltiples frecuencias reales de pulsares — el jugador mantiene vivas las estrellas",
-        "emoji": "✨"
-    },
-    {
-        "id": "011-refraccion",
-        "title": "Refracción",
-        "date": "2026-02-27",
-        "description": "Eres un fotón. Apunta y dispara — la Ley de Snell doblará tu trayectoria en cada frontera entre materiales reales. Cuidado con la reflexión total interna.",
-        "mechanic": "Puntería de rayo de luz con refracción real (Ley de Snell) — el jugador ajusta el ángulo y observa cómo la física lo desvía",
-        "emoji": "🔦"
-    },
-    {
-        "id": "012-efecto-doppler",
-        "title": "Efecto Doppler",
-        "date": "2026-02-28",
-        "description": "Eres una fuente de sonido. Tu velocidad cambia la frecuencia que perciben los oyentes. Ajusta tu velocidad exacta para que cada oído escuche su nota musical.",
-        "mechanic": "Velocidad del jugador = frecuencia observada via Ley de Doppler real — el jugador sintoniza notas musicales con su movimiento",
-        "emoji": "〰️"
-    },
-    {
-        "id": "013-demonio-maxwell",
-        "title": "Demonio de Maxwell",
-        "date": "2026-03-01",
-        "description": "Eres el demonio que viola la 2ª ley: abre la puerta en el momento exacto para separar partículas rápidas (calor) de lentas (frío). Pero cada decisión consume tu reserva de información.",
-        "mechanic": "Ordenamiento termodinámico en tiempo real — el jugador es Maxwell's Demon separando distribución Maxwell-Boltzmann real (N₂ 300K), con entropía de información como recurso finito",
-        "emoji": "😈"
-    },
-    {
-        "id": "014-automata",
-        "title": "Autómata",
-        "date": "2026-03-02",
-        "description": "Las plataformas son generadas por la Regla 30 de Wolfram — el autómata celular más caótico del universo, matemáticamente indistinguible del ruido aleatorio. Sobrevive sobre las celdas vivas mientras el caos sube.",
-        "mechanic": "Plataformas generadas en tiempo real por la Regla 30 de Wolfram — el jugador surfea el autómata celular más impredecible de la matemática",
-        "emoji": "🤖"
-    },
-    {
-        "id": "015-fourier",
-        "title": "Fourier",
-        "date": "2026-03-03",
-        "description": "Cinco armónicos reales. Desliza cada frecuencia para que tu onda reconstruya la onda objetivo. Los cristales flotan donde la señal es correcta — solo los cogerás si tu serie de Fourier tiene razón.",
-        "mechanic": "El jugador sintoniza amplitudes de armónicos reales (serie 4/πn) para reconstruir ondas cuadrada, triangular y de sierra — los coleccionables solo son accesibles con la descomposición de Fourier correcta",
-        "emoji": "〜"
-    },
-    {
-        "id": "016-morfogenesis",
-        "title": "Morfogénesis",
-        "date": "2026-03-04",
-        "description": "Siembra química V en un lienzo vivo. Las ecuaciones de Turing de Gray-Scott generan patrones reales de coral y leopardo. Recoge cristales que solo florecen en la zona dulce de la reacción — sin dejar que V devore todo el U.",
-        "mechanic": "Simulación Gray-Scott de reacción-difusión en tiempo real (Dᵤ=0.16, D_v=0.08, F=0.035, k=0.060) — el jugador siembra el catalizador V y recoge cristales que emergen en el borde caótico entre orden y colapso químico",
-        "emoji": "🧬"
-    },
-    {
-        "id": "017-lissajous",
-        "title": "Lissajous — Sintonía",
-        "date": "2026-03-05",
-        "description": "Eres un punto atrapado en una curva de Lissajous. Los cristales flotan en posiciones solo alcanzables con la frecuencia correcta. Ajusta A y B para sintonizar la curva y coleccionarlos.",
-        "mechanic": "El jugador controla los enteros a:b de x=sin(a·t+δ), y=sin(b·t) — la curva cambia de forma y el punto la recorre; los cristales solo son alcanzables sintonizando la frecuencia correcta",
-        "emoji": "〰️"
-    },
-    {
-        "id": "018-ising",
-        "title": "Ising — Transición de Fase",
-        "date": "2026-03-06",
-        "description": "Eres una partícula cayendo por una red de espines magnéticos. Controla la temperatura: muy frío = todo bloqueado, muy caliente = caos puro. Solo en la temperatura crítica Tc = 2.269 emergen los caminos fractales.",
-        "mechanic": "El jugador controla la temperatura termodinámica de un lattice de Ising 2D — la red cambia entre fase ordenada y desordenada con correlaciones espaciales reales; en Tc (solución exacta de Onsager 1944) emergen caminos fractales percolantes",
-        "emoji": "⚛️"
-    },
-    {
-        "id": "023-eigenvalor",
-        "title": "Eigenvalor",
-        "date": "2026-03-11",
-        "description": "Una transformación lineal deforma la realidad. Eres un vector — rota hasta alinearte con el eigenvector y volverte invencible.",
-        "mechanic": "El jugador rota su vector para alinearse con eigenvectores de una matriz real que cambia dinámicamente — la resonancia con el espacio propio otorga inmunidad",
-        "emoji": "↗️"
-    },
-    {
-        "id": "019-bloqueo-mareal",
-        "title": "Bloqueo Mareal",
-        "date": "2026-03-07",
-        "description": "Eres la Luna. Tu cara debe siempre mirar al planeta — como la Luna real que siempre da la misma cara a la Tierra. Sincroniza tu rotación con tu órbita o te desintegras.",
-        "mechanic": "El jugador controla la velocidad de rotación de una luna para mantener el bloqueo mareal con su planeta — usando la segunda ley de Kepler real (velocidad angular instantánea varía con la excentricidad orbital)",
-        "emoji": "🌙"
-    },
-    {
-        "id": "020-bifurcacion",
-        "title": "Bifurcación",
-        "date": "2026-03-08",
-        "description": "Eres la población x en la ecuación logística. Mantente en los atractores verdes mientras r aumenta: los atractores se bifurcan en 2, 4, 8… y colapsan en caos puro.",
-        "mechanic": "El jugador ES el valor x de x_{n+1}=r·x·(1-x) y debe sobrevivir en los atractores del diagrama de bifurcación — los atractores se dividen en cascada (r=3.0, 3.449, 3.544…) hasta el caos de Feigenbaum",
-        "emoji": "🔱"
-    },
-    {
-        "id": "021-soliton",
-        "title": "Solitón",
-        "date": "2026-03-09",
-        "description": "Eres una ola solitaria descrita por la ecuación KdV. Tu amplitud determina tu velocidad. Absorbe olas más pequeñas en el pico de fusión o serás absorbido.",
-        "mechanic": "El jugador ES un solitón KdV real (A·sech²) que colisiona con otros solitones — absorbe los más pequeños en el instante del pico de fusión; la amplitud controla velocidad según A·sech²(√(A/12)·(x−At))",
-        "emoji": "〰️"
-    },
-    {
-        "id": "022-penrose",
-        "title": "Penrose — Laberinto Aperiódico",
-        "date": "2026-03-10",
-        "description": "Navega un mosaico de Penrose generado por deflación. Los enemigos siguen rutas periódicas, pero el laberinto aperiódico los confunde. φ ≈ 1.618 es tu única guía.",
-        "mechanic": "Navegación sobre grafo de teselado de Penrose P2 (aperiódico) — el jugador explota la falta de periodicidad para evitar enemigos que siguen ciclos deterministas",
-        "emoji": "💎"
-    },
-    {
-        "id": "024-efecto-tunel",
-        "title": "Efecto Túnel",
-        "date": "2026-03-12",
-        "description": "Eres una partícula cuántica. Controla tu energía: por encima de la barrera activa el detector y pierdes una vida. Por debajo, la probabilidad de tunelizar es real — T = 1/(1 + sinh²(κL)·V₀²/4E(V₀−E)).",
-        "mechanic": "El jugador calibra la energía de una partícula cuántica para maximizar la probabilidad de tunelización (fórmula de Gamow real) sin cruzar V₀ — el riesgo/recompensa es la mecánica core",
-        "emoji": "⚛️"
-    },
-    {
-        "id": "025-eco-espin",
-        "title": "Eco de Espín",
-        "date": "2026-03-13",
-        "description": "Los protones giran juntos pero se desincronican. Toca en el momento exacto para enviar un pulso π que invierte todos los espines — si aciertas, convergen en un eco. Física NMR real: T₂*, Larmor, decoherencia.",
-        "mechanic": "Pulso de refocalización NMR — el jugador cronometra el pulso π para maximizar la coherencia del eco de espín",
-        "emoji": "🧲"
-    },
-    {
-        "id": "026-apolonio",
-        "title": "Apolonio — Tangencias Perfectas",
-        "date": "2026-03-14",
-        "description": "Tu burbuja crece bajo el dedo. Cuando toca exactamente 3 círculos al mismo tiempo, se solidifica. Cuanto más pequeño el hueco que llenas, más puntos. Teorema de Descartes real.",
-        "mechanic": "El jugador posiciona una burbuja creciente para alcanzar tangencia simultánea con 3 círculos — k₄ = k₁+k₂+k₃ ± 2√(k₁k₂+k₂k₃+k₁k₃) — llenando el gasket de Apolonio",
-        "emoji": "⭕"
-    },
-    {
-        "id": "027-percolacion",
-        "title": "Percolación — El Umbral Crítico",
-        "date": "2026-03-15",
-        "description": "El mundo se cierra. Teleportate entre celdas de tu clúster antes de que la red se fragmente. Cuando la densidad cruza pc≈0.5927, el clúster infinito desaparece — y contigo.",
-        "mechanic": "El jugador se teleporta dentro de su clúster conectado en una red de percolación de sitios 2D — cuando ρ cruza el umbral crítico pc≈0.5927, el clúster gigante colapsa en islas aisladas (transición de fase real)",
-        "emoji": "🕸️"
-    },
-    {
-        "id": "028-geodesica",
-        "title": "Geodésica",
-        "date": "2026-03-16",
-        "description": "Disparas en un toro 4D. Las líneas rectas se curvan. Ajusta el ángulo y dispara — tu rayo sigue la geodésica real del toro (ecuaciones de Clairaut) y puede enroscarse, cruzar el agujero, o perderse en el infinito.",
-        "mechanic": "El jugador ajusta el ángulo de disparo y el rayo sigue las ecuaciones geodésicas reales de un toro (Clairaut: ü = (R+r·cos u)·sin u·v̇²/r) — las 'líneas rectas' de la geometría diferencial son el arma",
-        "emoji": "🍩"
-    },
-    {
-        "id": "029-cristal-de-tiempo",
-        "title": "Cristal de Tiempo",
-        "date": "2026-03-17",
-        "description": "Toca a la mitad de la frecuencia del pulso conductor. El cristal oscila a f/2 — toca en el subarmónico o el calentamiento de Floquet destruirá la coherencia cuántica.",
-        "mechanic": "El jugador mantiene el orden de un cristal de tiempo discreto tocando a f/2 del pulso conductor — cada error inyecta calor de Floquet y el MBL (localización muchos cuerpos) se debilita nivel a nivel",
-        "emoji": "❄️"
-    },
-    {
-        "id": "030-brachistocrona",
-        "title": "Brachistócrona",
-        "date": "2026-04-03",
-        "description": "Dibuja la ruta más rápida del inicio al final. Una bola cae bajo gravedad real — tu objetivo es minimizar el tiempo de caída. La recta NO es la más rápida.",
-        "mechanic": "El jugador dibuja curvas y simula el descenso bajo ecuaciones reales de movimiento — intenta batir su mejor tiempo con la curva óptima (brachistócrona real es una cicloide, pero el jugador experimenta libremente)",
-        "emoji": "⟿"
-    },
-    {
-        "id": "031-fase-de-berry",
-        "title": "Fase de Berry",
-        "date": "2026-04-04",
-        "description": "Eres un estado cuántico. Tu camino cerrado en la esfera de Bloch define la fase geométrica acumulada. Loops grandes = más energía. La topología es tu poder.",
-        "mechanic": "El jugador navega la esfera de Bloch trazando caminos cerrados — la fase de Berry (ángulo geométrico) depende del área topológica enclosed, no del camino instantáneo. Cierra loops para obtener energía.",
-        "emoji": "🌀"
-    },
-    {
-        "id": "032-resonancia-forzada",
-        "title": "Resonancia Forzada",
-        "date": "2026-04-05",
-        "description": "Eres un oscilador. Los enemigos vibran a sus frecuencias. Cuando coinciden, resuenas — ganas energía pero te fragmentas. Sincroniza frecuencia sin perder el control.",
-        "mechanic": "Control de frecuencia propia para resonancia selectiva — el jugador sintoniza su oscilador contra enemigos que vibran a frecuencias fijas, maximizando puntos de resonancia (Match) sin quedar atrapado en colapso caótico (Mismatch)",
-        "emoji": "〰️"
-    },
-    {
-        "id": "033-mobius-persecucion",
-        "title": "Möbius Persecución",
-        "date": "2026-04-06",
-        "description": "Corre por una cinta de Möbius perseguido por un enemigo. Cuando completas una vuelta, cambias de lado — los muros se vuelven piso. Usa la topología para confundir al perseguidor.",
-        "mechanic": "Navegación topológica en cinta de Möbius — la topología es el arma defensiva",
-        "emoji": "〰️"
-    },
-    {
-        "id": "034-topologico",
-        "title": "Topológico",
-        "date": "2026-04-07",
-        "description": "Traza un camino de Euler: recorre CADA ARISTA exactamente una vez. El grafo muta con cada logro. La topología es tu enemiga y tu aliada.",
-        "mechanic": "Problema del Camino de Euler en tiempo real — el jugador navega un grafo mutante, completando aristas una sola vez antes de que el grafo se reconfigure",
-        "emoji": "🧬"
-    }
+  {
+    "id": "001-espejo-invertido",
+    "title": "Espejo Invertido",
+    "date": "2026-02-17",
+    "description": "Tus controles están invertidos en un eje que rota constantemente. Tu cerebro tendrá que recalibrarse cada segundo.",
+    "mechanic": "Inversión dinámica de controles",
+    "emoji": "🪞"
+  },
+  {
+    "id": "002-memoria-ciega",
+    "title": "Memoria Ciega",
+    "date": "2026-02-18",
+    "description": "Tienes 3 segundos para memorizar el mapa. Luego oscuridad total. Llega a la meta sin chocar.",
+    "mechanic": "Navegación de memoria temporal",
+    "emoji": "🧠"
+  },
+  {
+    "id": "003-gravedad-liquida",
+    "title": "Gravedad Líquida",
+    "date": "2026-02-19",
+    "description": "Tú no controlas la bola — controlas la gravedad. Toca la pantalla y la física se dobla hacia tu dedo.",
+    "mechanic": "Control indirecto por gravedad",
+    "emoji": "🌊"
+  },
+  {
+    "id": "004-ritmo-caotico",
+    "title": "Ritmo Caótico",
+    "date": "2026-02-20",
+    "description": "Solo puedes actuar en el beat. Pero el ritmo es irregular y cambia. Tienes que sentirlo, no pensarlo.",
+    "mechanic": "Ritmo irregular como mecánica core",
+    "emoji": "🥁"
+  },
+  {
+    "id": "005-eco-temporal",
+    "title": "Eco Temporal",
+    "date": "2026-02-22",
+    "description": "Controlas a dos personajes a la vez: tú ahora, y tu eco que repite exactamente lo que hiciste hace 2 segundos. Ambos deben sobrevivir.",
+    "mechanic": "Doppelgänger temporal con delay de 2 segundos",
+    "emoji": "⏳"
+  },
+  {
+    "id": "006-latido",
+    "title": "Latido",
+    "date": "2026-02-23",
+    "description": "El tiempo se congela entre latidos. Solo puedes moverte en el instante del pulso. A medida que avanzas, el corazón se acelera.",
+    "mechanic": "Turn-based rítmico con latido cardíaco como reloj del mundo",
+    "emoji": "💓"
+  },
+  {
+    "id": "007-peso-muerto",
+    "title": "Peso Muerto",
+    "date": "2026-02-24",
+    "description": "No controlas al personaje — tú ERES la gravedad. Mueve tu dedo y la bola te persigue. Guíala al objetivo sin tocar los obstáculos.",
+    "mechanic": "El jugador es la fuente gravitacional: manipulas la física, no el avatar",
+    "emoji": "⚫"
+  },
+  {
+    "id": "008-tres-cuerpos",
+    "title": "Tres Cuerpos",
+    "date": "2026-02-24",
+    "description": "Dos estrellas orbitan entre sí. Tú eres el tercer cuerpo. Encuentra la órbita estable o desata el caos gravitacional. Física real computada por Wolfram.",
+    "mechanic": "Problema de los tres cuerpos real — el jugador ES el tercer cuerpo gravitacional",
+    "emoji": "🌌"
+  },
+  {
+    "id": "009-chladni",
+    "title": "Chladni",
+    "date": "2026-02-25",
+    "description": "Eres un grano de arena sobre una placa vibratoria. Las zonas rojas vibran y te destruyen. Sobrevive en los nodos estables mientras el patrón se transforma.",
+    "mechanic": "Patrones de Chladni reales como zonas de peligro — el jugador es el grano que busca los nodos",
+    "emoji": "〰️"
+  },
+  {
+    "id": "010-pulsar",
+    "title": "Pulsar",
+    "date": "2026-02-26",
+    "description": "Tres estrellas de neutrones pulsan a sus frecuencias reales. Toca cada una justo cuando emite. Múltiples ritmos simultáneos. El universo no espera.",
+    "mechanic": "Generación simultánea de múltiples frecuencias reales de pulsares — el jugador mantiene vivas las estrellas",
+    "emoji": "✨"
+  },
+  {
+    "id": "011-refraccion",
+    "title": "Refracción",
+    "date": "2026-02-27",
+    "description": "Eres un fotón. Apunta y dispara — la Ley de Snell doblará tu trayectoria en cada frontera entre materiales reales. Cuidado con la reflexión total interna.",
+    "mechanic": "Puntería de rayo de luz con refracción real (Ley de Snell) — el jugador ajusta el ángulo y observa cómo la física lo desvía",
+    "emoji": "🔦"
+  },
+  {
+    "id": "012-efecto-doppler",
+    "title": "Efecto Doppler",
+    "date": "2026-02-28",
+    "description": "Eres una fuente de sonido. Tu velocidad cambia la frecuencia que perciben los oyentes. Ajusta tu velocidad exacta para que cada oído escuche su nota musical.",
+    "mechanic": "Velocidad del jugador = frecuencia observada via Ley de Doppler real — el jugador sintoniza notas musicales con su movimiento",
+    "emoji": "〰️"
+  },
+  {
+    "id": "013-demonio-maxwell",
+    "title": "Demonio de Maxwell",
+    "date": "2026-03-01",
+    "description": "Eres el demonio que viola la 2ª ley: abre la puerta en el momento exacto para separar partículas rápidas (calor) de lentas (frío). Pero cada decisión consume tu reserva de información.",
+    "mechanic": "Ordenamiento termodinámico en tiempo real — el jugador es Maxwell's Demon separando distribución Maxwell-Boltzmann real (N₂ 300K), con entropía de información como recurso finito",
+    "emoji": "😈"
+  },
+  {
+    "id": "014-automata",
+    "title": "Autómata",
+    "date": "2026-03-02",
+    "description": "Las plataformas son generadas por la Regla 30 de Wolfram — el autómata celular más caótico del universo, matemáticamente indistinguible del ruido aleatorio. Sobrevive sobre las celdas vivas mientras el caos sube.",
+    "mechanic": "Plataformas generadas en tiempo real por la Regla 30 de Wolfram — el jugador surfea el autómata celular más impredecible de la matemática",
+    "emoji": "🤖"
+  },
+  {
+    "id": "015-fourier",
+    "title": "Fourier",
+    "date": "2026-03-03",
+    "description": "Cinco armónicos reales. Desliza cada frecuencia para que tu onda reconstruya la onda objetivo. Los cristales flotan donde la señal es correcta — solo los cogerás si tu serie de Fourier tiene razón.",
+    "mechanic": "El jugador sintoniza amplitudes de armónicos reales (serie 4/πn) para reconstruir ondas cuadrada, triangular y de sierra — los coleccionables solo son accesibles con la descomposición de Fourier correcta",
+    "emoji": "〜"
+  },
+  {
+    "id": "016-morfogenesis",
+    "title": "Morfogénesis",
+    "date": "2026-03-04",
+    "description": "Siembra química V en un lienzo vivo. Las ecuaciones de Turing de Gray-Scott generan patrones reales de coral y leopardo. Recoge cristales que solo florecen en la zona dulce de la reacción — sin dejar que V devore todo el U.",
+    "mechanic": "Simulación Gray-Scott de reacción-difusión en tiempo real (Dᵤ=0.16, D_v=0.08, F=0.035, k=0.060) — el jugador siembra el catalizador V y recoge cristales que emergen en el borde caótico entre orden y colapso químico",
+    "emoji": "🧬"
+  },
+  {
+    "id": "017-lissajous",
+    "title": "Lissajous — Sintonía",
+    "date": "2026-03-05",
+    "description": "Eres un punto atrapado en una curva de Lissajous. Los cristales flotan en posiciones solo alcanzables con la frecuencia correcta. Ajusta A y B para sintonizar la curva y coleccionarlos.",
+    "mechanic": "El jugador controla los enteros a:b de x=sin(a·t+δ), y=sin(b·t) — la curva cambia de forma y el punto la recorre; los cristales solo son alcanzables sintonizando la frecuencia correcta",
+    "emoji": "〰️"
+  },
+  {
+    "id": "018-ising",
+    "title": "Ising — Transición de Fase",
+    "date": "2026-03-06",
+    "description": "Eres una partícula cayendo por una red de espines magnéticos. Controla la temperatura: muy frío = todo bloqueado, muy caliente = caos puro. Solo en la temperatura crítica Tc = 2.269 emergen los caminos fractales.",
+    "mechanic": "El jugador controla la temperatura termodinámica de un lattice de Ising 2D — la red cambia entre fase ordenada y desordenada con correlaciones espaciales reales; en Tc (solución exacta de Onsager 1944) emergen caminos fractales percolantes",
+    "emoji": "⚛️"
+  },
+  {
+    "id": "023-eigenvalor",
+    "title": "Eigenvalor",
+    "date": "2026-03-11",
+    "description": "Una transformación lineal deforma la realidad. Eres un vector — rota hasta alinearte con el eigenvector y volverte invencible.",
+    "mechanic": "El jugador rota su vector para alinearse con eigenvectores de una matriz real que cambia dinámicamente — la resonancia con el espacio propio otorga inmunidad",
+    "emoji": "↗️"
+  },
+  {
+    "id": "019-bloqueo-mareal",
+    "title": "Bloqueo Mareal",
+    "date": "2026-03-07",
+    "description": "Eres la Luna. Tu cara debe siempre mirar al planeta — como la Luna real que siempre da la misma cara a la Tierra. Sincroniza tu rotación con tu órbita o te desintegras.",
+    "mechanic": "El jugador controla la velocidad de rotación de una luna para mantener el bloqueo mareal con su planeta — usando la segunda ley de Kepler real (velocidad angular instantánea varía con la excentricidad orbital)",
+    "emoji": "🌙"
+  },
+  {
+    "id": "020-bifurcacion",
+    "title": "Bifurcación",
+    "date": "2026-03-08",
+    "description": "Eres la población x en la ecuación logística. Mantente en los atractores verdes mientras r aumenta: los atractores se bifurcan en 2, 4, 8… y colapsan en caos puro.",
+    "mechanic": "El jugador ES el valor x de x_{n+1}=r·x·(1-x) y debe sobrevivir en los atractores del diagrama de bifurcación — los atractores se dividen en cascada (r=3.0, 3.449, 3.544…) hasta el caos de Feigenbaum",
+    "emoji": "🔱"
+  },
+  {
+    "id": "021-soliton",
+    "title": "Solitón",
+    "date": "2026-03-09",
+    "description": "Eres una ola solitaria descrita por la ecuación KdV. Tu amplitud determina tu velocidad. Absorbe olas más pequeñas en el pico de fusión o serás absorbido.",
+    "mechanic": "El jugador ES un solitón KdV real (A·sech²) que colisiona con otros solitones — absorbe los más pequeños en el instante del pico de fusión; la amplitud controla velocidad según A·sech²(√(A/12)·(x−At))",
+    "emoji": "〰️"
+  },
+  {
+    "id": "022-penrose",
+    "title": "Penrose — Laberinto Aperiódico",
+    "date": "2026-03-10",
+    "description": "Navega un mosaico de Penrose generado por deflación. Los enemigos siguen rutas periódicas, pero el laberinto aperiódico los confunde. φ ≈ 1.618 es tu única guía.",
+    "mechanic": "Navegación sobre grafo de teselado de Penrose P2 (aperiódico) — el jugador explota la falta de periodicidad para evitar enemigos que siguen ciclos deterministas",
+    "emoji": "💎"
+  },
+  {
+    "id": "024-efecto-tunel",
+    "title": "Efecto Túnel",
+    "date": "2026-03-12",
+    "description": "Eres una partícula cuántica. Controla tu energía: por encima de la barrera activa el detector y pierdes una vida. Por debajo, la probabilidad de tunelizar es real — T = 1/(1 + sinh²(κL)·V₀²/4E(V₀−E)).",
+    "mechanic": "El jugador calibra la energía de una partícula cuántica para maximizar la probabilidad de tunelización (fórmula de Gamow real) sin cruzar V₀ — el riesgo/recompensa es la mecánica core",
+    "emoji": "⚛️"
+  },
+  {
+    "id": "025-eco-espin",
+    "title": "Eco de Espín",
+    "date": "2026-03-13",
+    "description": "Los protones giran juntos pero se desincronican. Toca en el momento exacto para enviar un pulso π que invierte todos los espines — si aciertas, convergen en un eco. Física NMR real: T₂*, Larmor, decoherencia.",
+    "mechanic": "Pulso de refocalización NMR — el jugador cronometra el pulso π para maximizar la coherencia del eco de espín",
+    "emoji": "🧲"
+  },
+  {
+    "id": "026-apolonio",
+    "title": "Apolonio — Tangencias Perfectas",
+    "date": "2026-03-14",
+    "description": "Tu burbuja crece bajo el dedo. Cuando toca exactamente 3 círculos al mismo tiempo, se solidifica. Cuanto más pequeño el hueco que llenas, más puntos. Teorema de Descartes real.",
+    "mechanic": "El jugador posiciona una burbuja creciente para alcanzar tangencia simultánea con 3 círculos — k₄ = k₁+k₂+k₃ ± 2√(k₁k₂+k₂k₃+k₁k₃) — llenando el gasket de Apolonio",
+    "emoji": "⭕"
+  },
+  {
+    "id": "027-percolacion",
+    "title": "Percolación — El Umbral Crítico",
+    "date": "2026-03-15",
+    "description": "El mundo se cierra. Teleportate entre celdas de tu clúster antes de que la red se fragmente. Cuando la densidad cruza pc≈0.5927, el clúster infinito desaparece — y contigo.",
+    "mechanic": "El jugador se teleporta dentro de su clúster conectado en una red de percolación de sitios 2D — cuando ρ cruza el umbral crítico pc≈0.5927, el clúster gigante colapsa en islas aisladas (transición de fase real)",
+    "emoji": "🕸️"
+  },
+  {
+    "id": "028-geodesica",
+    "title": "Geodésica",
+    "date": "2026-03-16",
+    "description": "Disparas en un toro 4D. Las líneas rectas se curvan. Ajusta el ángulo y dispara — tu rayo sigue la geodésica real del toro (ecuaciones de Clairaut) y puede enroscarse, cruzar el agujero, o perderse en el infinito.",
+    "mechanic": "El jugador ajusta el ángulo de disparo y el rayo sigue las ecuaciones geodésicas reales de un toro (Clairaut: ü = (R+r·cos u)·sin u·v̇²/r) — las 'líneas rectas' de la geometría diferencial son el arma",
+    "emoji": "🍩"
+  },
+  {
+    "id": "029-cristal-de-tiempo",
+    "title": "Cristal de Tiempo",
+    "date": "2026-03-17",
+    "description": "Toca a la mitad de la frecuencia del pulso conductor. El cristal oscila a f/2 — toca en el subarmónico o el calentamiento de Floquet destruirá la coherencia cuántica.",
+    "mechanic": "El jugador mantiene el orden de un cristal de tiempo discreto tocando a f/2 del pulso conductor — cada error inyecta calor de Floquet y el MBL (localización muchos cuerpos) se debilita nivel a nivel",
+    "emoji": "❄️"
+  },
+  {
+    "id": "030-brachistocrona",
+    "title": "Brachistócrona",
+    "date": "2026-04-03",
+    "description": "Dibuja la ruta más rápida del inicio al final. Una bola cae bajo gravedad real — tu objetivo es minimizar el tiempo de caída. La recta NO es la más rápida.",
+    "mechanic": "El jugador dibuja curvas y simula el descenso bajo ecuaciones reales de movimiento — intenta batir su mejor tiempo con la curva óptima (brachistócrona real es una cicloide, pero el jugador experimenta libremente)",
+    "emoji": "⟿"
+  },
+  {
+    "id": "031-fase-de-berry",
+    "title": "Fase de Berry",
+    "date": "2026-04-04",
+    "description": "Eres un estado cuántico. Tu camino cerrado en la esfera de Bloch define la fase geométrica acumulada. Loops grandes = más energía. La topología es tu poder.",
+    "mechanic": "El jugador navega la esfera de Bloch trazando caminos cerrados — la fase de Berry (ángulo geométrico) depende del área topológica enclosed, no del camino instantáneo. Cierra loops para obtener energía.",
+    "emoji": "🌀"
+  },
+  {
+    "id": "032-resonancia-forzada",
+    "title": "Resonancia Forzada",
+    "date": "2026-04-05",
+    "description": "Eres un oscilador. Los enemigos vibran a sus frecuencias. Cuando coinciden, resuenas — ganas energía pero te fragmentas. Sincroniza frecuencia sin perder el control.",
+    "mechanic": "Control de frecuencia propia para resonancia selectiva — el jugador sintoniza su oscilador contra enemigos que vibran a frecuencias fijas, maximizando puntos de resonancia (Match) sin quedar atrapado en colapso caótico (Mismatch)",
+    "emoji": "〰️"
+  },
+  {
+    "id": "033-mobius-persecucion",
+    "title": "Möbius Persecución",
+    "date": "2026-04-06",
+    "description": "Corre por una cinta de Möbius perseguido por un enemigo. Cuando completas una vuelta, cambias de lado — los muros se vuelven piso. Usa la topología para confundir al perseguidor.",
+    "mechanic": "Navegación topológica en cinta de Möbius — la topología es el arma defensiva",
+    "emoji": "〰️"
+  },
+  {
+    "id": "034-topologico",
+    "title": "Topológico",
+    "date": "2026-04-07",
+    "description": "Traza un camino de Euler: recorre CADA ARISTA exactamente una vez. El grafo muta con cada logro. La topología es tu enemiga y tu aliada.",
+    "mechanic": "Problema del Camino de Euler en tiempo real — el jugador navega un grafo mutante, completando aristas una sola vez antes de que el grafo se reconfigure",
+    "emoji": "🧬"
+  },
+  {
+    "id": "035-ventanilla-tres",
+    "title": "Ventanilla 3",
+    "date": "2026-10-22",
+    "description": "Eres funcionario de la Ventanilla 3. Desliza para aprobar o denegar solicitudes de gatos, ranas y patos. Todo se aprueba… salvo lo que prohíba una normativa absurda que crece cada cinco trámites.",
+    "mechanic": "Clasificación binaria deslizando contra un reglamento acumulativo: cada documento tiene varios campos, las normas se suman y alguna anula a las demás; si fallas, se te dice qué norma has incumplido.",
+    "emoji": "📋"
+  }
 ]

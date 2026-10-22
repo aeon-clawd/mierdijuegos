@@ -1,0 +1,46 @@
+<!doctype html>
+<!-- TEST FIXTURE ONLY. Hand-written by the test suite to exercise validators and the browser smoke.
+     It is never published and is not a generated game. -->
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Fixture de prueba</title>
+<style>
+  body { margin: 0; background: #0a0a0a; color: #00ff41; font-family: monospace; touch-action: none; }
+  canvas { display: block; width: 100vw; height: 100vh; }
+  .screen { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: rgba(10,10,10,.9); }
+  .hidden { display: none; }
+  button, a { font: inherit; color: #ff00ff; background: none; border: 2px solid #ff00ff; padding: 10px 20px; }
+  #hud { position: fixed; top: 8px; left: 8px; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">Puntos: <span id="score">0</span></div>
+<div id="menu" class="screen"><h1>FIXTURE</h1><p>Toca los cuadrados.</p><button data-action="start">JUGAR</button></div>
+<div id="over" class="screen hidden"><h2>FIN</h2><p>Puntos: <span id="final">0</span></p>
+  <button data-action="retry">REINTENTAR</button><a href="/" data-action="back">← MÁS MIERDIJUEGOS</a></div>
+<script>
+  const c = document.getElementById('c'), ctx = c.getContext('2d');
+  let state = 'menu', score = 0, t = 0;
+  function resize() { c.width = innerWidth; c.height = innerHeight; }
+  addEventListener('resize', resize); resize();
+  function show(id) { for (const s of ['menu', 'over']) document.getElementById(s).classList.toggle('hidden', s !== id); }
+  function start() { state = 'playing'; score = 0; t = 0; show(null); }
+  function end() { state = 'over'; document.getElementById('final').textContent = score; show('over'); }
+  document.querySelector('[data-action=start]').addEventListener('click', start);
+  document.querySelector('[data-action=retry]').addEventListener('click', start);
+  c.addEventListener('pointerdown', () => { if (state === 'playing') score++; });
+  function loop() {
+    t++;
+    ctx.fillStyle = '#0a0a0a'; ctx.fillRect(0, 0, c.width, c.height);
+    ctx.fillStyle = '#00ffff'; ctx.fillRect((t * 3) % c.width, c.height / 2, 20, 20);
+    document.getElementById('score').textContent = score;
+    requestAnimationFrame(loop);
+  }
+  loop();
+  window.mierdiTest = { state: () => state, score: () => score, forceGameOver: end };
+</script>
+</body>
+</html>

@@ -278,5 +278,13 @@
     "description": "Eres funcionario de la Ventanilla 3. Desliza para aprobar o denegar solicitudes de gatos, ranas y patos. Todo se aprueba… salvo lo que prohíba una normativa absurda que crece cada cinco trámites.",
     "mechanic": "Clasificación binaria deslizando contra un reglamento acumulativo: cada documento tiene varios campos, las normas se suman y alguna anula a las demás; si fallas, se te dice qué norma has incumplido.",
     "emoji": "📋"
+  },
+  {
+    "id": "036-tortilla-al-vuelo",
+    "title": "Tortilla al Vuelo",
+    "date": "2026-10-23",
+    "description": "La abuela te ha dejado la sartén. Tira hacia abajo y suelta para voltear la tortilla en el aire, muévete para cazarla plana y dora las dos caras antes de emplatar. Cruda, quemada o en el suelo: un huevo menos.",
+    "mechanic": "Volteo cargado: cuanto más tiras, más alto sube y más gira (giro ∝ fuerza²). Hay que acertar con media vuelta o vuelta y media, cazarla con deriva lateral y gestionar la cocción de cada cara.",
+    "emoji": "🍳"
   }
 ]

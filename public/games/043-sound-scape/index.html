@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Sound Scape — Mierdijuegos</title>
+<style>
+html,body{margin:0;height:100%;background:#0a0a0a;color:#eee;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;box-sizing:border-box;background:rgba(10,10,10,.93);text-align:center;z-index:2;overflow:auto}
+.hidden{display:none}
+h1{margin:0;font-size:clamp(30px,10vw,52px);color:#ff2bd6;text-shadow:0 0 14px #ff2bd6;letter-spacing:1px}
+p{margin:0;max-width:420px;line-height:1.4}
+ul{text-align:left;margin:0;padding-left:20px;max-width:380px;line-height:1.5;font-size:15px}
+button{font:inherit;font-weight:800;font-size:22px;padding:14px 38px;border-radius:14px;border:2px solid #39ff14;background:#0f2a0f;color:#39ff14;box-shadow:0 0 16px #39ff1466;cursor:pointer}
+#mute{position:fixed;top:8px;right:8px;z-index:3;font-size:22px;padding:6px 10px;min-width:48px;min-height:44px;border-radius:10px;border-color:#00f0ff;background:#0a1a1f;color:#00f0ff;box-shadow:0 0 10px #00f0ff55}
+#mute[aria-pressed="true"]{border-color:#ff2bd6;color:#ff2bd6;background:#1f0a1a}
+a{color:#00f0ff;font-weight:700;text-decoration:none}
+.prov{font-size:12px;color:#8c8c8c;max-width:360px}
+.k{color:#ffe600}.g{color:#39ff14}.m{color:#ff2bd6}.c{color:#00f0ff}
+</style>
+<script src="/ranking.js" defer></script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<button id="mute" type="button" aria-pressed="false" aria-label="Silenciar">🔊</button>
+<div id="menu" class="ov">
+<div style="font-size:54px">🎧</div>
+<h1>SOUND SCAPE</h1>
+<ul>
+<li>Estás en el laberinto, pero <b class="m">no te ves</b>. La salida es el hueco <b class="g">verde</b>.</li>
+<li><b>Toca</b> la pantalla y escucha: la nota es la distancia real hasta la salida. <b class="c">Más grave = más cerca</b>.</li>
+<li><b>Desliza</b> arriba, abajo, izquierda o derecha para moverte una casilla (contra una pared no pasa nada).</li>
+<li>Tienes <b class="k">3 minutos</b>: cada salida es un punto y otro laberinto.</li>
+</ul>
+<p class="k">🎧 Sube el volumen: sin sonido no hay pistas.</p>
+<button data-action="start">JUGAR</button>
+<p class="prov">📼 Mierdijuego original del 2023-03-21 («Sound Scape», 9/10⭐) de diug22/Mierdijuegos, commit 03b2615. Rescatado y adaptado a móvil en 2026. El original no tenía puntos ni final; aquí la sesión dura 3 minutos.</p>
+<a href="/">← MÁS MIERDIJUEGOS</a>
+</div>
+<div id="over" class="ov hidden">
+<div style="font-size:54px">🔔</div>
+<h1>¡TIEMPO!</h1>
+<p id="res"></p>
+<button data-action="retry">REINTENTAR</button>
+<a href="/" data-action="back">← MÁS MIERDIJUEGOS</a>
+</div>
+<script>
+// Reglas del original de 2023 (juegos/sound_scape/sound_scape.js): laberinto por DFS con pila de
+// (⌊ancho/80⌋·2+1)×(⌊alto/80⌋·2+1) celdas, salida en (0,1), jugador invisible; cada toque toca una nota
+// senoidal de 0,5 s (ataque/caída/sostén/relevo) de una escala cromática de 36 notas indexada por la
+// longitud del camino A* hasta la salida; deslizar mueve una casilla si no hay pared.
+// Cambios: sesión de 180 s y puntos = salidas (el original no tenía ni puntos ni reinicio real); un toque
+// corto (< 24 px) solo escucha (en el original movía hacia arriba); el inicio se elige con camino A* de
+// 11–49 pasos (el original medía 10–50 en línea recta desde la esquina opuesta y en móvil caía junto a la
+// salida); botón de silencio. El AudioContext se crea con el gesto de JUGAR.
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W=0,H=0,dpr=1;
+function resize(){dpr=Math.min(window.devicePixelRatio||1,3);W=cv.clientWidth||innerWidth;H=cv.clientHeight||innerHeight;cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);}
+addEventListener('resize',resize);resize();
+const $=id=>document.getElementById(id);
+
+const TOP=64,STEP=1000/60,SESSION=180,SWIPE=24,EXIT={x:0,y:1};
+const SCALE=[
+ 130.81,138.59,146.83,155.56,164.81,174.61,185.00,196.00,207.65,220.00,233.08,246.94,
+ 261.63,277.18,293.66,311.13,329.63,349.23,369.99,392.00,415.30,440.00,466.16,493.88,
+ 523.25,554.37,587.33,622.25,659.25,698.46,739.99,783.99,830.61,880.00,932.33,987.77
+];
+let state='menu',score=0,inputCount=0;
+let maze=null,player={x:1,y:1},ticks=0,flash=0,ripple=null,swipe=null,muted=false;
+
+class Maze{
+ constructor(width,height){this.width=width;this.height=height;this.mazeData=this.generateMaze();}
+ generateMaze(){
+  const maze=Array.from({length:this.height},()=>Array.from({length:this.width},()=>1));
+  const visited=Array.from({length:this.height},()=>Array.from({length:this.width},()=>false));
+  function randomNeighbor(x,y){
+   const n=[[x-2,y],[x+2,y],[x,y-2],[x,y+2]].filter(([nx,ny])=>nx>=0&&ny>=0&&nx<maze[0].length&&ny<maze.length&&!visited[ny][nx]);
+   return n.length?n[Math.floor(Math.random()*n.length)]:null;
+  }
+  const stack=[[1,1]];visited[1][1]=true;maze[1][1]=0;
+  while(stack.length){
+   const [x,y]=stack[stack.length-1],nb=randomNeighbor(x,y);
+   if(nb){const [nx,ny]=nb;maze[ny][nx]=0;maze[y+(ny-y)/2][x+(nx-x)/2]=0;visited[ny][nx]=true;stack.push([nx,ny]);}
+   else stack.pop();
+  }
+  maze[1][0]=0; // entrada/salida
+  return maze;
+ }
+ isPositionValid(x,y){return x>=0&&y>=0&&x<this.width&&y<this.height&&this.mazeData[y][x]===0;}
+}
+
+function aStar(maze,start,goal){
+ const key=p=>p.x+','+p.y,h=(a,b)=>Math.abs(a.x-b.x)+Math.abs(a.y-b.y);
+ const open=[{x:start.x,y:start.y}],came={},g={[key(start)]:0},f={[key(start)]:h(start,goal)};
+ while(open.length){
+  const cur=open.reduce((p,c)=>(f[key(p)]<f[key(c)]?p:c));
+  if(cur.x===goal.x&&cur.y===goal.y){const path=[cur];let c=cur;while(key(c) in came){c=came[key(c)];path.push(c);}return path.reverse();}
+  open.splice(open.indexOf(cur),1);
+  for(const n of [{x:cur.x-1,y:cur.y},{x:cur.x+1,y:cur.y},{x:cur.x,y:cur.y-1},{x:cur.x,y:cur.y+1}]){
+   if(!maze.isPositionValid(n.x,n.y))continue;
+   const t=g[key(cur)]+1;
+   if(!(key(n) in g)||t<g[key(n)]){came[key(n)]=cur;g[key(n)]=t;f[key(n)]=t+h(n,goal);if(!open.some(o=>o.x===n.x&&o.y===n.y))open.push(n);}
+  }
+ }
+ return [];
+}
+
+let audioContext=null,master=null;
+function initAudioContext(){
+ if(!audioContext){
+  const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
+  audioContext=new AC();master=audioContext.createGain();master.connect(audioContext.destination);
+ }
+ if(audioContext.state==='suspended')audioContext.resume();
+ master.gain.value=muted?0:1;
+}
+function playAudioHint(){
+ if(muted||!audioContext)return;
+ const distance=aStar(maze,player,EXIT).length;
+ const o=audioContext.createOscillator(),gn=audioContext.createGain(),t=audioContext.currentTime;
+ o.frequency.value=SCALE[Math.min(distance,SCALE.length-1)];o.type='sine';
+ gn.gain.setValueAtTime(0,t);gn.gain.linearRampToValueAtTime(0.5,t+0.01);gn.gain.linearRampToValueAtTime(0.25,t+0.1);
+ gn.gain.linearRampToValueAtTime(0.25,t+0.3);gn.gain.linearRampToValueAtTime(0,t+0.5);
+ o.connect(gn);gn.connect(master);o.start(t);o.stop(t+0.5);
+}
+function setMuted(m){
+ muted=m;const b=$('mute');b.setAttribute('aria-pressed',String(m));b.textContent=m?'🔇':'🔊';b.setAttribute('aria-label',m?'Activar sonido':'Silenciar');
+ if(master)master.gain.value=m?0:1;
+}
+
+function findStartPosition(){
+ const ok=[];let far=null,farLen=0;
+ for(let i=1;i<maze.height-1;i++)for(let j=1;j<maze.width-1;j++){
+  if(maze.mazeData[i][j]!==0)continue;
+  const len=aStar(maze,{x:j,y:i},EXIT).length;
+  if(len>10&&len<50)ok.push({x:j,y:i});
+  if(len>farLen){farLen=len;far={x:j,y:i};}
+ }
+ return ok.length?ok[Math.floor(Math.random()*ok.length)]:far||{x:1,y:1};
+}
+function newMaze(){
+ const mw=Math.max(5,Math.floor(W/80)*2+1),mh=Math.max(5,Math.floor((H-TOP)/80)*2+1);
+ maze=new Maze(mw,mh);player=findStartPosition();
+}
+function move(dx,dy){
+ if(!maze.isPositionValid(player.x+dx,player.y+dy))return;
+ player={x:player.x+dx,y:player.y+dy};
+ if(player.x===EXIT.x&&player.y===EXIT.y){score++;flash=1;newMaze();}
+}
+
+function startGame(){
+ window.mierdiRanking?.reset();
+ initAudioContext();
+ score=0;ticks=SESSION*60;flash=0;ripple=null;swipe=null;newMaze();acc=0;
+ state='playing';$('menu').classList.add('hidden');$('over').classList.add('hidden');
+}
+function endGame(){
+ if(state!=='playing')return;
+ state='over';swipe=null;
+ $('res').innerHTML='Laberintos escapados: <b class="k">'+score+'</b>';
+ $('over').classList.remove('hidden');
+ window.mierdiRanking?.fin(score);
+}
+function step(){
+ if(flash>0)flash-=1/50;
+ if(ripple&&(ripple.r+=3)>90)ripple=null;
+ if(--ticks<=0){ticks=0;endGame();}
+}
+
+cv.addEventListener('pointerdown',e=>{
+ e.preventDefault();
+ if(state!=='playing')return;
+ inputCount++;
+ swipe={x:e.clientX,y:e.clientY,id:e.pointerId};
+ try{cv.setPointerCapture(e.pointerId)}catch(_){}
+ const r=cv.getBoundingClientRect();ripple={x:e.clientX-r.left,y:e.clientY-r.top,r:6};
+ playAudioHint();
+});
+cv.addEventListener('pointerup',e=>{
+ if(state!=='playing'||!swipe||e.pointerId!==swipe.id)return;
+ const dx=e.clientX-swipe.x,dy=e.clientY-swipe.y;swipe=null;
+ if(Math.max(Math.abs(dx),Math.abs(dy))<SWIPE)return; // toque: solo escuchar
+ if(Math.abs(dx)>Math.abs(dy))move(dx>0?1:-1,0);else move(0,dy>0?1:-1);
+});
+cv.addEventListener('pointercancel',()=>{swipe=null;});
+$('mute').addEventListener('click',()=>setMuted(!muted));
+
+function draw(){
+ ctx.fillStyle='#0a0a0a';ctx.fillRect(0,0,W,H);
+ if(state==='menu'||!maze)return;
+ const cw=W/maze.width,ch=(H-TOP)/maze.height;
+ ctx.fillStyle='#0d2f38';
+ for(let i=0;i<maze.height;i++)for(let j=0;j<maze.width;j++)if(maze.mazeData[i][j]===1)ctx.fillRect(j*cw,TOP+i*ch,cw+.5,ch+.5);
+ ctx.strokeStyle='rgba(0,240,255,.55)';ctx.lineWidth=1;ctx.beginPath();
+ for(let i=0;i<maze.height;i++)for(let j=0;j<maze.width;j++){
+  if(maze.mazeData[i][j]!==1)continue;
+  const x=j*cw,y=TOP+i*ch,open=(a,b)=>a>=0&&b>=0&&a<maze.width&&b<maze.height&&maze.mazeData[b][a]===0;
+  if(open(j,i-1)){ctx.moveTo(x,y);ctx.lineTo(x+cw,y);}
+  if(open(j,i+1)){ctx.moveTo(x,y+ch);ctx.lineTo(x+cw,y+ch);}
+  if(open(j-1,i)){ctx.moveTo(x,y);ctx.lineTo(x,y+ch);}
+  if(open(j+1,i)){ctx.moveTo(x+cw,y);ctx.lineTo(x+cw,y+ch);}
+ }
+ ctx.stroke();
+ const pulse=.6+.4*Math.sin(performance.now()/250);
+ ctx.shadowBlur=18;ctx.shadowColor='#39ff14';ctx.fillStyle=`rgba(57,255,20,${.35+.35*pulse})`;
+ ctx.fillRect(EXIT.x*cw,TOP+EXIT.y*ch,cw,ch);ctx.shadowBlur=0;
+ if(ripple){ctx.strokeStyle=`rgba(255,43,214,${1-ripple.r/90})`;ctx.lineWidth=2;ctx.beginPath();ctx.arc(ripple.x,ripple.y,ripple.r,0,Math.PI*2);ctx.stroke();}
+ if(flash>0){ctx.globalAlpha=Math.max(0,flash);ctx.fillStyle='#39ff14';ctx.font='bold 30px system-ui,sans-serif';ctx.textAlign='center';ctx.fillText('¡SALISTE! +1',W/2,TOP+(H-TOP)/2);ctx.globalAlpha=1;}
+ const s=Math.ceil(ticks/60);
+ ctx.textAlign='left';ctx.font='bold 18px system-ui,sans-serif';
+ ctx.fillStyle=s<=20?'#ff2bd6':'#ffe600';ctx.fillText('⏱ '+Math.floor(s/60)+':'+String(s%60).padStart(2,'0'),12,24);
+ ctx.fillStyle='#39ff14';ctx.fillText('Salidas: '+score,96,24);
+ ctx.font='14px system-ui,sans-serif';
+ ctx.fillStyle=muted?'#ff2bd6':'#00f0ff';ctx.fillText(muted?'🔇 Silenciado: sin pistas':'Toca = escuchar · Desliza = moverte',12,46);
+}
+
+let last=0,acc=0;
+function loop(t){
+ if(!last)last=t;
+ acc=Math.min(acc+t-last,STEP*6);last=t;
+ while(acc>=STEP){acc-=STEP;if(state==='playing')step();}
+ draw();requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+document.querySelector('[data-action="start"]').addEventListener('click',startGame);
+document.querySelector('[data-action="retry"]').addEventListener('click',startGame);
+window.mierdiTest={state:()=>state,score:()=>score,inputs:()=>inputCount,forceGameOver:endGame,
+ view:()=>({maze:maze?maze.mazeData.map(r=>r.slice()):null,player:{...player},exit:{...EXIT},path:maze?aStar(maze,player,EXIT).length:0,scale:SCALE.slice(),left:ticks/60,muted})};
+</script>
+</body>
+</html>

@@ -294,5 +294,53 @@
     "description": "Eres el perro pastor y las ovejas te tienen pánico. Arrastra para correr, toca para ladrar y empuja al rebaño hasta el corral antes de que se acabe el tiempo. Hay ovejas tercas que solo obedecen al ¡GUAU! y un lobo con mucha hambre.",
     "mechanic": "Pastoreo por repulsión: no tocas a las ovejas, las empujas con tu presencia. Cada oveja huye del perro, sigue a la bandada y deambula. Hay que rodear el grupo, cerrar flancos y meterlo por la puerta del corral. Ladrido con recarga, ovejas tercas y lobos.",
     "emoji": "🐑"
+  },
+  {
+    "id": "038-zigzag-salto",
+    "title": "ZigZag Salto",
+    "date": "2023-03-18",
+    "description": "Del Mierdijuegos original de 2023. La bola va sola de pared a pared: toca para cambiar de dirección, esquiva las barras que caen y pilla los cuadrados dorados.",
+    "mechanic": "Zigzag de un solo toque: la bola avanza sola y rebota; tocar invierte la dirección. Barras de anchura aleatoria = fin; bonus +100; puntos por tiempo y por barras superadas.",
+    "emoji": "〰️"
+  },
+  {
+    "id": "039-cazador-de-estrellas",
+    "title": "Cazador de Estrellas",
+    "date": "2023-03-19",
+    "description": "Del Mierdijuegos original de 2023. Tu nave salta a izquierda o derecha según dónde toques. Caza estrellas y no te comas ningún asteroide.",
+    "mechanic": "Movimiento a saltos fijos: cada toque mueve la nave 50 px hacia ese lado. Estrellas +10, un asteroide = fin.",
+    "emoji": "⭐"
+  },
+  {
+    "id": "040-conexion-cuantica",
+    "title": "Conexión Cuántica",
+    "date": "2023-03-19",
+    "description": "Del Mierdijuegos original de 2023. Arrastra entre qubits para entrelazarlos hasta que cada uno esté unido con todos los demás. Un minuto para tejer todas las redes que puedas.",
+    "mechanic": "Grafo completo a mano: arrastra de qubit a qubit; la red se completa con las 10 parejas de 5 qubits y aparece otra. Sesión de 60 s, un punto por conexión.",
+    "emoji": "⚛️"
+  },
+  {
+    "id": "041-colorblitz",
+    "title": "ColorBlitz",
+    "date": "2023-03-19",
+    "description": "Del Mierdijuegos original de 2023. Una casilla es un pelín más clara que las demás: encuéntrala antes de que se acabe el tiempo. Cada acierto agranda la rejilla.",
+    "mechanic": "Encuentra el color distinto: acierto = +1 punto, +1 s y rejilla mayor (3×3 a 8×8). Fallar o quedarse sin tiempo = fin.",
+    "emoji": "🎨"
+  },
+  {
+    "id": "042-wave-river",
+    "title": "Wave River",
+    "date": "2023-03-21",
+    "description": "Del Mierdijuegos original de 2023. Un surfista pegado a una ola que no para de ondular. Cada toque lo acerca un poco a tu dedo: pilla monedas y esquiva los obstáculos rojos.",
+    "mechanic": "Arrastre a toques: cada toque acerca al surfista un 10 % hacia el dedo sobre una ola que ondula. Monedas efímeras +1, obstáculo = fin.",
+    "emoji": "🏄"
+  },
+  {
+    "id": "043-sound-scape",
+    "title": "Sound Scape",
+    "date": "2023-03-21",
+    "description": "Del Mierdijuegos original de 2023. Ves el laberinto pero no a ti mismo. Toca y escucha: la nota te dice lo lejos que estás de la salida. Con cascos, mejor.",
+    "mechanic": "Navegación por oído: cada toque suena una nota según la longitud del camino más corto a la salida (más grave = más cerca); deslizar mueve una casilla. Sesión de 3 min, un punto por salida.",
+    "emoji": "🎧"
   }
 ]

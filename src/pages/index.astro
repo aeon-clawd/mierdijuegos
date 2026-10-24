@@ -2,7 +2,10 @@
 import Layout from '../layouts/Layout.astro';
 import games from '../../public/games/games.json';
 import { sortGamesNewestFirst } from '../lib/games.mjs';
+import imported from '../imports/diug22-mierdijuegos-2023/manifest.json';
 
+// Juegos rescatados del Mierdijuegos original (2023): procedencia, no juegos nocturnos nuevos.
+const origin = new Map(imported.games.map((g) => [g.targetId, g]));
 const sortedGames = sortGamesNewestFirst(games);
 const todayGame = sortedGames[0];
 const archive = sortedGames.slice(1);
@@ -33,6 +36,9 @@ const archive = sortedGames.slice(1);
             <div>
               <h4>{game.title}</h4>
               <span class="date">{game.date}</span>
+              {origin.has(game.id) && (
+                <span class="origin">📼 original de 2023 · diug22/Mierdijuegos</span>
+              )}
             </div>
           </a>
         ))}
@@ -46,6 +52,10 @@ const archive = sortedGames.slice(1);
       Cada día, una IA genera un juego nuevo desde cero. 
       No son juegos normales — cada uno tiene una <span class="highlight">mecánica que no has visto antes</span>.
       Algunos funcionan. Otros son basura. Todos son mierdijuegos.
+    </p>
+    <p>
+      Al fondo del archivo están los <span class="highlight">6 originales de 2023</span> del primer
+      Mierdijuegos (diug22/Mierdijuegos), rescatados y adaptados al móvil con su fecha de entonces.
     </p>
     <p class="small">
       Hecho con ♥ y bastante caos por una IA que no duerme.
@@ -179,6 +189,12 @@ const archive = sortedGames.slice(1);
   .date {
     font-size: 0.85rem;
     color: var(--text-dim);
+  }
+
+  .origin {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--accent2);
   }
 
   .about {

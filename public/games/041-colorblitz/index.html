@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>ColorBlitz — Mierdijuegos</title>
+<style>
+html,body{margin:0;height:100%;background:#0a0a0a;color:#eee;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;box-sizing:border-box;background:rgba(10,10,10,.93);text-align:center;z-index:2;overflow:auto}
+.hidden{display:none}
+h1{margin:0;font-size:clamp(30px,10vw,52px);color:#ff2bd6;text-shadow:0 0 14px #ff2bd6;letter-spacing:1px}
+p{margin:0;max-width:420px;line-height:1.4}
+ul{text-align:left;margin:0;padding-left:20px;max-width:380px;line-height:1.5;font-size:15px}
+button{font:inherit;font-weight:800;font-size:22px;padding:14px 38px;border-radius:14px;border:2px solid #39ff14;background:#0f2a0f;color:#39ff14;box-shadow:0 0 16px #39ff1466;cursor:pointer}
+a{color:#00f0ff;font-weight:700;text-decoration:none}
+.prov{font-size:12px;color:#8c8c8c;max-width:360px}
+.k{color:#ffe600}.g{color:#39ff14}.m{color:#ff2bd6}.c{color:#00f0ff}
+</style>
+<script src="/ranking.js" defer></script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="menu" class="ov">
+<div style="font-size:54px">🎨</div>
+<h1>COLORBLITZ</h1>
+<ul>
+<li>Todas las casillas son casi iguales… menos <b class="k">una</b>, un pelín más clara.</li>
+<li><b>Tócala</b>: +1 punto, <b class="g">+1 segundo</b> y la rejilla crece (de 3×3 a 8×8).</li>
+<li>Empiezas con <b>10 s</b>. Si fallas una casilla o se acaba el tiempo, <b class="m">fin</b>.</li>
+</ul>
+<button data-action="start">JUGAR</button>
+<p class="prov">📼 Mierdijuego original del 2023-03-19 («ColorBlitz», 8/10⭐) de diug22/Mierdijuegos, commit edd0f54. Rescatado y adaptado a móvil en 2026: mismas reglas.</p>
+<a href="/">← MÁS MIERDIJUEGOS</a>
+</div>
+<div id="over" class="ov hidden">
+<div style="font-size:54px">🙈</div>
+<h1 id="why">GAME OVER</h1>
+<p id="res"></p>
+<button data-action="retry">REINTENTAR</button>
+<a href="/" data-action="back">← MÁS MIERDIJUEGOS</a>
+</div>
+<script>
+// Reglas del original de 2023 (juegos/colorblitz/colorblitz.js): rejilla 3×3 que crece +1 por acierto
+// hasta 8×8; casillas = color base ±10 por canal; la distinta = base +30 por canal; 10 s iniciales y
+// +1 s por acierto (el tiempo corre a 1000/60 ms por tick); fallar = fin. Cambios: tablero cuadrado bajo
+// el marcador, y el color base se elige en 10–215 para que la casilla distinta no se sature a 255 y
+// quede idéntica a las demás (pasaba en el original con bases claras).
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W=0,H=0,dpr=1;
+function resize(){dpr=Math.min(window.devicePixelRatio||1,3);W=cv.clientWidth||innerWidth;H=cv.clientHeight||innerHeight;cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);}
+addEventListener('resize',resize);resize();
+const $=id=>document.getElementById(id);
+
+const TOP=70,STEP=1000/60,VAR=20;
+let state='menu',score=0,inputCount=0;
+let colors=[],oddColorIndex=0,gridSize=3,timer=10000,elapsedTime=0,why='';
+
+function board(){const size=Math.min(W-24,H-TOP-24);return{x:(W-size)/2,y:TOP+(H-TOP-size)/2,size};}
+function generateColors(){
+ const c=()=>10+Math.floor(Math.random()*206);
+ const base={r:c(),g:c(),b:c()};
+ colors=[];
+ for(let i=0;i<gridSize*gridSize;i++){
+  colors[i]={r:base.r+Math.floor(Math.random()*VAR)-VAR/2,g:base.g+Math.floor(Math.random()*VAR)-VAR/2,b:base.b+Math.floor(Math.random()*VAR)-VAR/2};
+ }
+ oddColorIndex=Math.floor(Math.random()*gridSize*gridSize);
+ colors[oddColorIndex]={r:base.r+VAR+10,g:base.g+VAR+10,b:base.b+VAR+10};
+}
+function checkCorrectColor(index){
+ if(index===oddColorIndex){score++;gridSize=Math.min(8,gridSize+1);timer+=1000;generateColors();}
+ else{why='¡ESA NO ERA!';endGame();}
+}
+
+function startGame(){
+ window.mierdiRanking?.reset();
+ score=0;gridSize=3;elapsedTime=0;timer=10000;why='';generateColors();acc=0;
+ state='playing';$('menu').classList.add('hidden');$('over').classList.add('hidden');
+}
+function endGame(){
+ if(state!=='playing')return;
+ state='over';
+ $('why').textContent=why||'GAME OVER';
+ $('res').innerHTML='Aciertos: <b class="k">'+score+'</b>';
+ $('over').classList.remove('hidden');
+ window.mierdiRanking?.fin(score);
+}
+function step(){
+ elapsedTime+=STEP;
+ if(elapsedTime>=timer){elapsedTime=timer;why='¡SIN TIEMPO!';endGame();}
+}
+
+cv.addEventListener('pointerdown',e=>{
+ e.preventDefault();
+ if(state!=='playing')return;
+ inputCount++;
+ const r=cv.getBoundingClientRect(),b=board(),x=e.clientX-r.left-b.x,y=e.clientY-r.top-b.y;
+ if(x<0||y<0||x>=b.size||y>=b.size)return;
+ const cell=b.size/gridSize;
+ checkCorrectColor(Math.floor(y/cell)*gridSize+Math.floor(x/cell));
+});
+
+function draw(){
+ ctx.fillStyle='#0a0a0a';ctx.fillRect(0,0,W,H);
+ if(state==='menu')return;
+ const b=board(),cell=b.size/gridSize,gap=gridSize>6?1:2;
+ for(let i=0;i<gridSize;i++)for(let j=0;j<gridSize;j++){
+  const c=colors[i*gridSize+j];
+  ctx.fillStyle=`rgb(${c.r},${c.g},${c.b})`;
+  ctx.fillRect(b.x+j*cell+gap,b.y+i*cell+gap,cell-2*gap,cell-2*gap);
+ }
+ const left=Math.max(0,(timer-elapsedTime)/1000);
+ ctx.textAlign='left';ctx.font='bold 20px system-ui,sans-serif';
+ ctx.fillStyle=left<3?'#ff2bd6':'#ffe600';ctx.fillText('⏱ '+left.toFixed(1)+' s',12,30);
+ ctx.fillStyle='#39ff14';ctx.fillText('Aciertos: '+score,W/2,30);
+ ctx.fillStyle='#222';ctx.fillRect(12,44,W-24,6);
+ ctx.fillStyle=left<3?'#ff2bd6':'#00f0ff';ctx.fillRect(12,44,(W-24)*Math.min(1,left/10),6);
+}
+
+let last=0,acc=0;
+function loop(t){
+ if(!last)last=t;
+ acc=Math.min(acc+t-last,STEP*6);last=t;
+ while(acc>=STEP){acc-=STEP;if(state==='playing')step();}
+ draw();requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+document.querySelector('[data-action="start"]').addEventListener('click',startGame);
+document.querySelector('[data-action="retry"]').addEventListener('click',startGame);
+window.mierdiTest={state:()=>state,score:()=>score,inputs:()=>inputCount,forceGameOver:endGame,
+ view:()=>({grid:gridSize,odd:oddColorIndex,board:board(),left:(timer-elapsedTime)/1000})};
+</script>
+</body>
+</html>

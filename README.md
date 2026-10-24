@@ -74,6 +74,17 @@ Cada juego tiene un top 5 sin cuentas: al terminar una partida se abre un panel 
 - **Solo producción**: ambos cargadores actúan únicamente en `mierdijuegos.com` y `www.mierdijuegos.com`; en localhost, 127.0.0.1 (tests, smoke) y previews `*.vercel.app` no hacen nada. Si un bloqueador corta el script, el juego y el ranking siguen igual.
 - **Tests**: `test/analytics.test.mjs` (Chromium, producción simulada con `route.fulfill` y script de Vercel mockeado; no sale telemetría). Pendiente tras el deploy: comprobar en mierdijuegos.com que `/_vercel/insights/script.js` responde 200 y que aparecen vistas en el panel de Vercel.
 
+## Juegos importados de 2023 (038–043)
+
+Los seis juegos visibles del Mierdijuegos original ([diug22/Mierdijuegos](https://github.com/diug22/Mierdijuegos), snapshot `b6e551d`) están en el catálogo como **archivo histórico**, no como juegos nocturnos: 038 ZigZag Salto (2023-03-18), 039 Cazador de Estrellas, 040 Conexión Cuántica, 041 ColorBlitz (2023-03-19), 042 Wave River y 043 Sound Scape (2023-03-21).
+
+- **Procedencia**: `src/imports/diug22-mierdijuegos-2023/manifest.json` (repo/commit fuente, juego fuente, id destino, fecha original, commit y ruta de evidencia, cadena de renombrados) y `PROVENANCE.md` (razonamiento). Fecha = día Europe/Madrid del primer commit que añade el juego; ids por orden de esa introducción. Ojo: `git log --follow` sobre los `index.html` stub da fechas falsas para 042/043. Está bajo `src/` porque la portada lo importa y el staging de `nightly` solo copia `public/` y `src/`.
+- **Excluido**: `boucing_bots` (oculto en la fuente y sin terminar).
+- **Adaptación**: misma mecánica y constantes, interfaz actual (instrucciones, JUGAR, fin real, REINTENTAR, `/ranking.js`), tick fijo de 1/60 s y arreglos de bugs listados en `PROVENANCE.md`. 040 y 043 no tenían puntos ni final: se acotan a sesiones de 60 s / 180 s (puntos = conexiones / laberintos escapados). Sound Scape usa Web Audio creado con el gesto de JUGAR y tiene botón de silencio.
+- **Portada**: ordena por fecha, así que salen al final del archivo con su fecha de 2023 y la etiqueta «📼 original de 2023»; 037 (o el último nocturno) sigue siendo el del día.
+- **Ranking**: paso humano, aplicar `supabase/migrations/20261024150000_seed_juegos_importados_2023.sql` (solo inserta las seis filas vacías, `on conflict do nothing`; no toca puntuaciones, RLS ni la RPC). Hasta entonces su panel dice "ranking no disponible".
+- **Tests**: `test/import-2023.test.mjs` (manifiesto, evidencia git si existe `.local/import-source`, 37 juegos previos byte a byte frente a `d23f1a9`, contrato HTML, orden por fecha, SQL) y `test/import-2023-browser.test.mjs` (Chromium móvil, Supabase **mockeado**: entrada real, fin natural salvo 043 y la 2.ª ronda de 040, ranking, reintento; portada compilada con Astro). No prueban que sean divertidos.
+
 ## Planificación (FUTURO, no instalada)
 
 `scripts/nightly-cron.sh` fija `PATH`, `TZ=Europe/Madrid`, entra en el repo y ejecuta `npm run nightly -- --publish`. No contiene secretos. Cuando se haya validado una generación y un deploy reales:

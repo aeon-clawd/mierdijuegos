@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Wave River — Mierdijuegos</title>
+<style>
+html,body{margin:0;height:100%;background:#0a0a0a;color:#eee;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;box-sizing:border-box;background:rgba(10,10,10,.93);text-align:center;z-index:2;overflow:auto}
+.hidden{display:none}
+h1{margin:0;font-size:clamp(30px,10vw,52px);color:#ff2bd6;text-shadow:0 0 14px #ff2bd6;letter-spacing:1px}
+p{margin:0;max-width:420px;line-height:1.4}
+ul{text-align:left;margin:0;padding-left:20px;max-width:380px;line-height:1.5;font-size:15px}
+button{font:inherit;font-weight:800;font-size:22px;padding:14px 38px;border-radius:14px;border:2px solid #39ff14;background:#0f2a0f;color:#39ff14;box-shadow:0 0 16px #39ff1466;cursor:pointer}
+a{color:#00f0ff;font-weight:700;text-decoration:none}
+.prov{font-size:12px;color:#8c8c8c;max-width:360px}
+.k{color:#ffe600}.g{color:#39ff14}.m{color:#ff2bd6}.c{color:#00f0ff}
+</style>
+<script src="/ranking.js" defer></script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="menu" class="ov">
+<div style="font-size:54px">🏄</div>
+<h1>WAVE RIVER</h1>
+<ul>
+<li>Tu <b class="g">surfista</b> va pegado a la <b class="c">ola</b>.</li>
+<li>Cada <b>toque</b> lo acerca un 10 % hacia donde toques: toca muchas veces para cruzar.</li>
+<li>Pilla <b class="k">monedas</b> (+1, desaparecen a los 5 s).</li>
+<li>Los <b class="m">cuadrados rojos</b> parpadean un instante antes de ser sólidos: si te tocan, fin.</li>
+</ul>
+<button data-action="start">JUGAR</button>
+<p class="prov">📼 Mierdijuego original del 2023-03-21 («Wave River», 2/10⭐) de diug22/Mierdijuegos, commit 398ee18. Rescatado y adaptado a móvil en 2026: mismas reglas más un aviso antes de cada obstáculo.</p>
+<a href="/">← MÁS MIERDIJUEGOS</a>
+</div>
+<div id="over" class="ov hidden">
+<div style="font-size:54px">🌊</div>
+<h1>¡REVOLCÓN!</h1>
+<p id="res"></p>
+<button data-action="retry">REINTENTAR</button>
+<a href="/" data-action="back">← MÁS MIERDIJUEGOS</a>
+</div>
+<script>
+// Reglas del original de 2023 (juegos/wave_river/wave_river.js): surfista 30×30 sobre una ola de 10
+// tramos que ondula (segmento += sen(i·2π/10 + t·0,01)·0,5 por tick); cada toque: x += (dedo − x)·0,1;
+// monedas 10×10 (1 %/tick, cerca de la altura del surfista, viven 300 ticks, +1); obstáculos 10×10
+// (2 %/tick, a ±30 px de su altura, 300 ticks, chocar = fin). Tick fijo de 1/60 s.
+// Arreglos: el original nunca descontaba la vida de los obstáculos (se acumulaban sin fin), podía hacer
+// aparecer uno directamente encima (muerte sin aviso; aquí parpadean 60 ticks (1 s) antes de ser sólidos) y
+// el último tramo de la ola leía un punto inexistente (NaN); la ola tiene 11 puntos de borde a borde.
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W=0,H=0,dpr=1;
+function resize(){dpr=Math.min(window.devicePixelRatio||1,3);W=cv.clientWidth||innerWidth;H=cv.clientHeight||innerHeight;cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);}
+addEventListener('resize',resize);resize();
+const $=id=>document.getElementById(id);
+
+const SEG=10,STEP=1000/60,WARN=60,LIFE=300;
+let state='menu',score=0,inputCount=0;
+const surfer={x:50,y:150,width:30,height:30,angle:0};
+const wave={height:0,segments:[],speed:0.01};
+let coins=[],obstacles=[],simT=0;
+
+function createWaveSegments(){wave.segments=[];for(let i=0;i<=SEG;i++)wave.segments.push(Math.random()*30-15);}
+function updateWaveSegments(){simT+=STEP;for(let i=0;i<=SEG;i++)wave.segments[i]+=Math.sin(i*2*Math.PI/SEG+simT*wave.speed)*0.5;}
+function waveAt(x){
+ const seg=W/SEG,i=Math.max(0,Math.min(SEG-1,Math.floor(x/seg))),f=Math.max(0,Math.min(1,(x-i*seg)/seg));
+ return{y:wave.height+wave.segments[i]*(1-f)+wave.segments[i+1]*f,slope:Math.atan2(wave.segments[i+1]-wave.segments[i],seg)};
+}
+function updateSurfer(){
+ surfer.x=Math.max(0,Math.min(W-surfer.width,surfer.x));
+ const w=waveAt(surfer.x+surfer.width/2);
+ surfer.y=w.y-surfer.height/2;surfer.angle=w.slope;
+}
+const checkCollision=(a,b)=>a.x<b.x+b.width&&a.x+a.width>b.x&&a.y<b.y+b.height&&a.y+a.height>b.y;
+function createObstacle(){obstacles.push({x:Math.random()*(W-20)+10,y:surfer.y-30+Math.random()*60,width:10,height:10,warn:WARN,life:LIFE});}
+function createCoin(){coins.push({x:Math.random()*(W-20)+10,y:surfer.y-20+Math.random()*40,width:10,height:10,life:LIFE});}
+
+function startGame(){
+ window.mierdiRanking?.reset();
+ score=0;coins=[];obstacles=[];simT=0;wave.height=Math.round(H*0.45);createWaveSegments();
+ surfer.x=50;surfer.angle=0;updateSurfer();acc=0;
+ state='playing';$('menu').classList.add('hidden');$('over').classList.add('hidden');
+}
+function endGame(){
+ if(state!=='playing')return;
+ state='over';
+ $('res').innerHTML='Monedas: <b class="k">'+score+'</b>';
+ $('over').classList.remove('hidden');
+ window.mierdiRanking?.fin(score);
+}
+function step(){
+ updateWaveSegments();updateSurfer();
+ for(let i=coins.length-1;i>=0;i--){
+  const c=coins[i];c.life--;
+  if(checkCollision(surfer,c)){score++;coins.splice(i,1);}
+  else if(c.life<=0)coins.splice(i,1);
+ }
+ for(let i=obstacles.length-1;i>=0;i--){
+  const o=obstacles[i];
+  if(o.warn>0){o.warn--;continue;}
+  if(checkCollision(surfer,o)){endGame();return;}
+  if(--o.life<=0)obstacles.splice(i,1);
+ }
+ if(Math.random()<0.01)createCoin();
+ if(Math.random()<0.02)createObstacle();
+}
+
+cv.addEventListener('pointerdown',e=>{
+ e.preventDefault();
+ if(state!=='playing')return;
+ inputCount++;
+ const r=cv.getBoundingClientRect(),deltaX=e.clientX-r.left-surfer.x;
+ surfer.x+=deltaX*0.1;
+ updateSurfer();
+});
+
+function draw(){
+ ctx.fillStyle='#0a0a0a';ctx.fillRect(0,0,W,H);
+ if(state==='menu')return;
+ const seg=W/SEG,s=wave.segments;
+ const g=ctx.createLinearGradient(0,wave.height-20,0,H);g.addColorStop(0,'rgba(0,240,255,.45)');g.addColorStop(1,'rgba(0,240,255,.03)');
+ ctx.beginPath();ctx.moveTo(0,wave.height+s[0]);
+ for(let i=0;i<SEG;i++)ctx.quadraticCurveTo((i+0.5)*seg,wave.height+(s[i]+s[i+1])/2,(i+1)*seg,wave.height+s[i+1]);
+ ctx.lineTo(W,H);ctx.lineTo(0,H);ctx.closePath();ctx.fillStyle=g;ctx.fill();
+ ctx.shadowBlur=12;ctx.shadowColor='#00f0ff';ctx.strokeStyle='#00f0ff';ctx.lineWidth=2;
+ ctx.beginPath();ctx.moveTo(0,wave.height+s[0]);
+ for(let i=0;i<SEG;i++)ctx.quadraticCurveTo((i+0.5)*seg,wave.height+(s[i]+s[i+1])/2,(i+1)*seg,wave.height+s[i+1]);
+ ctx.stroke();
+ ctx.fillStyle=ctx.shadowColor='#ffe600';
+ for(const c of coins){ctx.globalAlpha=c.life<60?.4+.6*((c.life>>3)&1):1;ctx.beginPath();ctx.arc(c.x+5,c.y+5,5,0,Math.PI*2);ctx.fill();}
+ ctx.globalAlpha=1;
+ for(const o of obstacles){
+  if(o.warn>0){ctx.shadowBlur=0;ctx.strokeStyle=(o.warn>>2)&1?'#ff2bd6':'rgba(255,43,214,.3)';ctx.lineWidth=1.5;ctx.strokeRect(o.x-2,o.y-2,14,14);}
+  else{ctx.shadowBlur=10;ctx.fillStyle=ctx.shadowColor='#ff3030';ctx.fillRect(o.x,o.y,10,10);}
+ }
+ ctx.save();ctx.translate(surfer.x+surfer.width/2,surfer.y+surfer.height/2);ctx.rotate(surfer.angle);
+ ctx.shadowBlur=14;ctx.fillStyle=ctx.shadowColor='#39ff14';ctx.fillRect(-surfer.width/2,-surfer.height/2,surfer.width,surfer.height);
+ ctx.fillStyle='#0a0a0a';ctx.shadowBlur=0;ctx.fillRect(-8,-6,4,4);ctx.fillRect(4,-6,4,4);
+ ctx.restore();ctx.shadowBlur=0;
+ ctx.fillStyle='#ffe600';ctx.font='bold 18px system-ui,sans-serif';ctx.textAlign='left';
+ ctx.fillText('Monedas: '+score,12,28);
+}
+
+let last=0,acc=0;
+function loop(t){
+ if(!last)last=t;
+ acc=Math.min(acc+t-last,STEP*6);last=t;
+ while(acc>=STEP){acc-=STEP;if(state==='playing')step();}
+ draw();requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+document.querySelector('[data-action="start"]').addEventListener('click',startGame);
+document.querySelector('[data-action="retry"]').addEventListener('click',startGame);
+window.mierdiTest={state:()=>state,score:()=>score,inputs:()=>inputCount,forceGameOver:endGame,
+ view:()=>({sx:surfer.x,sy:surfer.y,coins:coins.length,obstacles:obstacles.length})};
+</script>
+</body>
+</html>

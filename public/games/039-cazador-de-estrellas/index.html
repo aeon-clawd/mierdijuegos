@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Cazador de Estrellas — Mierdijuegos</title>
+<style>
+html,body{margin:0;height:100%;background:#0a0a0a;color:#eee;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;box-sizing:border-box;background:rgba(10,10,10,.93);text-align:center;z-index:2;overflow:auto}
+.hidden{display:none}
+h1{margin:0;font-size:clamp(28px,9vw,50px);color:#ff2bd6;text-shadow:0 0 14px #ff2bd6;letter-spacing:1px}
+p{margin:0;max-width:420px;line-height:1.4}
+ul{text-align:left;margin:0;padding-left:20px;max-width:380px;line-height:1.5;font-size:15px}
+button{font:inherit;font-weight:800;font-size:22px;padding:14px 38px;border-radius:14px;border:2px solid #39ff14;background:#0f2a0f;color:#39ff14;box-shadow:0 0 16px #39ff1466;cursor:pointer}
+a{color:#00f0ff;font-weight:700;text-decoration:none}
+.prov{font-size:12px;color:#8c8c8c;max-width:360px}
+.k{color:#ffe600}.g{color:#39ff14}.m{color:#ff2bd6}.c{color:#00f0ff}
+</style>
+<script src="/ranking.js" defer></script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="menu" class="ov">
+<div style="font-size:54px">⭐</div>
+<h1>CAZADOR DE ESTRELLAS</h1>
+<ul>
+<li>Toca a la <b>izquierda</b> o a la <b>derecha</b> de tu <b class="g">nave</b>: da un salto de 50 px hacia ese lado.</li>
+<li>Caza las <b class="k">estrellas</b>: +10 cada una.</li>
+<li>Un <b class="m">asteroide</b> y estás frito.</li>
+</ul>
+<button data-action="start">JUGAR</button>
+<p class="prov">📼 Mierdijuego original del 2023-03-19 («Cazador de estrellas», 5/10⭐) de diug22/Mierdijuegos, commit a2de361. Rescatado y adaptado a móvil en 2026: mismas reglas.</p>
+<a href="/">← MÁS MIERDIJUEGOS</a>
+</div>
+<div id="over" class="ov hidden">
+<div style="font-size:54px">☄️</div>
+<h1>GAME OVER</h1>
+<p id="res"></p>
+<button data-action="retry">REINTENTAR</button>
+<a href="/" data-action="back">← MÁS MIERDIJUEGOS</a>
+</div>
+<script>
+// Reglas del original de 2023 (juegos/cazador_estrellas/cazador_estrellas.js): nave 30×30 abajo, cada
+// toque la mueve 50 px hacia el lado del toque; estrellas 10×10 caen a 2 px/tick (2 %/tick, +10),
+// asteroides 30×30 a 3 px/tick (1 %/tick, fin). Tick fijo de 1/60 s (el original iba a 1 por frame).
+// Arreglo: el original no borraba nunca lo que salía por abajo (filter sin asignar); aquí sí.
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W=0,H=0,dpr=1;
+function resize(){dpr=Math.min(window.devicePixelRatio||1,3);W=cv.clientWidth||innerWidth;H=cv.clientHeight||innerHeight;cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);}
+addEventListener('resize',resize);resize();
+const $=id=>document.getElementById(id);
+
+const STEP=1000/60,BOTTOM=34;
+let state='menu',score=0,inputCount=0;
+const player={x:0,y:0,width:30,height:30};
+let stars=[],asteroids=[],sky=[];
+for(let i=0;i<70;i++)sky.push({x:Math.random(),y:Math.random(),s:Math.random()*1.5+.3});
+
+const overlap=o=>player.x<o.x+o.width&&player.x+player.width>o.x&&player.y<o.y+o.height&&player.y+player.height>o.y;
+function createStar(){stars.push({x:Math.random()*(W-10),y:-10,width:10,height:10});}
+function createAsteroid(){asteroids.push({x:Math.random()*(W-30),y:-30,width:30,height:30,r:Math.random()*6});}
+
+function startGame(){
+ window.mierdiRanking?.reset();
+ score=0;stars=[];asteroids=[];player.x=W/2;player.y=H-30-BOTTOM;acc=0;
+ state='playing';$('menu').classList.add('hidden');$('over').classList.add('hidden');
+}
+function endGame(){
+ if(state!=='playing')return;
+ state='over';
+ $('res').innerHTML='Puntuación: <b class="k">'+score+'</b> ('+score/10+' estrellas)';
+ $('over').classList.remove('hidden');
+ window.mierdiRanking?.fin(score);
+}
+function step(){
+ for(let i=stars.length-1;i>=0;i--){stars[i].y+=2;if(overlap(stars[i])){score+=10;stars.splice(i,1);}}
+ for(const a of asteroids){a.y+=3;if(overlap(a)){endGame();return;}}
+ stars=stars.filter(s=>s.y<H);asteroids=asteroids.filter(a=>a.y<H);
+ if(Math.random()<0.02)createStar();
+ if(Math.random()<0.01)createAsteroid();
+}
+
+cv.addEventListener('pointerdown',e=>{
+ e.preventDefault();
+ if(state!=='playing')return;
+ inputCount++;
+ const r=cv.getBoundingClientRect(),tx=e.clientX-r.left;
+ player.x+=tx<player.x?-50:50;
+ player.x=Math.max(0,Math.min(W-player.width,player.x));
+});
+
+function draw(){
+ ctx.fillStyle='#0a0a0a';ctx.fillRect(0,0,W,H);
+ const t=performance.now()/1000;
+ ctx.fillStyle='#ffffff';
+ for(const s of sky){ctx.globalAlpha=.25+.2*Math.sin(t*2+s.x*40);ctx.fillRect(s.x*W,(s.y*H+t*8*s.s)%H,s.s,s.s);}
+ ctx.globalAlpha=1;
+ if(state==='menu')return;
+ ctx.shadowBlur=12;
+ ctx.fillStyle=ctx.shadowColor='#ffe600';
+ for(const s of stars){ctx.save();ctx.translate(s.x+5,s.y+5);ctx.rotate(t*3);ctx.fillRect(-5,-5,10,10);ctx.restore();}
+ ctx.fillStyle='#7a6a8a';ctx.shadowColor='#ff2bd6';
+ for(const a of asteroids){ctx.beginPath();for(let k=0;k<7;k++){const ang=k/7*Math.PI*2,rr=13+((k*7+a.r)%5)*0.8;ctx.lineTo(a.x+15+Math.cos(ang)*rr,a.y+15+Math.sin(ang)*rr);}ctx.closePath();ctx.fill();}
+ ctx.fillStyle=ctx.shadowColor='#39ff14';
+ ctx.beginPath();ctx.moveTo(player.x+15,player.y);ctx.lineTo(player.x+30,player.y+30);ctx.lineTo(player.x+15,player.y+22);ctx.lineTo(player.x,player.y+30);ctx.closePath();ctx.fill();
+ ctx.shadowBlur=0;
+ ctx.fillStyle='#ffe600';ctx.font='bold 18px system-ui,sans-serif';ctx.textAlign='left';
+ ctx.fillText('Puntuación: '+score,12,28);
+}
+
+let last=0,acc=0;
+function loop(t){
+ if(!last)last=t;
+ acc=Math.min(acc+t-last,STEP*6);last=t;
+ while(acc>=STEP){acc-=STEP;if(state==='playing')step();}
+ draw();requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+document.querySelector('[data-action="start"]').addEventListener('click',startGame);
+document.querySelector('[data-action="retry"]').addEventListener('click',startGame);
+window.mierdiTest={state:()=>state,score:()=>score,inputs:()=>inputCount,forceGameOver:endGame,
+ view:()=>({px:player.x,py:player.y,stars:stars.length,asteroids:asteroids.length})};
+</script>
+</body>
+</html>

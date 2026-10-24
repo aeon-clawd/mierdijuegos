@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>ZigZag Salto — Mierdijuegos</title>
+<style>
+html,body{margin:0;height:100%;background:#0a0a0a;color:#eee;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;box-sizing:border-box;background:rgba(10,10,10,.93);text-align:center;z-index:2;overflow:auto}
+.hidden{display:none}
+h1{margin:0;font-size:clamp(30px,10vw,52px);color:#ff2bd6;text-shadow:0 0 14px #ff2bd6;letter-spacing:1px}
+p{margin:0;max-width:420px;line-height:1.4}
+ul{text-align:left;margin:0;padding-left:20px;max-width:380px;line-height:1.5;font-size:15px}
+button{font:inherit;font-weight:800;font-size:22px;padding:14px 38px;border-radius:14px;border:2px solid #39ff14;background:#0f2a0f;color:#39ff14;box-shadow:0 0 16px #39ff1466;cursor:pointer}
+a{color:#00f0ff;font-weight:700;text-decoration:none}
+.prov{font-size:12px;color:#8c8c8c;max-width:360px}
+.k{color:#ffe600}.g{color:#39ff14}.m{color:#ff2bd6}.c{color:#00f0ff}
+</style>
+<script src="/ranking.js" defer></script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="menu" class="ov">
+<div style="font-size:54px">〰️</div>
+<h1>ZIGZAG SALTO</h1>
+<ul>
+<li>La <b class="c">bola</b> va sola de lado a lado y rebota en las paredes.</li>
+<li><b>Toca</b> en cualquier sitio para <b class="g">cambiar de dirección</b>.</li>
+<li>Esquiva las <b class="m">barras</b> que caen: si chocas, se acabó.</li>
+<li>Los <b class="k">cuadrados dorados</b> dan +100. Cada barra que dejas atrás suma.</li>
+</ul>
+<button data-action="start">JUGAR</button>
+<p class="prov">📼 Mierdijuego original del 2023-03-18 («ZigZagSalto», 7/10⭐) de diug22/Mierdijuegos, commit a360432. Rescatado y adaptado a móvil en 2026: mismas reglas.</p>
+<a href="/">← MÁS MIERDIJUEGOS</a>
+</div>
+<div id="over" class="ov hidden">
+<div style="font-size:54px">💥</div>
+<h1>GAME OVER</h1>
+<p id="res"></p>
+<button data-action="retry">REINTENTAR</button>
+<a href="/" data-action="back">← MÁS MIERDIJUEGOS</a>
+</div>
+<script>
+// Reglas del original de 2023 (juegos/zig_zag_salto/zig_zag_salto.js): bola a velocidad 3 px/tick,
+// radio 10, barras 10–70 % del ancho (1 %/tick), bonus 20×20 (0,5 %/tick, +100), +1 por tick y +1 por
+// tick por cada barra ya por debajo de la bola. El original iba a 1 tick por frame; aquí el tick es
+// fijo de 1/60 s para que la velocidad y los puntos no dependan de la pantalla.
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W=0,H=0,dpr=1;
+function resize(){dpr=Math.min(window.devicePixelRatio||1,3);W=cv.clientWidth||innerWidth;H=cv.clientHeight||innerHeight;cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);}
+addEventListener('resize',resize);resize();
+const $=id=>document.getElementById(id);
+
+const R=10,SPEED=3,STEP=1000/60;
+let state='menu',score=0,inputCount=0,best=0;
+let posX=0,posY=0,dir=-1,obstacles=[],powerUps=[];
+
+function createObstacle(){const w=Math.random()*(W*0.6)+W*0.1;obstacles.push({x:Math.random()*(W-w),y:-20,w,h:10});}
+function createPowerUp(){powerUps.push({x:Math.random()*(W-20),y:-20,w:20,h:20});}
+const hits=o=>posX+R>o.x&&posX-R<o.x+o.w&&posY+R>o.y&&posY-R<o.y+o.h;
+
+function startGame(){
+ window.mierdiRanking?.reset();
+ posX=W/2;posY=H/2;dir=-1;score=0;obstacles=[];powerUps=[];acc=0;
+ state='playing';$('menu').classList.add('hidden');$('over').classList.add('hidden');
+}
+function endGame(){
+ if(state!=='playing')return;
+ state='over';
+ if(score>best)best=score;
+ $('res').innerHTML='Puntos: <b class="k">'+score+'</b><br>Mejor de esta sesión: '+best;
+ $('over').classList.remove('hidden');
+ window.mierdiRanking?.fin(score);
+}
+function step(){
+ posX+=dir*SPEED;
+ if(posX<R||posX>W-R){dir*=-1;posX=Math.max(R,Math.min(W-R,posX));}
+ for(const o of obstacles){
+  o.y+=SPEED;
+  if(hits(o)){endGame();return;}
+  if(o.y+o.h>posY)score++;
+ }
+ for(let i=powerUps.length-1;i>=0;i--){powerUps[i].y+=SPEED;if(hits(powerUps[i])){score+=100;powerUps.splice(i,1);}}
+ obstacles=obstacles.filter(o=>o.y<H);powerUps=powerUps.filter(p=>p.y<H);
+ if(Math.random()<0.01)createObstacle();
+ if(Math.random()<0.005)createPowerUp();
+ score++;
+}
+
+cv.addEventListener('pointerdown',e=>{
+ e.preventDefault();
+ if(state!=='playing')return;
+ inputCount++;dir*=-1;
+});
+
+function draw(){
+ ctx.fillStyle='#0a0a0a';ctx.fillRect(0,0,W,H);
+ ctx.strokeStyle='rgba(0,240,255,.06)';ctx.lineWidth=1;
+ for(let y=(performance.now()/20)%40;y<H;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+ if(state==='menu')return;
+ ctx.shadowBlur=14;
+ ctx.fillStyle=ctx.shadowColor='#ff2bd6';
+ for(const o of obstacles)ctx.fillRect(o.x,o.y,o.w,o.h);
+ ctx.fillStyle=ctx.shadowColor='#ffe600';
+ for(const p of powerUps)ctx.fillRect(p.x,p.y,p.w,p.h);
+ ctx.fillStyle=ctx.shadowColor='#00f0ff';
+ ctx.beginPath();ctx.arc(posX,posY,R,0,Math.PI*2);ctx.fill();
+ ctx.shadowBlur=0;
+ ctx.fillStyle='#39ff14';ctx.font='bold 18px system-ui,sans-serif';ctx.textAlign='left';
+ ctx.fillText('Puntos: '+score,12,28);
+ ctx.fillStyle='#8c8c8c';ctx.font='15px system-ui,sans-serif';ctx.fillText('Mejor: '+best,12,50);
+}
+
+let last=0,acc=0;
+function loop(t){
+ if(!last)last=t;
+ acc=Math.min(acc+t-last,STEP*6);last=t;
+ while(acc>=STEP){acc-=STEP;if(state==='playing')step();}
+ draw();requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+document.querySelector('[data-action="start"]').addEventListener('click',startGame);
+document.querySelector('[data-action="retry"]').addEventListener('click',startGame);
+window.mierdiTest={state:()=>state,score:()=>score,inputs:()=>inputCount,forceGameOver:endGame,
+ view:()=>({dir,posX,posY,obstacles:obstacles.length})};
+</script>
+</body>
+</html>

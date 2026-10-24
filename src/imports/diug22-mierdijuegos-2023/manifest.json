@@ -1,0 +1,180 @@
+{
+  "description": "Importación de los seis juegos visibles del Mierdijuegos original (2023) al catálogo actual. Procedencia y razonamiento de fechas: PROVENANCE.md (misma carpeta).",
+  "source": {
+    "repo": "https://github.com/diug22/Mierdijuegos",
+    "commit": "b6e551dea8f9354afd6e5178f89b6d1dd20f283f",
+    "commitDate": "2023-03-23T13:02:07+01:00",
+    "catalogFile": "src/fileList.json",
+    "localSnapshot": ".local/import-source"
+  },
+  "baseline": {
+    "commit": "d23f1a92836f1f1411f7f9cc7e10d3a4352b52c3",
+    "games": 37,
+    "note": "Los 37 juegos (001–037) y sus HTML quedan byte a byte como en este commit."
+  },
+  "dateRule": "originalDate = día (Europe/Madrid) de la fecha de autor del primer commit que añade el juego, siguiendo una cadena explícita de rutas (renombrados R100 y la extracción del script inline a .js con lógica idéntica). No se usa la fecha de última modificación ni la de migración.",
+  "seedMigration": "supabase/migrations/20261024150000_seed_juegos_importados_2023.sql",
+  "games": [
+    {
+      "sourceId": "zig_zag_salto",
+      "sourceName": "ZigZagSalto",
+      "sourceRating": "7/10⭐",
+      "sourceScript": "juegos/zig_zag_salto/zig_zag_salto.js",
+      "targetId": "038-zigzag-salto",
+      "title": "ZigZag Salto",
+      "originalDate": "2023-03-18",
+      "evidence": {
+        "commit": "a360432c8b0741aea50e18e71e4b71c3bb3c176e",
+        "path": "zig_zag_salto.html",
+        "authorDate": "2023-03-18T22:26:19Z",
+        "subject": "Create zig_zag_salto.html"
+      },
+      "pathChain": [
+        { "path": "zig_zag_salto.html" },
+        { "via": "rename", "commit": "58edc5176bbaf70dc9f0c474d47c1a5d1b444656", "from": "zig_zag_salto.html", "path": "src/zig_zag_salto.html/zig_zag_salto.html" },
+        { "via": "rename", "commit": "bf5d46c3583f5b8ee3f5345c2e83c060c20df6c4", "from": "src/zig_zag_salto.html/zig_zag_salto.html", "path": "juegos/zig_zag_salto/index.html" },
+        { "via": "extract", "commit": "f67e2a43145a2d578782744fd4efe82c6b2e55f2", "from": "juegos/zig_zag_salto/index.html", "path": "juegos/zig_zag_salto/zig_zag_salto.js" }
+      ],
+      "mechanic": "La bola avanza sola en horizontal y rebota en las paredes; tocar invierte la dirección. Caen barras de anchura aleatoria (chocar = fin) y bonus dorados (+100).",
+      "ranking": {
+        "score": "Puntuación original: +1 por tick de 1/60 s, +1 por tick por cada barra que ya está por debajo de la bola, +100 por bonus.",
+        "end": "Natural: colisión con una barra."
+      }
+    },
+    {
+      "sourceId": "cazador_estrellas",
+      "sourceName": "Cazador de estrellas",
+      "sourceRating": "5/10⭐",
+      "sourceScript": "juegos/cazador_estrellas/cazador_estrellas.js",
+      "targetId": "039-cazador-de-estrellas",
+      "title": "Cazador de Estrellas",
+      "originalDate": "2023-03-19",
+      "evidence": {
+        "commit": "a2de361701ead880435d508ef30f4ad9ba8f474b",
+        "path": "cazador_estrellas.html",
+        "authorDate": "2023-03-19T09:02:30Z",
+        "subject": "Create cazador_estrellas.html"
+      },
+      "pathChain": [
+        { "path": "cazador_estrellas.html" },
+        { "via": "rename", "commit": "58edc5176bbaf70dc9f0c474d47c1a5d1b444656", "from": "cazador_estrellas.html", "path": "src/cazador_estrellas/cazador_estrellas.html" },
+        { "via": "rename", "commit": "bf5d46c3583f5b8ee3f5345c2e83c060c20df6c4", "from": "src/cazador_estrellas/cazador_estrellas.html", "path": "juegos/cazador_estrellas/index.html" },
+        { "via": "extract", "commit": "f67e2a43145a2d578782744fd4efe82c6b2e55f2", "from": "juegos/cazador_estrellas/index.html", "path": "juegos/cazador_estrellas/cazador_estrellas.js" }
+      ],
+      "mechanic": "La nave da un paso de 50 px hacia el lado que tocas. Estrellas que caen: +10. Asteroides: fin.",
+      "ranking": {
+        "score": "Puntuación original: +10 por estrella.",
+        "end": "Natural: un asteroide toca la nave."
+      }
+    },
+    {
+      "sourceId": "conexion_cuantica",
+      "sourceName": "Conexión cuántica",
+      "sourceRating": "2/10⭐",
+      "sourceScript": "juegos/conexion_cuantica/conexion_cuantica.js",
+      "targetId": "040-conexion-cuantica",
+      "title": "Conexión Cuántica",
+      "originalDate": "2023-03-19",
+      "evidence": {
+        "commit": "743c8b367715c9d1d0d71db71449044181589e43",
+        "path": "conexiom_cuantica.html",
+        "authorDate": "2023-03-19T11:08:01Z",
+        "subject": "Create conexiom_cuantica.html"
+      },
+      "pathChain": [
+        { "path": "conexiom_cuantica.html" },
+        { "via": "rename", "commit": "0306d754fc9a36e901d32923592fdf8ed32d5106", "from": "conexiom_cuantica.html", "path": "conexion_cuantica.html" },
+        { "via": "rename", "commit": "58edc5176bbaf70dc9f0c474d47c1a5d1b444656", "from": "conexion_cuantica.html", "path": "src/conexion_cuantica/conexion_cuantica.html" },
+        { "via": "rename", "commit": "bf5d46c3583f5b8ee3f5345c2e83c060c20df6c4", "from": "src/conexion_cuantica/conexion_cuantica.html", "path": "juegos/conexion_cuantica/index.html" },
+        { "via": "extract", "commit": "f67e2a43145a2d578782744fd4efe82c6b2e55f2", "from": "juegos/conexion_cuantica/index.html", "path": "juegos/conexion_cuantica/conexion_cuantica.js" }
+      ],
+      "mechanic": "Arrastra de un qubit a otro para entrelazarlos. La red se completa al unir las 10 parejas de 5 qubits (grafo completo).",
+      "ranking": {
+        "score": "Conexiones válidas hechas en la sesión (cada red completa = 10).",
+        "end": "Natural: se agota la sesión de 60 s.",
+        "session": "El original no tenía puntuación ni derrota: al completar la red mostraba «Ganaste!» y un toque generaba otra. Se acota a 60 s y se cuentan conexiones; la regla para completar una red no cambia."
+      }
+    },
+    {
+      "sourceId": "colorblitz",
+      "sourceName": "ColorBlitz",
+      "sourceRating": "8/10⭐",
+      "sourceScript": "juegos/colorblitz/colorblitz.js",
+      "targetId": "041-colorblitz",
+      "title": "ColorBlitz",
+      "originalDate": "2023-03-19",
+      "evidence": {
+        "commit": "edd0f54f61eb3d39c96b0b246ebeda5b41f2fddf",
+        "path": "colorblitz.html",
+        "authorDate": "2023-03-19T12:42:47Z",
+        "subject": "Create colorblitz.html"
+      },
+      "pathChain": [
+        { "path": "colorblitz.html" },
+        { "via": "rename", "commit": "58edc5176bbaf70dc9f0c474d47c1a5d1b444656", "from": "colorblitz.html", "path": "src/colorblitz/colorblitz.html" },
+        { "via": "rename", "commit": "bf5d46c3583f5b8ee3f5345c2e83c060c20df6c4", "from": "src/colorblitz/colorblitz.html", "path": "juegos/colorblitz/index.html" },
+        { "via": "extract", "commit": "f67e2a43145a2d578782744fd4efe82c6b2e55f2", "from": "juegos/colorblitz/index.html", "path": "juegos/colorblitz/colorblitz.js" }
+      ],
+      "mechanic": "Toca la casilla de color distinto. Acertar: +1, la rejilla crece (3×3 hasta 8×8) y +1 s. Fallar o quedarse sin tiempo: fin. Empiezas con 10 s.",
+      "ranking": {
+        "score": "Puntuación original: aciertos.",
+        "end": "Natural: casilla equivocada o tiempo agotado."
+      }
+    },
+    {
+      "sourceId": "wave_river",
+      "sourceName": "Wave River",
+      "sourceRating": "2/10⭐",
+      "sourceScript": "juegos/wave_river/wave_river.js",
+      "targetId": "042-wave-river",
+      "title": "Wave River",
+      "originalDate": "2023-03-21",
+      "evidence": {
+        "commit": "398ee1818ec08a769e0334ecbb28ed5eafba9237",
+        "path": "juegos/wave_river/wave_river.js",
+        "authorDate": "2023-03-21T14:53:32+01:00",
+        "subject": "wafe river"
+      },
+      "pathChain": [
+        { "path": "juegos/wave_river/wave_river.js" }
+      ],
+      "mechanic": "El surfista va pegado a la ola; cada toque lo acerca un 10 % hacia tu dedo. Monedas: +1 (duran 5 s). Obstáculos rojos: fin.",
+      "ranking": {
+        "score": "Puntuación original: monedas.",
+        "end": "Natural: un obstáculo toca al surfista."
+      }
+    },
+    {
+      "sourceId": "sound_scape",
+      "sourceName": "Sound Scape",
+      "sourceRating": "9/10⭐",
+      "sourceScript": "juegos/sound_scape/sound_scape.js",
+      "targetId": "043-sound-scape",
+      "title": "Sound Scape",
+      "originalDate": "2023-03-21",
+      "evidence": {
+        "commit": "03b26159fde64d8364497ceaa3f8d450440ac1ff",
+        "path": "juegos/sound_scape/sound_scape.js",
+        "authorDate": "2023-03-21T22:51:02+01:00",
+        "subject": "sound scape"
+      },
+      "pathChain": [
+        { "path": "juegos/sound_scape/sound_scape.js" }
+      ],
+      "mechanic": "Laberinto visible, jugador invisible. Cada toque suena una nota cuya altura es la longitud del camino más corto (A*) hasta la salida: más grave = más cerca. Desliza para moverte una casilla.",
+      "ranking": {
+        "score": "Laberintos escapados en la sesión.",
+        "end": "Natural: se agota la sesión de 180 s (en los tests automáticos se fuerza con mierdiTest.forceGameOver).",
+        "session": "El original no tenía puntuación ni límite: al llegar a la salida mostraba «Ganaste!» y no reiniciaba bien. Se acota a 180 s y cada salida genera otro laberinto; el objetivo (salir guiado por el tono) no cambia."
+      }
+    }
+  ],
+  "excluded": [
+    {
+      "sourceId": "boucing_bots",
+      "sourceName": "Boucing Bots",
+      "firstCommit": "9f5cd66c04e82db9a064180ed5455082e464bd85",
+      "reason": "Oculto en el catálogo fuente (is_visible: false) y sin terminar: un único robot rebota sin objetivo, puntuación ni fin; el bucle está anidado dentro de otra función gameLoop, el control es solo la barra espaciadora (inútil en móvil) y reutiliza el GIF y el <title> de otros juegos. Importarlo obligaría a inventar el juego entero."
+    }
+  ]
+}

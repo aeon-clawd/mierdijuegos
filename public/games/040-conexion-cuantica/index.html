@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Conexión Cuántica — Mierdijuegos</title>
+<style>
+html,body{margin:0;height:100%;background:#0a0a0a;color:#eee;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;box-sizing:border-box;background:rgba(10,10,10,.93);text-align:center;z-index:2;overflow:auto}
+.hidden{display:none}
+h1{margin:0;font-size:clamp(28px,9vw,50px);color:#ff2bd6;text-shadow:0 0 14px #ff2bd6;letter-spacing:1px}
+p{margin:0;max-width:420px;line-height:1.4}
+ul{text-align:left;margin:0;padding-left:20px;max-width:380px;line-height:1.5;font-size:15px}
+button{font:inherit;font-weight:800;font-size:22px;padding:14px 38px;border-radius:14px;border:2px solid #39ff14;background:#0f2a0f;color:#39ff14;box-shadow:0 0 16px #39ff1466;cursor:pointer}
+a{color:#00f0ff;font-weight:700;text-decoration:none}
+.prov{font-size:12px;color:#8c8c8c;max-width:360px}
+.k{color:#ffe600}.g{color:#39ff14}.m{color:#ff2bd6}.c{color:#00f0ff}
+</style>
+<script src="/ranking.js" defer></script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="menu" class="ov">
+<div style="font-size:54px">⚛️</div>
+<h1>CONEXIÓN CUÁNTICA</h1>
+<ul>
+<li><b>Arrastra</b> de un <b class="c">qubit</b> a otro para entrelazarlos.</li>
+<li>La red está completa cuando <b>cada qubit está unido con todos los demás</b> (10 parejas).</li>
+<li>Al completarla aparece otra. Tienes <b class="k">60 segundos</b>: cada conexión es un punto.</li>
+</ul>
+<button data-action="start">JUGAR</button>
+<p class="prov">📼 Mierdijuego original del 2023-03-19 («Conexión cuántica», 2/10⭐) de diug22/Mierdijuegos, commit 743c8b3. Rescatado y adaptado a móvil en 2026. El original no tenía puntos ni final; aquí la sesión dura 60 s.</p>
+<a href="/">← MÁS MIERDIJUEGOS</a>
+</div>
+<div id="over" class="ov hidden">
+<div style="font-size:54px">🔗</div>
+<h1>¡DECOHERENCIA!</h1>
+<p id="res"></p>
+<button data-action="retry">REINTENTAR</button>
+<a href="/" data-action="back">← MÁS MIERDIJUEGOS</a>
+</div>
+<script>
+// Reglas del original de 2023 (juegos/conexion_cuantica/conexion_cuantica.js): 5 qubits al azar; arrastrar
+// de un qubit al más cercano al soltar crea la conexión si no existe; con las n(n-1)/2 = 10 conexiones se
+// gana y se genera otra red. Cambios: sesión de 60 s y puntos = conexiones (el original no tenía ni
+// puntos ni fin); radio de agarre 30 px en vez de 20 (dedos) y qubits separados al menos 70 px para que
+// dos no se solapen.
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W=0,H=0,dpr=1;
+function resize(){dpr=Math.min(window.devicePixelRatio||1,3);W=cv.clientWidth||innerWidth;H=cv.clientHeight||innerHeight;cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);}
+addEventListener('resize',resize);resize();
+const $=id=>document.getElementById(id);
+
+const N=5,HIT=30,TOP=64,STEP=1000/60,SESSION=60;
+const TOTAL=N*(N-1)/2;
+let state='menu',score=0,inputCount=0;
+let qubits=[],connections=[],selected=null,dragging=false,touchEnd={x:0,y:0},redes=0,ticks=0,flash=0;
+
+function generateRandomQubits(n){
+ const out=[];
+ for(let tries=0;out.length<n&&tries<500;tries++){
+  const q={x:Math.random()*(W-80)+40,y:Math.random()*(H-TOP-80)+TOP+40};
+  if(out.every(o=>Math.hypot(o.x-q.x,o.y-q.y)>=70)||tries>400)out.push(q);
+ }
+ return out;
+}
+function findClosestQubit(x,y){
+ let closest=null,best=Infinity;
+ qubits.forEach((q,i)=>{const d=Math.hypot(q.x-x,q.y-y);if(d<HIT&&d<best){closest=i;best=d;}});
+ return closest;
+}
+const connectionExists=(a,b)=>connections.some(c=>(c.start===a&&c.end===b)||(c.start===b&&c.end===a));
+function checkWin(){
+ if(connections.length===TOTAL){redes++;flash=1;connections=[];qubits=generateRandomQubits(N);}
+}
+
+function startGame(){
+ window.mierdiRanking?.reset();
+ score=0;redes=0;ticks=SESSION*60;flash=0;connections=[];selected=null;dragging=false;qubits=generateRandomQubits(N);acc=0;
+ state='playing';$('menu').classList.add('hidden');$('over').classList.add('hidden');
+}
+function endGame(){
+ if(state!=='playing')return;
+ state='over';dragging=false;selected=null;
+ $('res').innerHTML='Conexiones: <b class="k">'+score+'</b><br>Redes completas: '+redes;
+ $('over').classList.remove('hidden');
+ window.mierdiRanking?.fin(score);
+}
+function step(){
+ if(flash>0)flash-=1/40;
+ if(--ticks<=0){ticks=0;endGame();}
+}
+
+function pos(e){const r=cv.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};}
+cv.addEventListener('pointerdown',e=>{
+ e.preventDefault();
+ if(state!=='playing')return;
+ inputCount++;
+ const p=pos(e);touchEnd=p;
+ selected=findClosestQubit(p.x,p.y);
+ if(selected!==null){dragging=true;try{cv.setPointerCapture(e.pointerId)}catch(_){}}
+});
+cv.addEventListener('pointermove',e=>{if(dragging)touchEnd=pos(e);});
+cv.addEventListener('pointerup',e=>{
+ if(state!=='playing'||!dragging)return;
+ const p=pos(e),target=findClosestQubit(p.x,p.y);
+ if(selected!==null&&target!==null&&target!==selected&&!connectionExists(selected,target)){
+  connections.push({start:selected,end:target});score++;checkWin();
+ }
+ selected=null;dragging=false;
+});
+cv.addEventListener('pointercancel',()=>{selected=null;dragging=false;});
+
+function draw(){
+ ctx.fillStyle='#0a0a0a';ctx.fillRect(0,0,W,H);
+ if(state==='menu')return;
+ const t=performance.now()/1000;
+ ctx.lineCap='round';ctx.shadowBlur=12;
+ ctx.strokeStyle=ctx.shadowColor='#ff2bd6';ctx.lineWidth=3;
+ for(const c of connections){ctx.beginPath();ctx.moveTo(qubits[c.start].x,qubits[c.start].y);ctx.lineTo(qubits[c.end].x,qubits[c.end].y);ctx.stroke();}
+ if(dragging&&selected!==null){
+  ctx.strokeStyle=ctx.shadowColor='#ffe600';ctx.lineWidth=1.5;ctx.setLineDash([5,5]);
+  ctx.beginPath();ctx.moveTo(qubits[selected].x,qubits[selected].y);ctx.lineTo(touchEnd.x,touchEnd.y);ctx.stroke();ctx.setLineDash([]);
+ }
+ qubits.forEach((q,i)=>{
+  const deg=connections.filter(c=>c.start===i||c.end===i).length;
+  ctx.strokeStyle='rgba(0,240,255,.25)';ctx.shadowBlur=0;ctx.lineWidth=1;
+  ctx.beginPath();ctx.arc(q.x,q.y,HIT,0,Math.PI*2);ctx.stroke();
+  ctx.shadowBlur=16;ctx.fillStyle=ctx.shadowColor=deg===N-1?'#39ff14':'#00f0ff';
+  ctx.beginPath();ctx.arc(q.x,q.y,10+Math.sin(t*4+i)*1.5,0,Math.PI*2);ctx.fill();
+ });
+ ctx.shadowBlur=0;
+ if(flash>0){ctx.globalAlpha=Math.max(0,flash);ctx.fillStyle='#39ff14';ctx.font='bold 30px system-ui,sans-serif';ctx.textAlign='center';ctx.fillText('¡RED ENTRELAZADA!',W/2,H/2);ctx.globalAlpha=1;}
+ ctx.fillStyle='rgba(10,10,10,.8)';ctx.fillRect(0,0,W,TOP-10);
+ ctx.textAlign='left';ctx.font='bold 18px system-ui,sans-serif';
+ ctx.fillStyle=ticks<600?'#ff2bd6':'#ffe600';ctx.fillText('⏱ '+Math.ceil(ticks/60)+' s',12,24);
+ ctx.fillStyle='#39ff14';ctx.fillText('Conexiones: '+score,92,24);
+ ctx.fillStyle='#00f0ff';ctx.font='15px system-ui,sans-serif';ctx.fillText('Red: '+connections.length+'/'+TOTAL+'   Redes completas: '+redes,12,46);
+}
+
+let last=0,acc=0;
+function loop(t){
+ if(!last)last=t;
+ acc=Math.min(acc+t-last,STEP*6);last=t;
+ while(acc>=STEP){acc-=STEP;if(state==='playing')step();}
+ draw();requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+document.querySelector('[data-action="start"]').addEventListener('click',startGame);
+document.querySelector('[data-action="retry"]').addEventListener('click',startGame);
+window.mierdiTest={state:()=>state,score:()=>score,inputs:()=>inputCount,forceGameOver:endGame,
+ view:()=>({qubits:qubits.map(q=>({x:q.x,y:q.y})),conns:connections.length,redes,left:ticks/60})};
+</script>
+</body>
+</html>

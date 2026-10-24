@@ -67,6 +67,13 @@ Cada juego tiene un top 5 sin cuentas: al terminar una partida se abre un panel 
 - Los tests de UI y de juegos usan Supabase **mockeado** en Chromium; el SQL se ha ejecutado en PGlite (Postgres 17 en WASM, sin PostgREST) y, tras aplicarlo, contra el proyecto real (permisos del rol `anon`, top 5/empates/orden asc/idempotencia/entradas inválidas con rollback y 10 envíos HTTP públicos concurrentes sobre una fila temporal ya borrada). Pendiente: probar el panel en un navegador real desde mierdijuegos.com (CORS de ese origen).
 - `test/ranking-games.test.mjs` provoca el fin de cada juego llamando a su función terminal real (031: poniendo `health=0`; 030: bola en la meta) y pulsa sus botones reales; no demuestra que cada juego se pueda ganar o perder jugando. Para que el juego no termine solo entre el clic de JUGAR y el fin inyectado, el test congela `requestAnimationFrame` en esa ventana (los temporizadores siguen corriendo); 005 y 028 terminan de forma natural, con frames libres.
 
+## Analítica (Vercel Web Analytics)
+
+- **Qué mide**: solo las páginas vistas estándar de Vercel (URL, referrer, país/dispositivo agregados). Sin eventos propios ni Speed Insights; nunca siglas, resultados, peticiones a Supabase ni identificadores. `public/analytics.js` no crea cookies ni localStorage.
+- **Cómo carga**: `public/analytics.js` (vanilla, ~15 líneas) prepara la cola `window.va` e inyecta una sola vez el script oficial same-origin `/_vercel/insights/script.js`. La home lo carga desde `Layout.astro` (`<script is:inline defer src="/analytics.js">`). Los juegos estáticos **no** llevan etiqueta propia: `public/ranking.js`, que todos incluyen, inyecta `/analytics.js` una vez antes del ranking, así que los juegos nuevos quedan cubiertos sin tocar su HTML (ni el validador ni el hash de `publish`).
+- **Solo producción**: ambos cargadores actúan únicamente en `mierdijuegos.com` y `www.mierdijuegos.com`; en localhost, 127.0.0.1 (tests, smoke) y previews `*.vercel.app` no hacen nada. Si un bloqueador corta el script, el juego y el ranking siguen igual.
+- **Tests**: `test/analytics.test.mjs` (Chromium, producción simulada con `route.fulfill` y script de Vercel mockeado; no sale telemetría). Pendiente tras el deploy: comprobar en mierdijuegos.com que `/_vercel/insights/script.js` responde 200 y que aparecen vistas en el panel de Vercel.
+
 ## Planificación (FUTURO, no instalada)
 
 `scripts/nightly-cron.sh` fija `PATH`, `TZ=Europe/Madrid`, entra en el repo y ejecuta `npm run nightly -- --publish`. No contiene secretos. Cuando se haya validado una generación y un deploy reales:

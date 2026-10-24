@@ -4,6 +4,16 @@
 // de cada partida; los callbacks terminales repetidos se ignoran hasta el siguiente reset().
 // La clave es la publishable (rol anon), pública por diseño: la tabla es de solo lectura por RLS
 // y la única escritura es la RPC mierdi_enviar_resultado, que valida todo en el servidor.
+
+// Cargador común de analítica de los juegos estáticos (todos incluyen este fichero): solo en producción
+// inyecta una vez /analytics.js (páginas vistas de Vercel). No comparte nada con el ranking.
+if (/^(www\.)?mierdijuegos\.com$/.test(location.hostname) && !document.querySelector('script[src="/analytics.js"]')) {
+  const s = document.createElement('script');
+  s.src = '/analytics.js';
+  s.defer = true;
+  document.head.appendChild(s);
+}
+
 (() => {
   'use strict';
   const SUPABASE = 'https://grldrwbiovglfxqjdicv.supabase.co';

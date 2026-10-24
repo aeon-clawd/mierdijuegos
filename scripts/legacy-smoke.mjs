@@ -23,6 +23,8 @@ try {
  const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
  await page.goto(server.url,{waitUntil:'load'});
  if(!(await page.title()).includes('Mierdijuegos')) throw new Error('wrong home title');
+ // Compiled home: Vercel analytics bootstrap once (inert on 127.0.0.1), old VPS tracker gone.
+ if(await page.locator('script[src="/analytics.js"]').count()!==1||await page.locator('script[src*="vps-dee05c78"]').count()) throw new Error('unexpected home analytics tags');
  const cards=await page.locator('a[href^="/games/"]').count();
  const latest=await page.locator('.today-card').getAttribute('href');
  if(cards!==catalog.length||latest!==expectedLatest)throw new Error(`unexpected homepage: ${cards} cards, ${latest}`);

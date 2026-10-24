@@ -286,5 +286,13 @@
     "description": "La abuela te ha dejado la sartén. Tira hacia abajo y suelta para voltear la tortilla en el aire, muévete para cazarla plana y dora las dos caras antes de emplatar. Cruda, quemada o en el suelo: un huevo menos.",
     "mechanic": "Volteo cargado: cuanto más tiras, más alto sube y más gira (giro ∝ fuerza²). Hay que acertar con media vuelta o vuelta y media, cazarla con deriva lateral y gestionar la cocción de cada cara.",
     "emoji": "🍳"
+  },
+  {
+    "id": "037-rebano-rebelde",
+    "title": "Rebaño Rebelde",
+    "date": "2026-10-24",
+    "description": "Eres el perro pastor y las ovejas te tienen pánico. Arrastra para correr, toca para ladrar y empuja al rebaño hasta el corral antes de que se acabe el tiempo. Hay ovejas tercas que solo obedecen al ¡GUAU! y un lobo con mucha hambre.",
+    "mechanic": "Pastoreo por repulsión: no tocas a las ovejas, las empujas con tu presencia. Cada oveja huye del perro, sigue a la bandada y deambula. Hay que rodear el grupo, cerrar flancos y meterlo por la puerta del corral. Ladrido con recarga, ovejas tercas y lobos.",
+    "emoji": "🐑"
   }
 ]

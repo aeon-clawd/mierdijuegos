@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Rebaño Rebelde · Mierdijuegos</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#0a0a0a;color:#eafcff;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden;-webkit-user-select:none;user-select:none}
+#c{position:fixed;left:0;top:0;display:block;touch-action:none}
+.ov{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(10,10,10,.9);z-index:5;overflow:auto}
+.hide{display:none}
+.card{max-width:400px;width:100%;text-align:center}
+h1{margin:0 0 6px;font-size:40px;line-height:1;color:#39ff14;text-shadow:0 0 14px #39ff14}
+h2{margin:0 0 10px;font-size:30px;color:#ff2bd6;text-shadow:0 0 12px #ff2bd6}
+.emo{font-size:50px;margin-bottom:6px}
+ul{list-style:none;padding:0;margin:16px 0;text-align:left;font-size:16px;line-height:1.4}
+li{margin:9px 0;padding-left:30px;position:relative}
+li b{color:#ffe600}
+li span{position:absolute;left:0}
+.tag{color:#00f0ff;font-size:15px;margin:0}
+.big{font-size:46px;font-weight:900;color:#ffe600;text-shadow:0 0 12px #ffe600;margin:8px 0}
+button{font:inherit;font-size:22px;font-weight:900;letter-spacing:1px;padding:14px 40px;margin:10px 0;border-radius:14px;border:3px solid #39ff14;background:#0a0a0a;color:#39ff14;box-shadow:0 0 18px #39ff1466,inset 0 0 10px #39ff1433;cursor:pointer;touch-action:manipulation}
+button:active{transform:scale(.96)}
+a{color:#00f0ff;font-weight:700;text-decoration:none;display:inline-block;margin-top:10px;padding:8px}
+.small{opacity:.75;font-size:14px}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="menu" class="ov"><div class="card">
+<div class="emo">🐑🐕</div>
+<h1>REBAÑO REBELDE</h1>
+<p class="tag">Eres el perro pastor. Las ovejas te tienen miedo. Aprovéchalo.</p>
+<ul>
+<li><span>👆</span><b>Arrastra</b>: el perro corre hacia tu dedo y las ovejas huyen de él.</li>
+<li><span>💥</span><b>Toque rápido</b>: ¡GUAU! Espanta todo lo cercano y despierta a las ovejas tercas 💜.</li>
+<li><span>🏠</span>Mete en el <b>corral amarillo</b> las ovejas que pide cada nivel antes de que se acabe el tiempo.</li>
+<li><span>🐺</span>Si aparece el lobo, ladra o plántale cara.</li>
+</ul>
+<button data-action="start">JUGAR</button>
+<p class="small">Récord: <b id="mbest">0</b></p>
+</div></div>
+<div id="over" class="ov hide"><div class="card">
+<h2>FIN DEL PASTOREO</h2>
+<p id="reason"></p>
+<div class="big"><span id="fscore">0</span> pts</div>
+<p>Nivel <b id="flevel">1</b> · Récord <b id="fbest">0</b></p>
+<button data-action="retry">REINTENTAR</button><br>
+<a href="/" data-action="back">← MÁS MIERDIJUEGOS</a>
+</div></div>
+<script>
+const TAU=Math.PI*2,KEY='rebanoRebeldeBest',HUD=46;
+const $=q=>document.querySelector(q);
+const cv=$('#c'),ctx=cv.getContext('2d');
+let W=0,H=0,DPR=1,S=1;
+let state='menu',score=0,inputCount=0,best=0;
+try{best=+localStorage.getItem(KEY)||0}catch(e){}
+$('#mbest').textContent=best;
+let level=1,total=0,need=0,penCount=0,timeLeft=0,timeMax=0,phase='intro',phaseT=0,banner='',sub='',tip='',barkCD=0;
+let sheep=[],wolves=[],bushes=[],walls=[],rings=[],pops=[],pen=null,dog=null;
+const ptr={down:false,id:-1,x:0,y:0,x0:0,y0:0,t0:0,moved:0};
+const rnd=(a,b)=>a+Math.random()*(b-a);
+const span=(a,b)=>b>a?rnd(a,b):(a+b)/2;
+
+function resize(){
+  const ow=W,oh=H;
+  DPR=Math.min(window.devicePixelRatio||1,2);W=innerWidth;H=innerHeight;
+  cv.width=Math.round(W*DPR);cv.height=Math.round(H*DPR);
+  cv.style.width=W+'px';cv.style.height=H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  S=Math.max(.8,Math.min(1.4,Math.min(W,H)/420));
+  if(ow&&oh&&pen&&(ow!==W||oh!==H)){
+    const fx=W/ow,fy=H/oh,sc=o=>{o.x*=fx;o.y*=fy};
+    [...sheep,...wolves,...bushes,dog,ptr].forEach(sc);
+    sheep.forEach(s=>{s.tx*=fx;s.ty*=fy});
+    pen.x*=fx;pen.y*=fy;pen.w*=fx;pen.h*=fy;buildWalls();
+  }
+}
+addEventListener('resize',resize);resize();
+
+// ---------- audio ----------
+let ac=null;
+function au(){try{if(!ac)ac=new(window.AudioContext||window.webkitAudioContext)();if(ac.state==='suspended')ac.resume()}catch(e){}}
+function tone(f0,f1,dur,type,vol,delay,vib){
+  if(!ac)return;const t=ac.currentTime+(delay||0),o=ac.createOscillator(),g=ac.createGain();
+  o.type=type;o.frequency.setValueAtTime(f0,t);o.frequency.exponentialRampToValueAtTime(Math.max(20,f1),t+dur);
+  g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+.02);g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+  o.connect(g);g.connect(ac.destination);
+  if(vib){const l=ac.createOscillator(),lg=ac.createGain();l.frequency.value=vib;lg.gain.value=f0*.08;l.connect(lg);lg.connect(o.frequency);l.start(t);l.stop(t+dur)}
+  o.start(t);o.stop(t+dur+.05);
+}
+const sfxBleat=()=>tone(rnd(480,620),rnd(380,460),.45,'sawtooth',.05,0,28);
+const sfxBark=()=>{tone(420,140,.1,'square',.08);tone(380,120,.1,'square',.07,.13)};
+const sfxEat=()=>tone(160,50,.35,'sawtooth',.1);
+const sfxHowl=()=>tone(300,560,.9,'triangle',.07,0,5);
+const sfxClear=()=>[523,659,784,1046].forEach((f,i)=>tone(f,f,.18,'triangle',.07,i*.1));
+const sfxLose=()=>[392,330,262].forEach((f,i)=>tone(f,f*.97,.25,'square',.05,i*.18));
+
+// ---------- geometry ----------
+function buildWalls(){
+  const {x,y,w,h,side}=pen;walls=[];
+  const g=(side==='top'||side==='bottom'?w:h)*pen.gf;
+  const sides={top:[x,y,x+w,y],bottom:[x,y+h,x+w,y+h],left:[x,y,x,y+h],right:[x+w,y,x+w,y+h]};
+  const open={top:'bottom',bottom:'top',left:'right',right:'left'}[side];
+  for(const k in sides){
+    const [a,b,c,d]=sides[k];
+    if(k!==open){walls.push({x1:a,y1:b,x2:c,y2:d});continue}
+    const len=Math.hypot(c-a,d-b),ux=(c-a)/len,uy=(d-b)/len,m=(len-g)/2;
+    walls.push({x1:a,y1:b,x2:a+ux*m,y2:b+uy*m},{x1:c-ux*m,y1:d-uy*m,x2:c,y2:d});
+    pen.ox=(a+c)/2;pen.oy=(b+d)/2;
+  }
+  const n={top:[0,1],bottom:[0,-1],left:[1,0],right:[-1,0]}[side];pen.nx=n[0];pen.ny=n[1];
+}
+function inPen(x,y,m){return pen&&x>pen.x-m&&x<pen.x+pen.w+m&&y>pen.y-m&&y<pen.y+pen.h+m}
+function distSeg(px,py,x1,y1,x2,y2){const ex=x2-x1,ey=y2-y1;let t=((px-x1)*ex+(py-y1)*ey)/((ex*ex+ey*ey)||1);t=Math.max(0,Math.min(1,t));return Math.hypot(px-x1-ex*t,py-y1-ey*t)}
+function segPush(o,r){
+  for(const w of walls){
+    const ex=w.x2-w.x1,ey=w.y2-w.y1;let t=((o.x-w.x1)*ex+(o.y-w.y1)*ey)/(ex*ex+ey*ey);t=t<0?0:t>1?1:t;
+    const px=w.x1+ex*t,py=w.y1+ey*t;let dx=o.x-px,dy=o.y-py,d=Math.hypot(dx,dy);
+    if(d<r){if(d<1e-3){dx=-pen.nx||0;dy=-pen.ny||1;d=1}const nx=dx/d,ny=dy/d;o.x=px+nx*r;o.y=py+ny*r;const vn=o.vx*nx+o.vy*ny;if(vn<0){o.vx-=vn*nx;o.vy-=vn*ny}}
+  }
+}
+function bushPush(o,r){
+  for(const b of bushes){
+    let dx=o.x-b.x,dy=o.y-b.y,d=Math.hypot(dx,dy);const m=r+b.r;
+    if(d<m){if(d<1e-3){dx=1;dy=0;d=1}const nx=dx/d,ny=dy/d;o.x=b.x+nx*m;o.y=b.y+ny*m;const vn=o.vx*nx+o.vy*ny;if(vn<0){o.vx-=vn*nx;o.vy-=vn*ny}}
+  }
+}
+function bounds(o,r){
+  if(o.x<r){o.x=r;if(o.vx<0)o.vx=0}
+  if(o.x>W-r){o.x=W-r;if(o.vx>0)o.vx=0}
+  if(o.y<HUD+r){o.y=HUD+r;if(o.vy<0)o.vy=0}
+  if(o.y>H-r){o.y=H-r;if(o.vy>0)o.vy=0}
+}
+
+// ---------- level ----------
+function buildLevel(){
+  total=Math.min(4+level,14);need=Math.ceil(total*.7);timeLeft=timeMax=40+total*3;penCount=0;barkCD=0;rings=[];
+  const pw=Math.min(140*S,W*.42),ph=Math.min(115*S,(H-HUD)*.28);
+  const side=W<H?(Math.random()<.5?'top':'bottom'):(Math.random()<.5?'left':'right');
+  let x,y;
+  if(side==='top'){x=span(50*S,W-pw-50*S);y=HUD}
+  else if(side==='bottom'){x=span(50*S,W-pw-50*S);y=H-ph}
+  else if(side==='left'){x=0;y=span(HUD+50*S,H-ph-50*S)}
+  else{x=W-pw;y=span(HUD+50*S,H-ph-50*S)}
+  pen={x,y,w:pw,h:ph,side,gf:.5};buildWalls();
+  // arbustos fuera del corral y del pasillo de entrada
+  bushes=[];
+  const nb=level<2?0:Math.min(1+(level>>1),5);
+  for(let i=0,tries=0;i<nb&&tries<400;tries++){
+    const r=rnd(16,28)*S,bx=rnd(r+45*S,W-r-45*S),by=rnd(HUD+r+45*S,H-r-45*S);
+    if(inPen(bx,by,r+40*S))continue;
+    if(distSeg(bx,by,pen.ox,pen.oy,pen.ox+pen.nx*240*S,pen.oy+pen.ny*240*S)<r+50*S)continue;
+    if(bushes.some(b=>Math.hypot(b.x-bx,b.y-by)<b.r+r+60*S))continue;
+    bushes.push({x:bx,y:by,r});i++;
+  }
+  // ovejas en grupos lejos del corral
+  sheep=[];
+  const nc=level<3?1:level<6?2:3,far=Math.min(W,H)*.5,pcx=x+pw/2,pcy=y+ph/2,centers=[];
+  for(let c=0;c<nc;c++){
+    let pick=null,bd=-1;
+    for(let k=0;k<300;k++){
+      const cx=rnd(60*S,W-60*S),cy=rnd(HUD+60*S,H-60*S);
+      if(inPen(cx,cy,60*S)||bushes.some(b=>Math.hypot(b.x-cx,b.y-cy)<b.r+50*S))continue;
+      const d=Math.hypot(cx-pcx,cy-pcy);
+      if(d>far&&!centers.some(o=>Math.hypot(o[0]-cx,o[1]-cy)<90*S)){pick=[cx,cy];break}
+      if(d>bd){bd=d;pick=[cx,cy]}
+    }
+    centers.push(pick||[W/2,H*.7]);
+  }
+  for(let i=0;i<total;i++){
+    const c=centers[i%nc];let sx,sy,k=0;
+    do{const a=rnd(0,TAU),rr=rnd(0,45*S);sx=c[0]+Math.cos(a)*rr;sy=c[1]+Math.sin(a)*rr;k++}
+    while(k<50&&(bushes.some(b=>Math.hypot(b.x-sx,b.y-sy)<b.r+12*S)||inPen(sx,sy,15*S)));
+    sx=Math.max(20,Math.min(W-20,sx));sy=Math.max(HUD+20,Math.min(H-20,sy));
+    sheep.push({x:sx,y:sy,vx:0,vy:0,ang:rnd(0,TAU),wa:rnd(0,TAU),ph:rnd(0,TAU),penned:false,eaten:false,terca:false,awake:0,tx:0,ty:0});
+  }
+  const nt=level<2?0:level<5?1:2;
+  for(let i=0;i<nt;i++)sheep[(i*3)%total].terca=true;
+  const nw=level<3?0:level<6?1:2;
+  wolves=[];for(let i=0;i<nw;i++)wolves.push({st:'wait',t:7+i*8,x:-99,y:-99,vx:0,vy:0,ang:0});
+  dog={x:pen.ox+pen.nx*90*S,y:pen.oy+pen.ny*90*S,vx:0,vy:0,ang:Math.atan2(pen.ny,pen.nx)};
+  ptr.down=false;
+  phase='intro';phaseT=2;banner='NIVEL '+level;sub='Mete '+need+' de '+total+' ovejas en el corral';
+  tip=level===1?'Rodéalas: huyen del perro':level===2?'💜 La terca solo se mueve con un ¡GUAU!':level===3?'🐺 Ronda un lobo. ¡Ahuyéntalo!':level===6?'🐺🐺 Dos lobos. Mucha suerte.':'';
+}
+
+// ---------- flow ----------
+function startGame(){
+  au();state='playing';score=0;level=1;inputCount=0;pops=[];rings=[];ptr.down=false;
+  $('#menu').classList.add('hide');$('#over').classList.add('hide');
+  buildLevel();
+}
+function endGame(reason){
+  if(state!=='playing')return;
+  state='over';ptr.down=false;
+  if(score>best){best=score;try{localStorage.setItem(KEY,best)}catch(e){}}
+  $('#reason').textContent=typeof reason==='string'?reason:'Has colgado el cayado.';
+  $('#fscore').textContent=score;$('#flevel').textContent=level;$('#fbest').textContent=best;$('#mbest').textContent=best;
+  $('#over').classList.remove('hide');sfxLose();
+}
+function clearLevel(p){
+  const bonus=Math.ceil(timeLeft)*2+(p===total?25:0);
+  score+=bonus;phase='clear';phaseT=2.4;
+  banner='¡CORRAL! +'+bonus;sub=p===total?'¡Rebaño completo! +25 extra':'Bonus por tiempo sobrante';tip='';
+  sfxClear();
+}
+function checkRules(){
+  let p=0,f=0;for(const s of sheep){if(s.eaten)continue;if(s.penned)p++;else f++}
+  penCount=p;
+  if(p+f<need)return endGame('El lobo se ha merendado demasiadas ovejas 🐺');
+  if(f===0||timeLeft<=0){
+    if(p>=need)clearLevel(p);
+    else endGame('¡Se acabó el tiempo! Las ovejas siguen de fiesta.');
+  }
+}
+function pop(x,y,s,c){pops.push({x,y,s,c,t:0})}
+
+// ---------- simulation ----------
+function bark(){
+  if(barkCD>0||!dog)return;
+  barkCD=1.2;rings.push({x:dog.x,y:dog.y,t:0});sfxBark();
+  const R=175*S;
+  for(const s of sheep){
+    if(s.eaten||s.penned)continue;
+    const dx=s.x-dog.x,dy=s.y-dog.y,d=Math.hypot(dx,dy)||1;
+    if(d<R){const k=(1-d/R*.6)*230*S;s.vx+=dx/d*k;s.vy+=dy/d*k;if(s.terca)s.awake=2.5}
+  }
+  for(const w of wolves)if(w.st==='hunt'&&Math.hypot(w.x-dog.x,w.y-dog.y)<210*S)w.st='flee';
+}
+function moveDog(dt){
+  const sp=290*S;
+  if(ptr.down){
+    const dx=ptr.x-dog.x,dy=ptr.y-dog.y,d=Math.hypot(dx,dy),v=Math.min(sp,d*7);
+    if(d>1){dog.vx=dx/d*v;dog.vy=dy/d*v}else{dog.vx=dog.vy=0}
+  }else{const k=Math.exp(-10*dt);dog.vx*=k;dog.vy*=k}
+  dog.x+=dog.vx*dt;dog.y+=dog.vy*dt;
+  const r=11*S;segPush(dog,r);bushPush(dog,r);bounds(dog,r);
+  if(Math.hypot(dog.vx,dog.vy)>15)dog.ang=Math.atan2(dog.vy,dog.vx);
+}
+function penSheep(s){
+  s.penned=true;penCount++;score+=10;
+  s.tx=pen.x+rnd(.25,.8)*pen.w-pen.nx*pen.w*.12;s.ty=pen.y+rnd(.25,.8)*pen.h-pen.ny*pen.h*.12;
+  pop(s.x,s.y-14*S,'+10 ¡Beee!','#39ff14');sfxBleat();
+}
+function moveSheep(dt){
+  const r=10*S,R=125*S,drag=Math.exp(-2.4*dt),em=30*S;
+  for(const s of sheep){
+    if(s.eaten)continue;
+    let ax=0,ay=0;s.awake=Math.max(0,s.awake-dt);
+    if(s.penned){
+      ax+=(s.tx-s.x)*3;ay+=(s.ty-s.y)*3;
+      for(const o of sheep){
+        if(o===s||o.eaten||!o.penned)continue;
+        const dx=s.x-o.x,dy=s.y-o.y,d=Math.hypot(dx,dy);
+        if(d<2.1*r&&d>0){const f=(2.1*r-d)*40;ax+=dx/d*f;ay+=dy/d*f}
+      }
+      const k=Math.exp(-5*dt);s.vx=(s.vx+ax*dt)*k;s.vy=(s.vy+ay*dt)*k;
+    }else{
+      const active=!s.terca||s.awake>0;let scared=false;
+      const dx=s.x-dog.x,dy=s.y-dog.y,d=Math.hypot(dx,dy)||1;
+      if(active&&d<R){const f=(1-d/R)*1000*S;ax+=dx/d*f;ay+=dy/d*f;scared=true}
+      for(const w of wolves){
+        if(w.st==='wait')continue;
+        const ex=s.x-w.x,ey=s.y-w.y,e=Math.hypot(ex,ey)||1,RW=110*S;
+        if(e<RW){const f=(1-e/RW)*800*S;ax+=ex/e*f;ay+=ey/e*f;scared=true}
+      }
+      let cx=0,cy=0,n=0,avx=0,avy=0,m=0;
+      for(const o of sheep){
+        if(o===s||o.eaten)continue;
+        const ox=o.x-s.x,oy=o.y-s.y,od=Math.hypot(ox,oy);
+        if(od<95*S){cx+=ox;cy+=oy;n++;if(!o.penned){avx+=o.vx;avy+=o.vy;m++}}
+        if(od<2.2*r&&od>0){const f=(2.2*r-od)*45;ax-=ox/od*f;ay-=oy/od*f}
+      }
+      if(n){const c=scared?2.2:1;ax+=cx/n*c;ay+=cy/n*c}
+      if(m){const a=scared?1.2:.4;ax+=(avx/m-s.vx)*a;ay+=(avy/m-s.vy)*a}
+      s.wa+=(Math.random()-.5)*4*dt;
+      if(!scared){const wf=(s.terca?14:34)*S;ax+=Math.cos(s.wa)*wf;ay+=Math.sin(s.wa)*wf}
+      if(s.x<em)ax+=(em-s.x)*25;if(s.x>W-em)ax-=(s.x-(W-em))*25;
+      if(s.y<HUD+em)ay+=(HUD+em-s.y)*25;if(s.y>H-em)ay-=(s.y-(H-em))*25;
+      s.vx=(s.vx+ax*dt)*drag;s.vy=(s.vy+ay*dt)*drag;
+      const cap=(active?165:45)*S,sp=Math.hypot(s.vx,s.vy);
+      if(sp>cap){s.vx*=cap/sp;s.vy*=cap/sp}
+    }
+    s.x+=s.vx*dt;s.y+=s.vy*dt;segPush(s,r);bushPush(s,r);bounds(s,r);
+    if(Math.hypot(s.vx,s.vy)>12)s.ang=Math.atan2(s.vy,s.vx);
+    if(!s.penned&&s.x>pen.x+r*.6&&s.x<pen.x+pen.w-r*.6&&s.y>pen.y+r*.6&&s.y<pen.y+pen.h-r*.6)penSheep(s);
+  }
+}
+function spawnWolf(w){
+  let bx=0,by=0,bd=-1;
+  for(let k=0;k<12;k++){
+    const e=Math.floor(Math.random()*4);let x,y;
+    if(e===0){x=rnd(0,W);y=HUD-20}else if(e===1){x=rnd(0,W);y=H+20}else if(e===2){x=-20;y=rnd(HUD,H)}else{x=W+20;y=rnd(HUD,H)}
+    if(inPen(x,y,30))continue;
+    const d=Math.hypot(x-dog.x,y-dog.y);if(d>bd){bd=d;bx=x;by=y}
+  }
+  w.x=bx;w.y=by;w.vx=w.vy=0;w.st='hunt';
+  pop(Math.max(40,Math.min(W-40,bx)),Math.max(HUD+30,Math.min(H-30,by)),'¡LOBO!','#ff2a6d');sfxHowl();
+}
+function moveWolves(dt){
+  const r=12*S;
+  for(const w of wolves){
+    if(w.st==='wait'){w.t-=dt;if(w.t<=0)spawnWolf(w);continue}
+    let ax=0,ay=0,cap;
+    const dx=w.x-dog.x,dy=w.y-dog.y,d=Math.hypot(dx,dy)||1;
+    if(w.st==='hunt'){
+      let tgt=null,bd=1e9;
+      for(const s of sheep){if(s.eaten||s.penned)continue;const e=Math.hypot(s.x-w.x,s.y-w.y);if(e<bd){bd=e;tgt=s}}
+      if(!tgt)w.st='flee';
+      else{
+        ax+=(tgt.x-w.x)/bd*500;ay+=(tgt.y-w.y)/bd*500;
+        if(bd<r+10*S){tgt.eaten=true;pop(tgt.x,tgt.y,'¡ÑAM!','#ff2a6d');sfxEat();w.st='flee'}
+      }
+      const RD=120*S;if(d<RD){const f=(1-d/RD)*1600*S;ax+=dx/d*f;ay+=dy/d*f}
+      if(d<55*S)w.st='flee';
+      cap=95*S;
+    }else{
+      ax+=dx/d*900*S;ay+=dy/d*900*S;cap=220*S;
+      if(w.x<-40||w.x>W+40||w.y<-40||w.y>H+40){w.st='wait';w.t=rnd(7,11);continue}
+    }
+    const k=Math.exp(-2*dt);w.vx=(w.vx+ax*dt)*k;w.vy=(w.vy+ay*dt)*k;
+    const sp=Math.hypot(w.vx,w.vy);if(sp>cap){w.vx*=cap/sp;w.vy*=cap/sp}
+    w.x+=w.vx*dt;w.y+=w.vy*dt;segPush(w,r);bushPush(w,r);
+    if(sp>10)w.ang=Math.atan2(w.vy,w.vx);
+  }
+}
+function step(dt){
+  if(phase==='play')timeLeft=Math.max(0,timeLeft-dt);
+  else{phaseT-=dt;if(phaseT<=0){if(phase==='intro')phase='play';else{level++;buildLevel();return}}}
+  barkCD=Math.max(0,barkCD-dt);
+  moveDog(dt);moveSheep(dt);
+  if(phase==='play')moveWolves(dt);
+  for(const q of rings)q.t+=dt;rings=rings.filter(q=>q.t<.5);
+  for(const p of pops)p.t+=dt;pops=pops.filter(p=>p.t<1.2);
+  if(phase==='play')checkRules();
+}
+
+// ---------- drawing ----------
+function fitText(txt,x,y,size,weight){
+  let s=size;ctx.font=weight+' '+Math.round(s)+'px system-ui,sans-serif';
+  const w=ctx.measureText(txt).width;
+  if(w>W-24){s=s*(W-24)/w;ctx.font=weight+' '+Math.round(s)+'px system-ui,sans-serif'}
+  ctx.fillText(txt,x,y);
+}
+function drawSheep(s,t){
+  const r=10*S,mv=Math.hypot(s.vx,s.vy),b=mv>25?Math.abs(Math.sin(t*16+s.ph))*2:0;
+  ctx.save();ctx.translate(s.x,s.y-b);
+  ctx.fillStyle=s.terca?(s.awake>0?'#ffa8f2':'#ff4fd8'):'#eafcff';
+  ctx.shadowColor=s.terca?'#ff4fd8':'#00f0ff';ctx.shadowBlur=s.penned?4:9;
+  ctx.beginPath();
+  for(let i=0;i<7;i++){const a=i/7*TAU+s.ph,px=Math.cos(a)*r*.5,py=Math.sin(a)*r*.45;ctx.moveTo(px+r*.5,py);ctx.arc(px,py,r*.5,0,TAU)}
+  ctx.fill();ctx.shadowBlur=0;
+  ctx.rotate(s.ang);ctx.fillStyle='#222';
+  ctx.beginPath();ctx.ellipse(r*.95,0,r*.42,r*.32,0,0,TAU);ctx.fill();
+  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(r*1.1,-r*.14,r*.08,0,TAU);ctx.moveTo(r*1.18,r*.14);ctx.arc(r*1.1,r*.14,r*.08,0,TAU);ctx.fill();
+  ctx.restore();
+  if(s.terca&&!s.penned&&s.awake<=0){
+    ctx.fillStyle='#ff4fd8';ctx.font='700 '+Math.round(11*S)+'px system-ui,sans-serif';ctx.textAlign='center';
+    ctx.fillText('z'+(Math.sin(t*3+s.ph)>0?'z':''),s.x+r,s.y-r*1.4);
+  }
+}
+function drawWolf(w,t){
+  const r=12*S;ctx.save();ctx.translate(w.x,w.y);ctx.rotate(w.ang);ctx.globalAlpha=w.st==='flee'?.55:1;
+  ctx.strokeStyle='#ff2a6d';ctx.lineWidth=4*S;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(-r*1.1,0);ctx.lineTo(-r*2,Math.sin(t*8)*r*.4);ctx.stroke();
+  ctx.fillStyle='#ff2a6d';ctx.shadowColor='#ff2a6d';ctx.shadowBlur=14;
+  ctx.beginPath();ctx.ellipse(-r*.1,0,r*1.2,r*.75,0,0,TAU);ctx.fill();
+  ctx.beginPath();ctx.moveTo(r*1.9,0);ctx.lineTo(r*.5,-r*.62);ctx.lineTo(r*.5,r*.62);ctx.closePath();ctx.fill();
+  ctx.beginPath();ctx.moveTo(r*.5,-r*.4);ctx.lineTo(r*.3,-r*1.05);ctx.lineTo(r*.95,-r*.45);ctx.closePath();
+  ctx.moveTo(r*.5,r*.4);ctx.lineTo(r*.3,r*1.05);ctx.lineTo(r*.95,r*.45);ctx.closePath();ctx.fill();
+  ctx.shadowBlur=0;ctx.fillStyle='#ffe600';
+  ctx.beginPath();ctx.arc(r*1.05,-r*.24,r*.12,0,TAU);ctx.moveTo(r*1.17,r*.24);ctx.arc(r*1.05,r*.24,r*.12,0,TAU);ctx.fill();
+  ctx.restore();
+}
+function drawDog(t){
+  const r=11*S,moving=Math.hypot(dog.vx,dog.vy)>20;
+  ctx.save();ctx.translate(dog.x,dog.y);ctx.rotate(dog.ang);
+  ctx.strokeStyle='#ffe600';ctx.lineWidth=3*S;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(-r*.8,0);ctx.lineTo(-r*1.6,Math.sin(t*(moving?25:12))*r*.6);ctx.stroke();
+  ctx.fillStyle='#ffe600';ctx.shadowColor='#ffe600';ctx.shadowBlur=14;
+  ctx.beginPath();ctx.ellipse(0,0,r*1.1,r*.8,0,0,TAU);ctx.fill();ctx.shadowBlur=0;
+  ctx.beginPath();ctx.arc(r*.95,0,r*.6,0,TAU);ctx.fill();
+  ctx.fillStyle='#a88600';
+  ctx.beginPath();ctx.ellipse(r*.75,-r*.58,r*.32,r*.18,-.5,0,TAU);ctx.fill();
+  ctx.beginPath();ctx.ellipse(r*.75,r*.58,r*.32,r*.18,.5,0,TAU);ctx.fill();
+  ctx.fillStyle='#0a0a0a';
+  ctx.beginPath();ctx.arc(r*1.12,-r*.22,r*.1,0,TAU);ctx.moveTo(r*1.22,r*.22);ctx.arc(r*1.12,r*.22,r*.1,0,TAU);ctx.moveTo(r*1.62,0);ctx.arc(r*1.5,0,r*.12,0,TAU);ctx.fill();
+  ctx.restore();
+  if(barkCD>0){ctx.strokeStyle='rgba(57,255,20,.6)';ctx.lineWidth=2;ctx.beginPath();ctx.arc(dog.x,dog.y,r*1.7,-Math.PI/2,-Math.PI/2+TAU*(1-barkCD/1.2));ctx.stroke()}
+}
+function draw(t){
+  ctx.fillStyle='#0a0a0a';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='rgba(57,255,20,.08)';
+  for(let y=HUD+12,row=0;y<H;y+=30,row++)for(let x=(row%2?15:0)+6;x<W;x+=30)ctx.fillRect(x,y,2,2);
+  if(!pen||!dog||state==='menu')return;
+  // corral
+  const pcx=pen.x+pen.w/2,pcy=pen.y+pen.h/2;
+  ctx.fillStyle='rgba(255,230,0,.07)';ctx.fillRect(pen.x,pen.y,pen.w,pen.h);
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillStyle=penCount>=need?'rgba(57,255,20,.5)':'rgba(255,230,0,.35)';
+  ctx.font='900 '+Math.round(30*S)+'px system-ui,sans-serif';ctx.fillText(penCount+'/'+need,pcx,pcy);
+  ctx.strokeStyle='#ffe600';ctx.lineWidth=4;ctx.lineCap='round';ctx.shadowColor='#ffe600';ctx.shadowBlur=12;
+  ctx.beginPath();for(const w of walls){ctx.moveTo(w.x1,w.y1);ctx.lineTo(w.x2,w.y2)}ctx.stroke();ctx.shadowBlur=0;
+  const ux=-pen.nx,uy=-pen.ny,vx=-uy,vy=ux,an=(t*1.2)%1;
+  ctx.lineWidth=3;
+  for(let k=0;k<3;k++){
+    const dd=70-k*22-an*22,d=dd*S,px=pen.ox+pen.nx*d,py=pen.oy+pen.ny*d,al=Math.max(0,Math.min(1,(dd-4)/20,(80-dd)/15))*.8;
+    ctx.strokeStyle='rgba(0,240,255,'+al.toFixed(2)+')';ctx.beginPath();
+    ctx.moveTo(px-ux*4*S+vx*9*S,py-uy*4*S+vy*9*S);ctx.lineTo(px+ux*5*S,py+uy*5*S);ctx.lineTo(px-ux*4*S-vx*9*S,py-uy*4*S-vy*9*S);ctx.stroke();
+  }
+  // arbustos
+  for(const b of bushes){
+    ctx.fillStyle='#0f2a0f';ctx.strokeStyle='#39ff14';ctx.lineWidth=2;ctx.shadowColor='#39ff14';ctx.shadowBlur=10;
+    ctx.beginPath();
+    for(let i=0;i<8;i++){const a=i/8*TAU,cx=b.x+Math.cos(a)*b.r*.5,cy=b.y+Math.sin(a)*b.r*.5;ctx.moveTo(cx+b.r*.5,cy);ctx.arc(cx,cy,b.r*.5,0,TAU)}
+    ctx.fill();ctx.stroke();ctx.shadowBlur=0;
+  }
+  // radio de miedo
+  ctx.strokeStyle='rgba(57,255,20,.12)';ctx.lineWidth=1;ctx.beginPath();ctx.arc(dog.x,dog.y,125*S,0,TAU);ctx.stroke();
+  for(const s of sheep)if(!s.eaten)drawSheep(s,t);
+  for(const w of wolves)if(w.st!=='wait')drawWolf(w,t);
+  drawDog(t);
+  for(const q of rings){const k=q.t/.5;ctx.strokeStyle='rgba(57,255,20,'+(1-k).toFixed(2)+')';ctx.lineWidth=4;ctx.beginPath();ctx.arc(q.x,q.y,175*S*k,0,TAU);ctx.stroke()}
+  ctx.textAlign='center';
+  for(const p of pops){ctx.globalAlpha=Math.max(0,1-p.t/1.2);ctx.fillStyle=p.c;ctx.font='900 '+Math.round(16*S)+'px system-ui,sans-serif';ctx.fillText(p.s,p.x,p.y-p.t*40)}
+  ctx.globalAlpha=1;
+  // HUD
+  ctx.fillStyle='rgba(10,10,10,.85)';ctx.fillRect(0,0,W,HUD);ctx.fillStyle='rgba(0,240,255,.35)';ctx.fillRect(0,HUD-2,W,2);
+  ctx.font='800 16px system-ui,sans-serif';ctx.textBaseline='middle';
+  ctx.textAlign='left';ctx.fillStyle='#00f0ff';ctx.fillText('NIVEL '+level,12,HUD/2);
+  const tl=Math.ceil(timeLeft);
+  ctx.textAlign='center';ctx.fillStyle=tl<=10&&phase==='play'?(Math.sin(t*12)>0?'#ff2bd6':'#fff'):'#ffe600';ctx.fillText('⏱ '+tl+'s',W/2,HUD/2);
+  ctx.textAlign='right';ctx.fillStyle='#39ff14';ctx.fillText(score+' pts',W-12,HUD/2);
+  ctx.textAlign='center';
+  if(level===1&&phase==='play'&&timeLeft>timeMax-10){
+    ctx.fillStyle='rgba(234,252,255,.75)';fitText('Arrastra = correr · Toque rápido = ¡GUAU!',W/2,H-24,15,'700');
+  }
+  if(phase!=='play'&&state==='playing'){
+    const bh=120*S,by=H/2-bh/2,c=phase==='clear'?'#39ff14':'#ff2bd6';
+    ctx.fillStyle='rgba(10,10,10,.8)';ctx.fillRect(0,by,W,bh);
+    ctx.shadowColor=c;ctx.shadowBlur=16;ctx.fillStyle=c;fitText(banner,W/2,by+bh*.3,32*S,'900');ctx.shadowBlur=0;
+    ctx.fillStyle='#eafcff';fitText(sub,W/2,by+bh*.6,16*S,'700');
+    if(tip){ctx.fillStyle='#ffe600';fitText(tip,W/2,by+bh*.83,15*S,'700')}
+  }
+}
+
+// ---------- input ----------
+function pos(e){const b=cv.getBoundingClientRect();return{x:e.clientX-b.left,y:e.clientY-b.top}}
+cv.addEventListener('pointerdown',e=>{
+  if(state!=='playing')return;
+  e.preventDefault();au();
+  try{cv.setPointerCapture(e.pointerId)}catch(_){}
+  const p=pos(e);ptr.down=true;ptr.id=e.pointerId;ptr.x=ptr.x0=p.x;ptr.y=ptr.y0=p.y;ptr.t0=performance.now();ptr.moved=0;
+  inputCount++;
+});
+cv.addEventListener('pointermove',e=>{
+  if(state!=='playing'||!ptr.down||e.pointerId!==ptr.id)return;
+  const p=pos(e);ptr.x=p.x;ptr.y=p.y;ptr.moved=Math.max(ptr.moved,Math.hypot(p.x-ptr.x0,p.y-ptr.y0));
+  inputCount++;
+});
+function release(e,cancel){
+  if(!ptr.down||e.pointerId!==ptr.id)return;
+  ptr.down=false;
+  if(state==='playing'&&!cancel&&performance.now()-ptr.t0<260&&ptr.moved<14){bark();inputCount++}
+}
+cv.addEventListener('pointerup',e=>release(e,false));
+cv.addEventListener('pointercancel',e=>release(e,true));
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+document.querySelectorAll('[data-action="start"],[data-action="retry"]').forEach(b=>b.addEventListener('click',startGame));
+
+// ---------- loop ----------
+let last=performance.now();
+function frame(now){
+  const dt=Math.min(.1,Math.max(0,(now-last)/1000));last=now;
+  if(state==='playing'){let a=dt;while(a>1e-6&&state==='playing'){const h=Math.min(a,1/60);step(h);a-=h}}
+  draw(now/1000);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+window.mierdiTest={state:()=>state,score:()=>score,inputs:()=>inputCount,forceGameOver:endGame};
+</script>
+</body>
+</html>

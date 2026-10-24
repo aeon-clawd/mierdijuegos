@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { validateNewGameHtml, MAX_NEW_GAME_BYTES } from '../scripts/lib/game-html.mjs';
+import { validateNewGameHtml, MAX_NEW_GAME_BYTES, RANKING_SCRIPT } from '../scripts/lib/game-html.mjs';
 import { readGeneratorOutput } from '../scripts/lib/generator-output.mjs';
 import { loadCatalog, validateCatalog } from '../scripts/lib/catalog.mjs';
 import { repoPaths } from '../scripts/lib/paths.mjs';
@@ -36,6 +36,15 @@ const mutations = {
   'missing back link': (h) => h.replace('<a href="/" data-action="back">', '<a href="/x" data-action="back">'),
   'missing test hook': (h) => h.replace('window.mierdiTest', 'window.other'),
   'touch only, no mouse/pointer': (h) => h.replace("'pointerdown'", "'touchstart'"),
+  'missing ranking script': (h) => h.replace('<script src="/ranking.js" defer></script>', ''),
+  'duplicated ranking script': (h) => h.replace('</head>', '<script src="/ranking.js" defer></script></head>'),
+  'other same-origin script src': (h) => h.replace('</head>', '<script src="/otro.js"></script></head>'),
+  'ranking script with changed attributes': (h) => h.replace('<script src="/ranking.js" defer></script>', '<script src="/ranking.js" async></script>'),
+  'ranking script from elsewhere': (h) => h.replace('src="/ranking.js"', 'src="/games/ranking.js"'),
+  'missing ranking end hook': (h) => h.replace('window.mierdiRanking?.fin(score)', 'void 0'),
+  'two ranking end hooks': (h) => h.replace('loop();\n', 'loop(); window.mierdiRanking?.fin(score);\n'),
+  'missing ranking reset hook': (h) => h.replace('window.mierdiRanking?.reset()', 'void 0'),
+  'own ranking network call': (h) => h.replace('loop();\n', 'loop(); fetch("https://grldrwbiovglfxqjdicv.supabase.co/rest/v1/mierdi_ranking");\n'),
   'api key looking secret': (h) => h.replace('loop();\n', 'loop(); const k = "sk-ant-api03-abcdefghijklmnopqrstuvwxyz";\n'),
 };
 
@@ -138,4 +147,13 @@ test('generator output: missing files, bad json, bad slug, bad novelty are rejec
 test('generator output: strict html errors are included', () => {
   const res = readGeneratorOutput(outDir({ entry: goodEntry, html: good.replace('window.mierdiTest', 'window.x') }), ctx);
   assert.ok(res.errors.some((e) => /mierdiTest/.test(e)));
+});
+
+test('generator contract asks for exactly the ranking hooks the validator enforces', () => {
+  const contract = readFileSync(live.instructions, 'utf8');
+  assert.ok(contract.includes(RANKING_SCRIPT));
+  assert.ok(contract.includes('window.mierdiRanking?.fin(score)'));
+  assert.ok(contract.includes('window.mierdiRanking?.reset()'));
+  assert.match(contract, /más es mejor/);
+  assert.doesNotMatch(contract, /scripts src, fetch/, 'old blanket ban on script src must name the single exception');
 });

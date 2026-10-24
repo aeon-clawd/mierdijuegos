@@ -24,6 +24,7 @@
   .back-link:hover { color: #00ffff; }
   #hint { position: fixed; bottom: 20px; left: 0; right: 0; text-align: center; font-size: 13px; color: #444; pointer-events: none; z-index: 10; }
 </style>
+<script src="/ranking.js" defer></script>
 </head>
 <body>
 
@@ -191,6 +192,7 @@ canvas.addEventListener('touchend', e => {
 }, { passive: false });
 
 function startGame() {
+  window.mierdiRanking?.reset();
   score = 0; lives = 3; hp = 100;
   playerAngle = 0; resonance = 0; resonanceLevel = 0;
   matrixTimer = 0;
@@ -550,6 +552,7 @@ function drawHPArc() {
 
 // ──────────── GAME OVER ────────────
 function gameOver() {
+  window.mierdiRanking?.fin(score);
   state = 'over';
   deathSound();
 

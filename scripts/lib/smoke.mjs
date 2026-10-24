@@ -20,17 +20,43 @@ export async function servePublic(site) {
   return {url:`http://127.0.0.1:${server.address().port}`,close:()=>new Promise(r=>server.close(r))};
 }
 
+// Supabase is MOCKED in the smoke: GET returns an empty top 5 and the RPC echoes the entry.
+// Nothing reaches the network and nothing is written anywhere.
+const SUPABASE='https://grldrwbiovglfxqjdicv.supabase.co/';
+const CORS={'access-control-allow-origin':'*','access-control-allow-headers':'*','access-control-allow-methods':'GET,POST,OPTIONS'};
+async function rankingRound(page,ranking,label) {
+  const dialog=page.locator('#mierdi-ranking [role="dialog"]');
+  try {await dialog.waitFor({timeout:3000});}
+  catch {throw new Error(`ranking overlay did not open after ${label} (missing window.mierdiRanking?.fin / reset hook?)`);}
+  if(ranking.posts.length===0){
+    await page.locator('#mierdi-ranking input[name="siglas"]').fill('tst');
+    await page.locator('#mierdi-ranking [data-r="guardar"]').click();
+    await page.locator('#mierdi-ranking li.tu').waitFor({timeout:3000});
+  }
+  await page.locator('#mierdi-ranking [data-r="cerrar"]').click();
+  await dialog.waitFor({state:'hidden'});
+}
+
 export async function smokeGame({site,entry,run}) {
   const server=await servePublic(site);
   let browser;
-  const errors=[],externalRequests=[];
+  const errors=[],externalRequests=[],ranking={gets:0,posts:[],score:null};
   const viewport={width:390,height:844};
   try {
     browser=await chromium.launch({headless:true});
     const context=await browser.newContext({viewport,isMobile:true,hasTouch:true,serviceWorkers:'block',permissions:[]});
     const url=`${server.url}/games/${entry.id}/`;
     await context.route('**/*',route=>{
-      if(route.request().url()===url && route.request().isNavigationRequest()) return route.continue();
+      const req=route.request();
+      if(req.url()===url && req.isNavigationRequest()) return route.continue();
+      if(req.url()===`${server.url}/ranking.js`) return route.continue();
+      if(req.url().startsWith(SUPABASE)) {
+        if(req.method()==='OPTIONS') return route.fulfill({status:204,headers:CORS});
+        const json=body=>route.fulfill({status:200,headers:{...CORS,'content-type':'application/json'},body:JSON.stringify(body)});
+        if(req.method()==='GET') {ranking.gets++;return json([{ranking:[]}]);}
+        const body=JSON.parse(req.postData()||'{}');ranking.posts.push(body);
+        return json([{siglas:body.p_siglas,resultado:body.p_resultado}]);
+      }
       externalRequests.push(route.request().url());return route.abort();
     });
     await context.routeWebSocket('**/*',socket=>{externalRequests.push(socket.url());socket.close();});
@@ -57,12 +83,20 @@ export async function smokeGame({site,entry,run}) {
     // Deliberately forced loss to exercise the actual end/retry path; not proof of natural loss or fun.
     await page.evaluate(()=>window.mierdiTest.forceGameOver());
     await page.waitForFunction(()=>window.mierdiTest.state()==='over');
+    ranking.score=await page.evaluate(()=>window.mierdiTest.score());
+    await rankingRound(page,ranking,'the forced game over');
+    await page.locator('[data-action="retry"]').click();
+    await page.waitForFunction(()=>window.mierdiTest.state()==='playing');
+    // A second ending must open the ranking again: proves reset() re-arms it on retry.
+    await page.evaluate(()=>window.mierdiTest.forceGameOver());
+    await page.waitForFunction(()=>window.mierdiTest.state()==='over');
+    await rankingRound(page,ranking,'a game over after retry');
     await page.locator('[data-action="retry"]').click();
     await page.waitForFunction(()=>window.mierdiTest.state()==='playing');
     if(await page.locator('[data-action="back"]').getAttribute('href')!=='/') throw new Error('bad back link');
     if(run) await page.screenshot({path:join(run,'smoke.png')});
     if(errors.length||externalRequests.length) throw new Error([...errors,...externalRequests.map(r=>`forbidden network request: ${r}`)].join('\n'));
-    return {viewport,errors,externalRequests,inputBefore:before,inputAfter:after,retry:true,end:'forced-test-hook'};
+    return {viewport,errors,externalRequests,inputBefore:before,inputAfter:after,retry:true,end:'forced-test-hook',ranking};
   } catch(e) {
     const detail=[...errors,...externalRequests.map(r=>`forbidden network request: ${r}`)].join('\n');
     throw new Error(detail ? `${e.message}\n${detail}` : e.message);

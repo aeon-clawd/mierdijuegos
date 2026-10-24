@@ -16,6 +16,7 @@ button{font:inherit;font-weight:800;font-size:22px;padding:14px 38px;border-radi
 a{color:#00f0ff;font-weight:700;text-decoration:none;margin-top:6px}
 .k{color:#ffe600}.g{color:#39ff14}.m{color:#ff2bd6}.c{color:#00f0ff}
 </style>
+<script src="/ranking.js" defer></script>
 </head>
 <body>
 <canvas id="c"></canvas>
@@ -141,6 +142,7 @@ function update(dt){
 }
 
 function startGame(){
+ window.mierdiRanking?.reset();
  ensureAudio();
  state='playing';score=0;lives=5;nRules=1;decisions=0;streak=0;sinceNew=0;
  msgT=0;shake=0;drag=null;pending=0;
@@ -152,6 +154,7 @@ function startGame(){
 }
 function endGame(){
  if(state==='over')return;
+ window.mierdiRanking?.fin(score);
  state='over';drag=null;banner=null;
  if(score>best){best=score;try{localStorage.setItem(KEY,String(best))}catch(_){}}
  const rank=score<100?'Rango: Becario en prácticas 🥲':score<300?'Rango: Funcionario de carrera 📎':score<650?'Rango: Jefe de Negociado 🗄️':'Rango: Ministro del Sello 👑';

@@ -25,6 +25,7 @@ button.sec:hover,button.sec:active{background:#00ffff22;box-shadow:0 0 15px #00f
 #hud span{font-size:clamp(.8rem,3.5vw,1rem);text-shadow:0 0 8px currentColor}
 #hs{color:#ffff00}#hl{color:#ff00ff}#hv{color:#ff0040}
 </style>
+<script src="/ranking.js" defer></script>
 </head>
 <body>
 <div id="screen">
@@ -96,6 +97,7 @@ function uhud(){
 const FUNNY=['Hasta Newton te tiene lástima.','La gravedad te rechaza como a un examen.','Eres tan malo que la física lloró.','Einstein se dio la vuelta en su tumba.','Implosionado. Ni estrella enana merecías ser.','Tu órbita era un garabato en servilleta.','La fuerza no te acompaña. Ni te saluda.','Has colapsado antes que el universo. Récord.','La bola se suicidó antes que aguantarte más.'];
 
 function gameOver(){
+  window.mierdiRanking?.fin(score);
   active=false;beep(80,.8,'sawtooth',.4);
   document.getElementById('hud').style.display='none';
   document.getElementById('sval').textContent=score;
@@ -116,6 +118,7 @@ function loseLife(){
 }
 
 function startGame(){
+  window.mierdiRanking?.reset();
   ia();
   document.getElementById('screen').classList.add('hidden');
   document.getElementById('gover').style.display='none';

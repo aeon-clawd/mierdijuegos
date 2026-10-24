@@ -96,6 +96,7 @@
             text-shadow: 0 0 10px #00ffff;
         }
     </style>
+<script src="/ranking.js" defer></script>
 </head>
 <body>
     <div id="instruction" class="start-screen">
@@ -244,6 +245,7 @@
             });
 
             if (health <= 0) {
+                if (gameState !== 'end') window.mierdiRanking?.fin(score);
                 gameState = 'end';
                 gameOver = true;
             }
@@ -349,6 +351,7 @@
         }
 
         function startGame() {
+            window.mierdiRanking?.reset();
             gameState = 'playing';
             document.getElementById('instruction').classList.add('hidden');
             score = 0;

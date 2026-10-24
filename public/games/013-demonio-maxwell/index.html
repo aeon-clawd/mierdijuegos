@@ -22,6 +22,7 @@ p{color:#aaa;font-size:.82em;line-height:1.6;margin-bottom:16px;max-width:320px}
 a.bk{color:#555;font-size:.78em;text-decoration:none;margin-top:14px}
 a.bk:hover{color:#00ff41}
 </style>
+<script src="/ranking.js" defer></script>
 </head>
 <body>
 <div id="ui">
@@ -86,6 +87,7 @@ function spawn(){
 }
 
 function init(){
+  window.mierdiRanking?.reset();
   document.getElementById('sc1').style.display='none';
   document.getElementById('sc2').style.display='none';
   document.getElementById('ui').style.display='flex';
@@ -194,6 +196,7 @@ function draw(){
 }
 
 function over(){
+  window.mierdiRanking?.fin(score);
   running=false;document.getElementById('ui').style.display='none';
   const msgs=['La entropía siempre gana, demonio.','Landauer tenía razón: la información tiene coste.','El universo te ha cobrado la factura.','No puedes engañar a la termodinámica.','La 2ª ley: 1, Tú: 0.','¡Imposible! Y sin embargo, así es la física.'];
   document.getElementById('omsg').textContent=msgs[Math.floor(Math.random()*msgs.length)];

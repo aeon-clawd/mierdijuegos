@@ -25,6 +25,7 @@ button:active{transform:scale(.96)}
 a{color:#00f0ff;font-weight:700;text-decoration:none;display:inline-block;margin-top:10px;padding:8px}
 .small{opacity:.75;font-size:14px}
 </style>
+<script src="/ranking.js" defer></script>
 </head>
 <body>
 <canvas id="c"></canvas>
@@ -188,12 +189,14 @@ function buildLevel(){
 
 // ---------- flow ----------
 function startGame(){
+  window.mierdiRanking?.reset();
   au();state='playing';score=0;level=1;inputCount=0;pops=[];rings=[];ptr.down=false;
   $('#menu').classList.add('hide');$('#over').classList.add('hide');
   buildLevel();
 }
 function endGame(reason){
   if(state!=='playing')return;
+  window.mierdiRanking?.fin(score);
   state='over';ptr.down=false;
   if(score>best){best=score;try{localStorage.setItem(KEY,best)}catch(e){}}
   $('#reason').textContent=typeof reason==='string'?reason:'Has colgado el cayado.';

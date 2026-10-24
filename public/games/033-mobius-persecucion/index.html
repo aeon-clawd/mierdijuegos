@@ -136,6 +136,7 @@
             opacity: 1;
         }
     </style>
+<script src="/ranking.js" defer></script>
 </head>
 <body>
     <div id="container">
@@ -462,6 +463,7 @@
         }
 
         function startGame() {
+            window.mierdiRanking?.reset();
             score = 0;
             gameTime = 0;
             gameRunning = true;
@@ -479,6 +481,7 @@
         }
 
         function endGame() {
+            window.mierdiRanking?.fin(score);
             document.getElementById('gameOverScreen').style.display = 'flex';
             document.getElementById('score').style.display = 'none';
             document.getElementById('timer').style.display = 'none';

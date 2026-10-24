@@ -116,6 +116,7 @@ canvas { display: block; touch-action: none; }
 #temp-val { color: #00ffff; }
 #phase-display { font-size: 11px; }
 </style>
+<script src="/ranking.js" defer></script>
 </head>
 <body>
 
@@ -695,6 +696,7 @@ function resizeCanvas() {
 }
 
 function startGame() {
+  window.mierdiRanking?.reset();
   if (!audioCtx) initAudio();
   resizeCanvas();
   
@@ -727,6 +729,7 @@ function startGame() {
 }
 
 function endGame() {
+  window.mierdiRanking?.fin(score);
   state = 'gameover';
   
   const messages = [

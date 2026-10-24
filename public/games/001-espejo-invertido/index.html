@@ -53,6 +53,7 @@ h2 { font-size: 24px; color: #ff00ff; margin-bottom: 15px; text-shadow: 0 0 10px
   pointer-events: none; z-index: 10;
 }
 </style>
+<script src="/ranking.js" defer></script>
 </head>
 <body>
 
@@ -423,6 +424,7 @@ function gameLoop(timestamp) {
 }
 
 function endGame() {
+  window.mierdiRanking?.fin(score);
   running = false;
   const goTitle = document.getElementById('go-title');
   const goScore = document.getElementById('go-score');
@@ -442,6 +444,7 @@ function endGame() {
 }
 
 function startGame() {
+  window.mierdiRanking?.reset();
   startScreen.style.display = 'none';
   gameOverScreen.style.display = 'none';
   initGame();

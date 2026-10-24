@@ -68,6 +68,7 @@
     z-index: 5;
   }
 </style>
+<script src="/ranking.js" defer></script>
 </head>
 <body>
 
@@ -743,6 +744,7 @@ class Game {
 }
 
 function showGameOver(score, reason) {
+  window.mierdiRanking?.fin(score);
   document.getElementById('hud').classList.add('hidden');
   document.getElementById('final-score').textContent = score + ' pts';
   const msgs = [
@@ -760,6 +762,7 @@ function showGameOver(score, reason) {
 }
 
 function startGame() {
+  window.mierdiRanking?.reset();
   // Resume audio context
   audioCtx.resume();
 

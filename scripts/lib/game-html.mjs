@@ -2,6 +2,8 @@
 // These are cheap heuristics; the browser smoke is the real gate, and neither proves the game is fun or novel.
 
 export const MAX_NEW_GAME_BYTES = 80 * 1024;
+// The only script src a game may load: the shared arcade ranking (public/ranking.js).
+export const RANKING_SCRIPT = '<script src="/ranking.js" defer></script>';
 
 // Namespace URIs used with createElementNS are not network access.
 const ALLOWED_URLS = [/^https?:\/\/www\.w3\.org\//];
@@ -53,7 +55,12 @@ export function validateNewGameHtml(html) {
     const m = html.match(/\b(src|href)\s*=\s*["'](?!\/(?!\/)|#|data:|blob:)([^"']*)/i);
     if (m && !/^https?:/i.test(m[2])) errors.push(`external/relative asset reference: ${m[0].slice(0, 80)}`);
   }
-  if (/<script\b[^>]*\bsrc\s*=/i.test(html)) errors.push('external <script src>');
+  const rankingTags = html.split(RANKING_SCRIPT).length - 1;
+  if (rankingTags !== 1) errors.push(`must include exactly one ${RANKING_SCRIPT} (found ${rankingTags})`);
+  if (/<script\b[^>]*\bsrc\s*=/i.test(html.replaceAll(RANKING_SCRIPT, ''))) errors.push('external <script src> (only the exact ranking script is allowed)');
+  const fins = (html.match(/window\.mierdiRanking\?\.fin\(/g) || []).length;
+  if (fins !== 1) errors.push(`ranking: need exactly one window.mierdiRanking?.fin(score) in the real end function (found ${fins})`);
+  if (!/window\.mierdiRanking\?\.reset\(\)/.test(html)) errors.push('ranking: missing window.mierdiRanking?.reset() when a game starts/retries');
   if (/<link\b[^>]*rel\s*=\s*["']?(stylesheet|preconnect|preload|prefetch|manifest|modulepreload)/i.test(html)) errors.push('external <link> resource');
 
   for (const [re, label] of FORBIDDEN) if (re.test(html)) errors.push(`forbidden: ${label}`);

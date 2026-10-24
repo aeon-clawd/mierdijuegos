@@ -84,6 +84,7 @@
     transition: none;
   }
 </style>
+<script src="/ranking.js" defer></script>
 </head>
 <body>
 
@@ -200,6 +201,7 @@ function initSpins() {
 }
 
 function initGame() {
+  window.mierdiRanking?.reset();
   score = 0;
   level = 1;
   heat = 0;
@@ -562,6 +564,7 @@ function loop(ts) {
 }
 
 function showGameOver() {
+  window.mierdiRanking?.fin(score);
   const msgs = funnyMsgs;
   document.getElementById('score-big').textContent = score;
   document.getElementById('funny').textContent = msgs[Math.floor(Math.random() * msgs.length)];

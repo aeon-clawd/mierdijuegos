@@ -24,6 +24,7 @@ canvas{display:block}
 a.lk{color:#888;font-size:.78em;margin-top:14px;text-decoration:none;border-bottom:1px solid #444}
 .hint{font-size:.7em;color:#444;margin-top:8px}
 </style>
+<script src="/ranking.js" defer></script>
 </head>
 <body>
 <div id="ui">
@@ -178,6 +179,7 @@ function update(dt){
 }
 
 function doGameOver(){
+  window.mierdiRanking?.fin(score);
   gone=true;
   const m=["Tus ondas se perdieron en el vacío.","El universo no quiso escucharte.",
     "Deberías haber estudiado física.","Ni Einstein te salva ahora.",
@@ -279,7 +281,7 @@ cv.addEventListener('mousedown',e=>{initA();if(state==='playing')inp(e);});
 cv.addEventListener('mousemove',e=>{if(ds)inp(e);});
 cv.addEventListener('mouseup',()=>{ds=null;dc=null;});
 
-function startGame(){initA();initGame();state='playing';document.getElementById('ov').style.display='none';}
+function startGame(){window.mierdiRanking?.reset();initA();initGame();state='playing';document.getElementById('ov').style.display='none';}
 document.getElementById('sb2').addEventListener('click',startGame);
 document.getElementById('rb').addEventListener('click',startGame);
 </script>

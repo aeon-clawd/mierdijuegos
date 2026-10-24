@@ -28,6 +28,9 @@ test('test-only generation stages and validates before adding exactly one game; 
   assert.equal(out.entry.id, '008-test-nuevo');
   assert.ok(existsSync(join(root, 'public/games/008-test-nuevo/index.html')));
   assert.equal(JSON.parse(readFileSync(join(root, 'public/games/games.json'))).length, 2);
+  // Paso humano documentado: el SQL de semilla del ranking queda listo junto al run.
+  assert.equal(out.rankingSeed.status, 'pending-human');
+  assert.equal(readFileSync(out.rankingSeed.file, 'utf8'), "insert into public.mierdi_ranking (id_juego) values ('008-test-nuevo') on conflict (id_juego) do nothing;\n");
   assert.equal((await runNightly(opts)).status, 'already-exists');
   assert.equal(calls, 1);
 });

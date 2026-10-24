@@ -23,6 +23,7 @@ canvas{display:block;touch-action:none}
 a.home{color:#444;font-size:12px;text-decoration:none;margin-top:12px}
 a.home:hover{color:#00ffff}
 </style>
+<script src="/ranking.js" defer></script>
 </head>
 <body>
 <div id="ui" style="display:none">
@@ -242,12 +243,14 @@ lastTime = performance.now();
 for(let i=0;i<3;i++) spawnGem();
 }
 function startGame(){
+window.mierdiRanking?.reset();
 score=0;lives=3;levelIdx=0;frameCount=0;
 document.getElementById('ui').style.display='flex';
 initLevel();
 state='playing';
 }
 function gameOver(){
+window.mierdiRanking?.fin(score);
 state='over';
 const msgs=[
 'La señal se ha perdido en el ruido.',

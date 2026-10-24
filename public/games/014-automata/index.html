@@ -78,6 +78,7 @@
   #ctrl-left:active, #ctrl-right:active { opacity: 0.7; background: rgba(0,255,65,0.1); }
   a.back { color: #00ffff; font-size: 0.85em; text-decoration: none; margin-top: 10px; display: block; }
 </style>
+<script src="/ranking.js" defer></script>
 </head>
 <body>
 
@@ -173,6 +174,7 @@ function resize() {
 }
 
 function startGame() {
+  window.mierdiRanking?.reset();
   document.getElementById('screen').style.display = 'none';
   document.getElementById('screen-over').style.display = 'none';
   resize();
@@ -354,6 +356,7 @@ function draw(scroll) {
 }
 
 function gameOver() {
+  window.mierdiRanking?.fin(score);
   alive = false;
   const msgs = [
     "La entropía siempre gana.",

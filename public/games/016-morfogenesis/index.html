@@ -31,6 +31,7 @@ canvas{display:block;cursor:crosshair;image-rendering:pixelated;image-rendering:
 #life-bar{height:100%;background:linear-gradient(90deg,#00ff41,#ffff00,#ff0040);border-radius:4px;transition:width 0.1s}
 #brush-hint{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);color:#333;font-size:11px;letter-spacing:1px;pointer-events:none}
 </style>
+<script src="/ranking.js" defer></script>
 </head>
 <body>
 
@@ -382,6 +383,7 @@ function loop(ts) {
 }
 
 function endGame(reason) {
+  window.mierdiRanking?.fin(score);
   gameState = 'gameover';
   playDie();
 
@@ -414,6 +416,7 @@ function endGame(reason) {
 }
 
 function startGame() {
+  window.mierdiRanking?.reset();
   score = 0;
   timeLeft = 60;
   timerAcc = 0;

@@ -16,9 +16,18 @@ Devuelve el objeto JSON exigido por el esquema: `entry` y `html`. No uses herram
 - Canvas a pantalla completa, mobile-first, usable a 390×844 y escritorio. Pointer Events con touch-action adecuado para tocar y arrastrar con ratón/dedo. No depender de hover o teclado. Usa dimensiones CSS coherentes con las coordenadas del puntero, respeta DPR sin desajustar hitboxes.
 - Fondo #0a0a0a, neones verde/magenta/cian/amarillo. Español, tono juguetón, instrucciones cortas y claras antes de empezar.
 - Pantalla inicial con botón `[data-action="start"]`. Partida con objetivo/feedback y puntuación o progreso. Fin con resultado, botón `[data-action="retry"]` y `<a href="/" data-action="back">← MÁS MIERDIJUEGOS</a>`. Ambos botones inician una partida de verdad, reiniciando estado y temporizadores.
-- Ningún asset externo o relativo, CDN, fuentes externas, peticiones de red, scripts src, fetch, tracking, permisos, micrófono, cámara, geolocalización, cookies, popup, iframe, workers o imports dinámicos. Audio opcional únicamente Web Audio iniciado por gesto. localStorage solo para récord, nunca información personal.
+- Ningún asset externo o relativo, CDN, fuentes externas, peticiones de red, `<script src>` (salvo la única excepción del ranking, abajo), fetch, tracking, permisos, micrófono, cámara, geolocalización, cookies, popup, iframe, workers o imports dinámicos. Audio opcional únicamente Web Audio iniciado por gesto. localStorage solo para récord, nunca información personal.
 - La partida debe durar más de 30 segundos si se juega razonablemente; no matar al jugador de inmediato. Si hay aleatoriedad, garantiza niveles resolubles y objetivos alcanzables. No congelar render ni acumular loops/intervals al reintentar.
 - No metas secretos ni código ofuscado. No optimices para engañar la prueba.
+
+## Ranking arcade (obligatorio)
+
+El sitio tiene un top 5 compartido por juego (`/ranking.js`, ya existe; no lo escribas ni hagas tu propio ranking, red o cuentas). Integración exacta y mínima:
+
+- En `<head>`, exactamente esta etiqueta, una sola vez y es el único `script src` permitido: `<script src="/ranking.js" defer></script>`.
+- Al empezar CADA partida (JUGAR y REINTENTAR, en la función real de inicio): `window.mierdiRanking?.reset();`
+- Una única llamada en la MISMA función real de fin de partida (la de `forceGameOver`), cuando ya se muestra la pantalla final (después de cualquier animación de muerte): `window.mierdiRanking?.fin(score);` con el resultado final numérico, entero o con 2 decimales, entre 0 y 1e9, donde **más es mejor**. No hay rankings de "menos es mejor" para juegos nuevos.
+- El ranking abre su propio panel encima y aísla sus eventos; no lo tapes ni dependas de él. Las iniciales solo las pide si el resultado entra en el top 5.
 
 ## Contrato mínimo de prueba (obligatorio)
 

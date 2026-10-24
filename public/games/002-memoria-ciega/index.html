@@ -40,6 +40,7 @@ h2 { font-size: 24px; color: #ff00ff; margin-bottom: 15px; text-shadow: 0 0 10px
   display: none;
 }
 </style>
+<script src="/ranking.js" defer></script>
 </head>
 <body>
 
@@ -217,6 +218,7 @@ function movePlayer(dx, dy) {
 }
 
 function endGame(won) {
+  window.mierdiRanking?.fin(score);
   running = false;
   const goTitle = document.getElementById('go-title');
   const goScore = document.getElementById('go-score');
@@ -332,6 +334,7 @@ function draw() {
 }
 
 function startGame() {
+  window.mierdiRanking?.reset();
   document.getElementById('start-screen').style.display = 'none';
   document.getElementById('game-over').style.display = 'none';
   initGame();

@@ -27,6 +27,7 @@ body{background:#0a0a0a;color:#fff;font-family:'Courier New',monospace;overflow:
 .hidden{display:none!important}
 canvas{display:block;touch-action:none}
 </style>
+<script src="/ranking.js" defer></script>
 </head>
 <body>
 <div id="ss">
@@ -137,6 +138,7 @@ function handleTap(px,py){
 }
 
 function endGame(won){
+  window.mierdiRanking?.fin(score);
   running=false;cancelAnimationFrame(af);
   document.getElementById('fs').textContent=score;
   document.getElementById('fm').textContent=won?'¡Cruzaste el umbral! El clúster gigante te sostuvo.':MSGS[Math.floor(Math.random()*MSGS.length)];
@@ -197,6 +199,7 @@ function loop(ts){
 }
 
 function startGame(){
+  window.mierdiRanking?.reset();
   resize();initGrid();running=true;
   document.getElementById('ss').classList.add('hidden');
   document.getElementById('so').classList.add('hidden');

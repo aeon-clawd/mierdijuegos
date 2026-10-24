@@ -25,6 +25,7 @@
   .hidden { display: none !important; }
   #phi-display { position: fixed; bottom: 8px; left: 50%; transform: translateX(-50%); font-size: 11px; color: #333; pointer-events: none; }
 </style>
+<script src="/ranking.js" defer></script>
 </head>
 <body>
 
@@ -266,6 +267,7 @@ function resize() {
 }
 
 function startGame() {
+  window.mierdiRanking?.reset();
   document.getElementById('start-screen').classList.add('hidden');
   document.getElementById('gameover-screen').classList.add('hidden');
   resize();
@@ -822,6 +824,7 @@ canvas.addEventListener('click', e => {
 });
 
 function endGame() {
+  window.mierdiRanking?.fin(score);
   gameActive = false;
   const el = document.getElementById('gameover-screen');
   document.getElementById('gameover-score').textContent = `${score} pts`;

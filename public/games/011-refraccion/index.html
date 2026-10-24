@@ -59,6 +59,7 @@
     opacity: 0; transition: opacity 0.3s;
   }
 </style>
+<script src="/ranking.js" defer></script>
 </head>
 <body>
 <canvas id="c"></canvas>
@@ -646,6 +647,7 @@ function onTargetHit(segs) {
 }
 
 function onGameOver() {
+  window.mierdiRanking?.fin(score);
   gameState = 'over';
   document.getElementById('final-score').textContent = `★ ${score}`;
   const msg = FUNNY_MSGS[Math.floor(Math.random() * FUNNY_MSGS.length)];
@@ -666,6 +668,7 @@ document.getElementById('btn-retry').addEventListener('click', () => {
 });
 
 function startGame() {
+  window.mierdiRanking?.reset();
   score = 0; level = 1; shotsLeft = 3;
   particles = []; animSegs = []; rayPath = [];
   buildLevel();

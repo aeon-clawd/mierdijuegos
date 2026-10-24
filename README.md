@@ -41,7 +41,31 @@ La URL `*.vercel.app` está protegida por SSO, así que se lee con el CLI autent
 
 - `npm test` usa un juego fixture marcado TEST-ONLY y un generador falso; **no** prueba la generación con el LLM real. Solo `npm run nightly` la ejerce.
 - El smoke pulsa JUGAR, toca/arrastra, fuerza el fin con `window.mierdiTest.forceGameOver()` y pulsa REINTENTAR. Que el game-over sea forzado significa que no demuestra que se pueda ganar o perder jugando, ni que sea divertido.
+- El smoke de juegos nuevos sirve `/ranking.js` desde el mismo origen y responde a Supabase con un mock (GET vacío y RPC que devuelve la entrada): comprueba que el fin abre el ranking, que la RPC recibe `mierdiTest.score()` y que tras REINTENTAR otro fin lo vuelve a abrir. No escribe en ninguna base de datos.
 - `smoke:legacy` comprueba que la home tenga tantas tarjetas como el catálogo y que la destacada sea la más reciente, y siempre juega `034-topologico`; no es QA de todos los juegos.
+
+## Ranking arcade (top 5 por juego)
+
+Cada juego tiene un top 5 sin cuentas: al terminar una partida se abre un panel retro con el top 5 y, solo si el resultado entra, se piden 3 iniciales A-Z. No guarda historial ni datos personales.
+
+- **Cliente**: `public/ranking.js` (vanilla, sin dependencias, Shadow DOM). Los juegos solo añaden `<script src="/ranking.js" defer></script>`, `window.mierdiRanking?.reset()` al empezar/reintentar y una llamada `window.mierdiRanking?.fin(resultado)` en el fin real. Solo cuenta el primer `fin()` de cada partida (los fines duplicados se ignoran hasta el siguiente `reset()`); peticiones con `AbortController` y timeout de 8 s; las respuestas de una partida anterior se descartan; si el envío falla o no llega respuesta, "REINTENTAR ENVÍO" repite exactamente el mismo payload. El panel para la propagación de sus eventos (014 escucha teclas, 031 reinicia con un clic en document), no enfoca el input (en móvil no salta el teclado solo), se cierra con CERRAR/Escape y no bloquea el reintento del juego. Si Supabase no responde, el juego sigue igual.
+- **Configuración** (en `ranking.js`): URL `https://grldrwbiovglfxqjdicv.supabase.co` y la clave **publishable** (`sb_publishable_…`, se envía solo en la cabecera `apikey`). Es pública por diseño y equivale al rol `anon`; **nunca** pongas aquí la `service_role` ni una clave secreta.
+- **Esquema** (`supabase/migrations/20261024120000_mierdi_ranking.sql`): `public.mierdi_ranking(id_juego text primary key, ranking jsonb not null default '[]')`, con `ranking` = array de como mucho 5 `{siglas, resultado}`. RLS activado; `anon`/`authenticated` solo tienen `SELECT`. La única escritura es la RPC `public.mierdi_enviar_resultado(p_id_juego, p_siglas, p_resultado)`: `SECURITY DEFINER`, `search_path` vacío, tabla cualificada, `EXECUTE` revocado a `PUBLIC`/`anon`/`authenticated` y concedido solo a `anon`/`authenticated`. Valida siglas `^[A-Z]{3}$`, resultado no nulo, finito, entre 0 y 1e9 (redondeado a 2 decimales); bloquea la fila con `SELECT … FOR UPDATE`, ignora un reenvío idéntico (mismas siglas y resultado), mezcla, ordena (empate: gana quien llegó antes) y recorta a 5. **Orden**: todos "más es mejor" salvo `030-brachistocrona` (tiempo, menos es mejor, > 0, y solo se envía cuando la bola llega a la meta); está fijado en la RPC y en `ranking.js`. 024 envía los puntos (`score`), no los túneles.
+- **Solo juegos sembrados**: la RPC no crea filas; un id sin fila se rechaza y el panel dice "ranking no disponible". La migración siembra los 37 juegos actuales con `[]`.
+- **Aplicar la migración**: la revisa y aplica una persona en Supabase (SQL editor o `supabase db push`); este repo no la aplica ni tiene credenciales de administrador. Estado: aplicada a mano en el proyecto de producción el 2026-10-24 (37 filas sembradas, vacías). Tests SQL rollback-only en `supabase/tests/mierdi_ranking.test.sql` (ejecútalos tras la migración en una rama, o en local con PGlite: `npm install --no-save --prefix .local/pglite @electric-sql/pglite@0.3 && node --test supabase/tests/pglite.test.mjs`).
+
+### Paso humano para cada juego nuevo (obligatorio)
+
+`npm run nightly` deja `.local/runs/<stamp>/ranking-seed.sql` (y `publish` lo repite en `rankingSeed` de su salida/`.local/publish-result.json`) con
+`insert into public.mierdi_ranking (id_juego) values ('NNN-slug') on conflict (id_juego) do nothing;`
+(plantilla: `supabase/seed-nuevo-juego.template.sql`). **Nadie lo ejecuta automáticamente**: ni `nightly`, ni `publish`, ni el cron. Ejecútalo a mano en Supabase (SQL editor) con un usuario administrador tras publicar. Hasta entonces el juego funciona pero su ranking aparece como no disponible. No se automatiza porque requeriría guardar credenciales privilegiadas en la máquina del cron.
+
+### Límites honestos
+
+- El resultado lo calcula el navegador: no hay antitrampas ni rate limit; cualquiera con la clave pública puede enviar cualquier resultado válido a un juego sembrado y llenar su top 5 (no puede tocar otras filas, otras tablas ni crear juegos). Arreglarlo requeriría validación en servidor por juego.
+- La idempotencia es por (siglas, resultado): dos partidas distintas con las mismas iniciales y el mismo resultado cuentan una vez.
+- Los tests de UI y de juegos usan Supabase **mockeado** en Chromium; el SQL se ha ejecutado en PGlite (Postgres 17 en WASM, sin PostgREST) y, tras aplicarlo, contra el proyecto real (permisos del rol `anon`, top 5/empates/orden asc/idempotencia/entradas inválidas con rollback y 10 envíos HTTP públicos concurrentes sobre una fila temporal ya borrada). Pendiente: probar el panel en un navegador real desde mierdijuegos.com (CORS de ese origen).
+- `test/ranking-games.test.mjs` provoca el fin de cada juego llamando a su función terminal real (031: poniendo `health=0`; 030: bola en la meta) y pulsa sus botones reales; no demuestra que cada juego se pueda ganar o perder jugando. Para que el juego no termine solo entre el clic de JUGAR y el fin inyectado, el test congela `requestAnimationFrame` en esa ventana (los temporizadores siguen corriendo); 005 y 028 terminan de forma natural, con frames libres.
 
 ## Planificación (FUTURO, no instalada)
 

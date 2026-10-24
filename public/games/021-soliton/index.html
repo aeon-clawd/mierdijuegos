@@ -60,6 +60,7 @@
   .flash { animation: flash 0.3s ease; }
   @keyframes flash { 0%,100%{opacity:1} 50%{opacity:0.3} }
 </style>
+<script src="/ranking.js" defer></script>
 </head>
 <body>
 
@@ -199,6 +200,7 @@ function playTone(freq, duration, type='sine', vol=0.3) {
 }
 
 function startGame() {
+  window.mierdiRanking?.reset();
   overlay.style.display = 'none';
   gameRunning = true;
   score = 0;
@@ -216,6 +218,7 @@ function startGame() {
 }
 
 function gameOver() {
+  window.mierdiRanking?.fin(score);
   gameRunning = false;
   const msgs = [
     "La ola se disuelve. Todo fluye, tú ya no.",

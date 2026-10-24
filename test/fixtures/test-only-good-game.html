@@ -6,6 +6,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
 <title>Fixture de prueba</title>
+<script src="/ranking.js" defer></script>
 <style>
   body { margin: 0; background: #0a0a0a; color: #00ff41; font-family: monospace; touch-action: none; }
   canvas { display: block; width: 100vw; height: 100vh; }
@@ -27,8 +28,8 @@
   function resize() { c.width = innerWidth; c.height = innerHeight; }
   addEventListener('resize', resize); resize();
   function show(id) { for (const s of ['menu', 'over']) document.getElementById(s).classList.toggle('hidden', s !== id); }
-  function start() { state = 'playing'; score = 0; t = 0; show(null); }
-  function end() { state = 'over'; document.getElementById('final').textContent = score; show('over'); }
+  function start() { window.mierdiRanking?.reset(); state = 'playing'; score = 0; t = 0; show(null); }
+  function end() { state = 'over'; window.mierdiRanking?.fin(score); document.getElementById('final').textContent = score; show('over'); }
   document.querySelector('[data-action=start]').addEventListener('click', start);
   document.querySelector('[data-action=retry]').addEventListener('click', start);
   c.addEventListener('pointerdown', () => { if (state === 'playing') score++; });

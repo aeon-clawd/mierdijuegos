@@ -23,6 +23,7 @@ canvas{display:block;touch-action:none}
 #back{display:block;margin-top:14px;color:#555;font-size:12px;text-decoration:none}
 #back:hover{color:#888}
 </style>
+<script src="/ranking.js" defer></script>
 </head>
 <body>
 <div id="ui">
@@ -93,6 +94,7 @@ function startRound() {
 }
 
 function startGame() {
+  window.mierdiRanking?.reset();
   score = 0;
   level = 1;
   lives = 3;
@@ -387,7 +389,7 @@ const FUNNY_MSGS=[
   '"Schrödinger: simultáneamente malo y muy malo."'
 ];
 
-function endGame(){gameRunning=false;cancelAnimationFrame(animId);document.getElementById('gameover-score').textContent=score;document.getElementById('funny').textContent=FUNNY_MSGS[Math.floor(Math.random()*FUNNY_MSGS.length)];document.getElementById('gameoverScreen').style.display='flex';}
+function endGame(){window.mierdiRanking?.fin(score);gameRunning=false;cancelAnimationFrame(animId);document.getElementById('gameover-score').textContent=score;document.getElementById('funny').textContent=FUNNY_MSGS[Math.floor(Math.random()*FUNNY_MSGS.length)];document.getElementById('gameoverScreen').style.display='flex';}
 document.getElementById('startBtn').addEventListener('click',()=>{initAudio();document.getElementById('screen').style.display='none';startGame();});
 document.getElementById('retryBtn').addEventListener('click',()=>{initAudio();document.getElementById('gameoverScreen').style.display='none';startGame();});
 draw();

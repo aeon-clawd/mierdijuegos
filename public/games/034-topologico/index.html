@@ -118,6 +118,7 @@
             font-weight: bold;
         }
     </style>
+<script src="/ranking.js" defer></script>
 </head>
 <body>
     <div id="gameContainer">
@@ -363,6 +364,7 @@
         }
         
         function startGame() {
+            window.mierdiRanking?.reset();
             gameState.running = true;
             gameState.score = 0;
             gameState.mutations = 0;
@@ -381,6 +383,7 @@
         }
         
         function endGame() {
+            window.mierdiRanking?.fin(gameState.score);
             gameState.running = false;
             
             const messages = [

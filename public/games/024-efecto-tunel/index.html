@@ -29,6 +29,7 @@
   #tunnels-final { font-size: 14px; color: #00ffff; margin-bottom: 16px; }
   #prob-info { position: fixed; top: 46px; right: 12px; font-size: 11px; color: #444; z-index: 10; pointer-events: none; text-align: right; line-height: 1.7; }
 </style>
+<script src="/ranking.js" defer></script>
 </head>
 <body>
 
@@ -135,6 +136,7 @@ function playClassical() {
 }
 
 function startGame() {
+  window.mierdiRanking?.reset();
   score = 0; lives = 3; tunnelCount = 0; bonusTotal = 0;
   barriers = []; explosions = []; crystals = []; particles_wave = [];
   frameCount = 0; speed = 1.0;
@@ -320,6 +322,7 @@ function updateLives() {
 }
 
 function endGame() {
+  window.mierdiRanking?.fin(score);
   gameState = 'over';
   cancelAnimationFrame(animId);
   const msgs = [

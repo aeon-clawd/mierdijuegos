@@ -27,6 +27,7 @@ canvas{display:block;touch-action:none}
 .li{display:flex;align-items:center;gap:5px;font-size:.75em;color:#888}
 .d{width:11px;height:11px;border-radius:50%}
 </style>
+<script src="/ranking.js" defer></script>
 </head>
 <body>
 <div class="sc" id="ss">
@@ -154,9 +155,9 @@ function draw(){
   }
 }
 
-function gameOver(){st='gameover';document.getElementById('gs').style.display='flex';document.getElementById('fs').textContent=score;document.getElementById('fm').textContent=FUNNY[Math.floor(Math.random()*FUNNY.length)]}
+function gameOver(){window.mierdiRanking?.fin(score);st='gameover';document.getElementById('gs').style.display='flex';document.getElementById('fs').textContent=score;document.getElementById('fm').textContent=FUNNY[Math.floor(Math.random()*FUNNY.length)]}
 
-function startGame(){score=0;lives=3;mi=0;ni=1;bT=0;mTimer=0;inTrans=false;tTimer=0;hTimer=0;survTimer=0;mDur=5000;dirty=true;tx=null;ty=null;updUI();initP();st='playing';renderPat()}
+function startGame(){window.mierdiRanking?.reset();score=0;lives=3;mi=0;ni=1;bT=0;mTimer=0;inTrans=false;tTimer=0;hTimer=0;survTimer=0;mDur=5000;dirty=true;tx=null;ty=null;updUI();initP();st='playing';renderPat()}
 
 document.getElementById('bs').addEventListener('click',()=>{document.getElementById('ss').style.display='none';startGame()});
 document.getElementById('br').addEventListener('click',()=>{document.getElementById('gs').style.display='none';startGame()});

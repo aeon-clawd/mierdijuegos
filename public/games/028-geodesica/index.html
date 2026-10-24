@@ -26,6 +26,7 @@
   #crosshair{position:fixed;pointer-events:none;z-index:15;display:none}
   .angle-arc{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);z-index:15;display:none;align-items:center;gap:10px;font-size:13px;color:#ffff00}
 </style>
+<script src="/ranking.js" defer></script>
 </head>
 <body>
 
@@ -481,6 +482,7 @@ function nextLevel() {
 }
 
 function gameOver() {
+  window.mierdiRanking?.fin(score);
   gameState = 'over';
   cancelAnimationFrame(animId);
   document.getElementById('ui').style.display = 'none';
@@ -550,6 +552,7 @@ document.getElementById('btn-retry').addEventListener('click', () => {
 });
 
 function startGame() {
+  window.mierdiRanking?.reset();
   score = 0; lives = 3; level = 1;
   trails = []; particles = [];
   playerU = Math.PI/3; playerV = Math.PI/4;

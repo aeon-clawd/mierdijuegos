@@ -171,6 +171,7 @@
             z-index: 10;
         }
     </style>
+<script src="/ranking.js" defer></script>
 </head>
 <body>
     <div id="gameContainer">
@@ -259,6 +260,7 @@
         const DT = 0.016; // ~60fps
         
         function startGame() {
+            window.mierdiRanking?.reset();
             document.getElementById('startScreen').classList.add('hidden');
             gameState = 'playing';
             curve = [];
@@ -435,6 +437,7 @@
         function finishSimulation() {
             simulating = false;
             currentTime = Math.round(currentTime * 100) / 100;
+            if (Math.hypot(ballPosition.x - END_X, ballPosition.y - END_Y) < 15) window.mierdiRanking?.fin(currentTime);
             
             if (currentTime < bestTime) {
                 bestTime = currentTime;

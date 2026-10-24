@@ -73,6 +73,7 @@
   #back-link:hover { color: #00ffff; }
   .hidden { display: none !important; }
 </style>
+<script src="/ranking.js" defer></script>
 </head>
 <body>
 
@@ -431,6 +432,7 @@ function setupControls() {
 
 // ---- GAME STATE ----
 function startGame() {
+  window.mierdiRanking?.reset();
   freqA = 1; freqB = 2;
   t = 0; score = 0; timeLeft = TOTAL_TIME;
   trail = [];
@@ -449,6 +451,7 @@ function startGame() {
 }
 
 function endGame() {
+  window.mierdiRanking?.fin(score);
   gameState = 'gameover';
   if (animId) cancelAnimationFrame(animId);
   document.getElementById('ui').classList.add('hidden');

@@ -110,6 +110,7 @@
             border-color: #8B5CF6;
         }
     </style>
+<script src="/ranking.js" defer></script>
 </head>
 <body>
     <canvas id="gameCanvas"></canvas>
@@ -184,6 +185,7 @@
         }
         
         function startGame() {
+            window.mierdiRanking?.reset();
             document.getElementById('screen').classList.add('hidden');
             gameState = GAME_STATE.PLAYING;
             score = 0;
@@ -203,6 +205,7 @@
         }
         
         function endGame() {
+            window.mierdiRanking?.fin(score);
             gameState = GAME_STATE.GAME_OVER;
             const screen = document.getElementById('screen');
             screen.innerHTML = `

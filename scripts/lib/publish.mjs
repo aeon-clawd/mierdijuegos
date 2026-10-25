@@ -7,7 +7,7 @@ import { validateNewGameHtml } from './game-html.mjs';
 import { acquireLock } from './lock.mjs';
 import { smokeGame } from './smoke.mjs';
 import { repoPaths } from './paths.mjs';
-import { rankingSeedSql } from './ranking-seed.mjs';
+import { RANKING_AUTO } from './ranking-seed.mjs';
 
 export function checkPublishScope(changed,id) {
   if(!parseId(id)) throw new Error('invalid game id');
@@ -59,8 +59,8 @@ export async function publishGame({root,id}) {
     if(linked.projectId!=='prj_7XSsoVEPcCXNqYEF3EOLt8MPJdom') throw new Error('unexpected Vercel project');
     const changed=[...git(['diff','--name-only','-z','HEAD']).split('\0'),...git(['ls-files','--others','--exclude-standard','-z']).split('\0')].filter(Boolean);
     checkPublishScope(changed,id);
-    // Reminder in the journal/console output: the ranking row must be seeded by a human (README).
-    record={id,status:'validating',run:ready.run,rankingSeed:{status:'pending-human',sql:rankingSeedSql(id)}};save();
+    // The ranking needs no seed: the Edge Function checks the live catalog and the RPC creates the row.
+    record={id,status:'validating',run:ready.run,ranking:RANKING_AUTO};save();
     command('npm',['test'],{cwd:root,timeout:120000,log:join(p.local,'publish-tests.log')});
     await smokeGame({site:root,entry:ready.entry,run:ready.run});
     command('npm',['run','build'],{cwd:root,timeout:120000,log:join(p.local,'publish-build.log')});

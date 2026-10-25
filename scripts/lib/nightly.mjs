@@ -6,7 +6,7 @@ import { madridDate, runStamp } from './dates.mjs';
 import { acquireLock } from './lock.mjs';
 import { loadCatalog, validateCatalog, nextGameNumber } from './catalog.mjs';
 import { readGeneratorOutput } from './generator-output.mjs';
-import { rankingSeedSql } from './ranking-seed.mjs';
+import { RANKING_AUTO } from './ranking-seed.mjs';
 
 export function prepareSite(root, site) {
   mkdirSync(site, { recursive: true });
@@ -72,11 +72,9 @@ export async function runNightly({ root, today=madridDate(), generate, smoke, bu
       rmSync(pending,{recursive:true,force:true});rmSync(catalogTemp,{force:true});
     }
     result.status='ready';
-    // The public RPC only accepts seeded games and this pipeline holds no Supabase admin
-    // credentials, so seeding the new game's ranking row is a documented human step (README).
-    const seedFile=join(run,'ranking-seed.sql');
-    writeFileSync(seedFile,rankingSeedSql(parsed.entry.id));
-    result.rankingSeed={status:'pending-human',file:seedFile};
+    // No ranking seed: once published, the mierdi-ranking Edge Function validates the id against the
+    // live catalog and the RPC creates the row on the first submission. No Supabase credentials here.
+    result.ranking=RANKING_AUTO;
     result.htmlSha256=createHash('sha256').update(parsed.html).digest('hex');
     result.catalogSha256=createHash('sha256').update(readFileSync(p.catalog)).digest('hex');
     save();

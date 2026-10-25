@@ -1,0 +1,6 @@
+# Solo la configuración de la Edge Function del ranking. ranking.js llama con la clave
+# publishable (sb_publishable_…), que no es un JWT: la pasarela no debe exigir JWT.
+# La propia función exige la clave publishable en apikey (401 si falta o no coincide) y además
+# valida, comprueba el catálogo publicado y llama a la RPC (EXECUTE solo service_role).
+[functions.mierdi-ranking]
+verify_jwt = false

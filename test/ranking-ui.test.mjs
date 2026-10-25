@@ -93,7 +93,9 @@ test('entra en el top 5: sin teclado forzado, iniciales por toque, POST exacto, 
     await tap(s.page, '#mierdi-ranking [data-r="guardar"]');
     await s.page.locator('#mierdi-ranking [data-r="lista"] li.tu').waitFor();
     assert.deepEqual(s.calls.post.map((c) => c.body), [{ p_id_juego: '001-espejo-invertido', p_siglas: 'ABC', p_resultado: 35 }]);
-    assert.match(s.calls.post[0].url, /\/rest\/v1\/rpc\/mierdi_enviar_resultado$/);
+    assert.equal(s.calls.post[0].url, `${SUPA}/functions/v1/mierdi-ranking`, 'escribe solo vía la Edge Function (la RPC ya no es pública)');
+    assert.equal(s.calls.post[0].headers.apikey, 'sb_publishable_kZd05N2bT3RFmYf_pUvDyw_jVwWXIwn');
+    assert.equal(s.calls.post[0].headers.authorization, undefined);
     assert.equal(await s.page.locator('#mierdi-ranking [data-r="lista"] li.tu').textContent(), '3. ABC 35');
     assert.equal(await s.page.locator('#mierdi-ranking input[name="siglas"]').isVisible(), false);
     assert.deepEqual(await cuenta(s.page), { click: 0, keydown: 0, keyup: 0, touchstart: 0, touchend: 0, pointerdown: 0 }, 'ningún evento del panel llega al juego');
@@ -272,8 +274,40 @@ test('teclado y toques aislados; Escape/CERRAR liberan el REINTENTAR del juego y
   } finally { await s.close(); }
 });
 
-test('juego sin fila sembrada y datos hostiles del servidor: texto plano, sin formulario', async () => {
-  const s = await abrir({ get: (n) => json(n === 0 ? [] : [{ ranking: [{ siglas: '<img src=x onerror=window.pwned=1>', resultado: 5 }] }]) });
+test('juego nuevo sin fila (GET []): top 5 vacío, se puede guardar y el primer envío crea el ranking', async () => {
+  const s = await abrir({ id: '030-brachistocrona', get: () => json([]), post: (n, req) => json([{ siglas: 'NEW', resultado: JSON.parse(req.postData()).p_resultado }]) });
+  try {
+    await s.page.evaluate(() => window.mierdiRanking.fin(4.2));
+    await s.page.locator('#mierdi-ranking input[name="siglas"]').waitFor();
+    assert.deepEqual(await filas(s.page), ['1. --- ---', '2. --- ---', '3. --- ---', '4. --- ---', '5. --- ---']);
+    assert.match(await estado(s.page).textContent(), /entra en el top 5/);
+    await s.page.locator('#mierdi-ranking input[name="siglas"]').fill('new');
+    await tap(s.page, '#mierdi-ranking [data-r="guardar"]');
+    await s.page.locator('#mierdi-ranking li.tu').waitFor();
+    assert.equal(await s.page.locator('#mierdi-ranking li.tu').textContent(), '1. NEW 4.20 s');
+    assert.deepEqual(s.calls.post.map((c) => [c.url, c.body]), [[`${SUPA}/functions/v1/mierdi-ranking`, { p_id_juego: '030-brachistocrona', p_siglas: 'NEW', p_resultado: 4.2 }]]);
+    assert.deepEqual(s.errors, []);
+  } finally { await s.close(); }
+});
+
+test('filas malformadas siguen siendo un fallo: no disponible y REINTENTAR, sin formulario', async () => {
+  const malas = [{}, [{}], [{ ranking: null }], [{ ranking: {} }], [{ ranking: [] }, { ranking: [] }], null, 'x'];
+  const s = await abrir({ get: (n) => json(n < malas.length ? malas[n] : []) });
+  try {
+    await s.page.evaluate(() => window.mierdiRanking.fin(3));
+    for (let i = 0; i < malas.length; i++) {
+      await s.page.locator('#mierdi-ranking [data-r="reintentar"]').waitFor();
+      assert.match(await estado(s.page).textContent(), /no disponible/i, JSON.stringify(malas[i]));
+      assert.equal(await s.page.locator('#mierdi-ranking input[name="siglas"]').isVisible(), false);
+      await tap(s.page, '#mierdi-ranking [data-r="reintentar"]');
+    }
+    await s.page.locator('#mierdi-ranking input[name="siglas"]').waitFor(); // por fin [] → vacío y válido
+    assert.equal(s.calls.get.length, malas.length + 1);
+  } finally { await s.close(); }
+});
+
+test('datos hostiles del servidor: texto plano, sin HTML', async () => {
+  const s = await abrir({ get: (n) => (n === 0 ? json({ message: 'boom' }, 503) : json([{ ranking: [{ siglas: '<img src=x onerror=window.pwned=1>', resultado: 5 }] }])) });
   try {
     await s.page.evaluate(() => window.mierdiRanking.fin(3));
     await s.page.locator('#mierdi-ranking [data-r="reintentar"]').waitFor();

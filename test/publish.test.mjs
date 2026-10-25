@@ -1,6 +1,16 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { checkPublishScope, verifiedGame, verifiedDeployment, verifiedRemoteCommit } from '../scripts/lib/publish.mjs';
+import { RANKING_AUTO } from '../scripts/lib/ranking-seed.mjs';
+import { CATALOG_URL } from '../supabase/functions/mierdi-ranking/handler.js';
+test('publish journal records the automatic ranking (no pending-human seed, no Supabase credentials)',()=>{
+ const src=readFileSync(new URL('../scripts/lib/publish.mjs',import.meta.url),'utf8');
+ assert.doesNotMatch(src,/pending-human|rankingSeed/);
+ assert.match(src,/ranking:RANKING_AUTO/);
+ assert.deepEqual(RANKING_AUTO,{status:'automatic',via:'supabase/functions/mierdi-ranking',check:CATALOG_URL});
+ assert.doesNotMatch(src,/supabase\.co|SERVICE_ROLE|sb_secret/);
+});
 test('publisher refuses unrelated or staged secrets, traversal and empty ids',()=>{
  assert.doesNotThrow(()=>checkPublishScope(['public/games/games.json','public/games/035-test/index.html'],'035-test'));
  for(const paths of [['.env'],['src/pages/index.astro'],['public/games/034-old/index.html']]) assert.throws(()=>checkPublishScope(paths,'035-test'),/unrelated/);

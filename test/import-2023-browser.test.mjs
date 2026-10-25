@@ -64,6 +64,7 @@ async function open(id, seed) {
       if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
       const json = (b) => route.fulfill({ status: 200, headers: { ...CORS, 'content-type': 'application/json' }, body: JSON.stringify(b) });
       if (req.method() === 'GET') { net.gets++; return json([{ ranking: [] }]); }
+      if (u !== SUPA + 'functions/v1/mierdi-ranking') { net.external.push(u); return route.abort(); } // solo la Edge Function escribe
       const b = JSON.parse(req.postData() || '{}'); net.posts.push(b);
       return json([{ siglas: b.p_siglas, resultado: b.p_resultado }]);
     }

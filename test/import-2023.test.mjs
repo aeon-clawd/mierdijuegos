@@ -144,8 +144,9 @@ test('los 37 juegos del baseline siguen igual: mismas entradas, mismo orden, HTM
     const now = readFileSync(join(live.gamesDir, g.id, 'index.html'));
     assert.ok(now.equals(atBaseline(`public/games/${g.id}/index.html`)), `${g.id} cambió`);
   }
-  // Ranking, analítica y migración histórica intactos.
-  for (const p of ['public/ranking.js', 'public/analytics.js', 'supabase/migrations/20261024120000_mierdi_ranking.sql']) {
+  // Analítica y migración histórica intactas (ranking.js cambió después con la Edge Function
+  // mierdi-ranking; lo cubren test/ranking-ui.test.mjs y los tests de juegos).
+  for (const p of ['public/analytics.js', 'supabase/migrations/20261024120000_mierdi_ranking.sql']) {
     assert.ok(readFileSync(join(REPO_ROOT, p)).equals(atBaseline(p)), `${p} cambió`);
   }
 });
@@ -213,9 +214,11 @@ test('migración SQL aditiva: solo siembra los seis ids nuevos con ON CONFLICT D
   assert.match(statements[0], /^insert into public\.mierdi_ranking \(id_juego\) values\s/);
   assert.match(statements[0], /on conflict \(id_juego\) do nothing$/);
   assert.doesNotMatch(code, /\b(delete|update|truncate|drop|alter|create|grant|revoke|policy|function|ranking\s*=)\b/i);
-  // Ninguna otra migración nueva aparte de esta.
+  // Ninguna otra migración entre la histórica y esta; las posteriores (p. ej. la RPC perezosa) van detrás.
   const migs = readdirSync(join(REPO_ROOT, 'supabase/migrations')).sort();
-  assert.deepEqual(migs, ['20261024120000_mierdi_ranking.sql', m.seedMigration.split('/').pop()].sort());
+  const seed = m.seedMigration.split('/').pop();
+  assert.deepEqual(migs.slice(0, 2), ['20261024120000_mierdi_ranking.sql', seed]);
+  for (const later of migs.slice(2)) assert.ok(later > seed, `${later} debe ser posterior a ${seed}`);
 });
 
 test('documento de procedencia: commit, ruta y fecha de cada juego, exclusión y aviso sobre --follow', () => {

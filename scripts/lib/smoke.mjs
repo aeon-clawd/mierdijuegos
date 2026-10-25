@@ -20,9 +20,11 @@ export async function servePublic(site) {
   return {url:`http://127.0.0.1:${server.address().port}`,close:()=>new Promise(r=>server.close(r))};
 }
 
-// Supabase is MOCKED in the smoke: GET returns an empty top 5 and the RPC echoes the entry.
+// Supabase is MOCKED in the smoke: GET returns [] (a new game has no ranking row until its first
+// submission) and only the mierdi-ranking Edge Function accepts the POST, echoing the entry.
 // Nothing reaches the network and nothing is written anywhere.
 const SUPABASE='https://grldrwbiovglfxqjdicv.supabase.co/';
+const SUBMIT=SUPABASE+'functions/v1/mierdi-ranking';
 const CORS={'access-control-allow-origin':'*','access-control-allow-headers':'*','access-control-allow-methods':'GET,POST,OPTIONS'};
 async function rankingRound(page,ranking,label) {
   const dialog=page.locator('#mierdi-ranking [role="dialog"]');
@@ -53,7 +55,8 @@ export async function smokeGame({site,entry,run}) {
       if(req.url().startsWith(SUPABASE)) {
         if(req.method()==='OPTIONS') return route.fulfill({status:204,headers:CORS});
         const json=body=>route.fulfill({status:200,headers:{...CORS,'content-type':'application/json'},body:JSON.stringify(body)});
-        if(req.method()==='GET') {ranking.gets++;return json([{ranking:[]}]);}
+        if(req.method()==='GET') {ranking.gets++;return json([]);}
+        if(req.method()!=='POST'||req.url()!==SUBMIT) {externalRequests.push(req.url());return route.abort();}
         const body=JSON.parse(req.postData()||'{}');ranking.posts.push(body);
         return json([{siglas:body.p_siglas,resultado:body.p_resultado}]);
       }

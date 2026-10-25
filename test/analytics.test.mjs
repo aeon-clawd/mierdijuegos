@@ -71,6 +71,7 @@ async function abrir({ origin = 'https://mierdijuegos.com', path, bloquearVercel
       log.supabase.push(req.postData() || '');
       if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
       if (req.method() === 'GET') return route.fulfill(json([{ ranking: [] }]));
+      if (u.pathname !== '/functions/v1/mierdi-ranking') { log.otras.push(req.url()); return route.abort(); }
       const b = JSON.parse(req.postData());
       return route.fulfill(json([{ siglas: b.p_siglas, resultado: b.p_resultado }]));
     }

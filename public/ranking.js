@@ -3,7 +3,8 @@
 // window.mierdiRanking.fin(resultado) en el fin de partida real. Solo cuenta el primer fin()
 // de cada partida; los callbacks terminales repetidos se ignoran hasta el siguiente reset().
 // La clave es la publishable (rol anon), pública por diseño: la tabla es de solo lectura por RLS
-// y la única escritura es la RPC mierdi_enviar_resultado, que valida todo en el servidor.
+// y la única escritura es la Edge Function mierdi-ranking, que valida todo en el servidor (también
+// que el juego esté publicado en el catálogo) y crea el ranking del juego en su primer envío.
 
 // Cargador común de analítica de los juegos estáticos (todos incluyen este fichero): solo en producción
 // inyecta una vez /analytics.js (páginas vistas de Vercel). No comparte nada con el ranking.
@@ -18,7 +19,7 @@ if (/^(www\.)?mierdijuegos\.com$/.test(location.hostname) && !document.querySele
   'use strict';
   const SUPABASE = 'https://grldrwbiovglfxqjdicv.supabase.co';
   const CLAVE = 'sb_publishable_kZd05N2bT3RFmYf_pUvDyw_jVwWXIwn';
-  const ASC = { '030-brachistocrona': ' s' }; // menos es mejor (debe coincidir con la RPC)
+  const ASC = { '030-brachistocrona': ' s' }; // menos es mejor (debe coincidir con la RPC y la Edge Function)
   const MAX = 1e9;
   const m = location.pathname.match(/\/games\/([^/]+)\//);
   const ID = m ? decodeURIComponent(m[1]) : '';
@@ -150,8 +151,10 @@ button:disabled{opacity:.5}
     pintar('Cargando top 5…');
     pedir('GET', `/rest/v1/mierdi_ranking?select=ranking&id_juego=eq.${encodeURIComponent(ID)}`).then((filas) => {
       if (n !== intento) return;
-      const ranking = Array.isArray(filas) && filas[0] && filas[0].ranking;
-      if (!Array.isArray(ranking)) throw new Error('juego sin ranking');
+      // [] = el juego aún no tiene fila (nadie ha guardado todavía): top 5 vacío. Lo demás raro es un fallo.
+      if (!Array.isArray(filas) || filas.length > 1) throw new Error('respuesta rara');
+      const ranking = filas.length ? filas[0] && filas[0].ranking : [];
+      if (!Array.isArray(ranking)) throw new Error('respuesta rara');
       actual.ranking = ranking;
       const si = entra(actual.resultado, ranking);
       ui.form.hidden = !si;
@@ -169,7 +172,7 @@ button:disabled{opacity:.5}
     if (!actual.payload) {
       const siglas = ui.input.value.trim().toUpperCase();
       if (!/^[A-Z]{3}$/.test(siglas)) { ui.estado.textContent = 'Pon exactamente 3 letras A-Z (sin Ñ, acentos ni números).'; return; }
-      // Desde aquí el envío es fijo: un reintento manda exactamente lo mismo y la RPC no lo duplica.
+      // Desde aquí el envío es fijo: un reintento manda exactamente lo mismo y el servidor no lo duplica.
       actual.payload = { p_id_juego: ID, p_siglas: siglas, p_resultado: actual.resultado };
       ui.input.disabled = true;
     }
@@ -177,7 +180,7 @@ button:disabled{opacity:.5}
     actual.enviando = true;
     ui.guardar.disabled = true;
     ui.estado.textContent = 'Guardando…';
-    pedir('POST', '/rest/v1/rpc/mierdi_enviar_resultado', actual.payload).then((ranking) => {
+    pedir('POST', '/functions/v1/mierdi-ranking', actual.payload).then((ranking) => {
       if (n !== intento) return;
       if (!Array.isArray(ranking)) throw new Error('respuesta rara');
       actual.ranking = ranking;

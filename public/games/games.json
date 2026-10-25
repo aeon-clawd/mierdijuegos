@@ -342,5 +342,13 @@
     "description": "Del Mierdijuegos original de 2023. Ves el laberinto pero no a ti mismo. Toca y escucha: la nota te dice lo lejos que estás de la salida. Con cascos, mejor.",
     "mechanic": "Navegación por oído: cada toque suena una nota según la longitud del camino más corto a la salida (más grave = más cerca); deslizar mueve una casilla. Sesión de 3 min, un punto por salida.",
     "emoji": "🎧"
+  },
+  {
+    "id": "044-tarta-justa",
+    "title": "Tarta Justa",
+    "date": "2026-10-25",
+    "description": "La familia vigila cada miga. Desliza el cuchillo de lado a lado y reparte cada tarta en trozos IGUALES para todos los comensales. Si un trozo es mucho más pequeño que otro, alguien llora y pierdes un corazón. Corazones, roscones, estrellas y la tarta en L del primo.",
+    "mechanic": "Corte geométrico por rectas: cada deslizamiento traza una recta infinita que parte todos los trozos que cruza. Cuando hay tantos trozos como comensales, se sirve: la puntuación sale de lo justo que es el reparto (menor/mayor). Bonus por usar menos cortes y por una cereza por trozo.",
+    "emoji": "🎂"
   }
 ]

@@ -350,5 +350,13 @@
     "description": "La familia vigila cada miga. Desliza el cuchillo de lado a lado y reparte cada tarta en trozos IGUALES para todos los comensales. Si un trozo es mucho más pequeño que otro, alguien llora y pierdes un corazón. Corazones, roscones, estrellas y la tarta en L del primo.",
     "mechanic": "Corte geométrico por rectas: cada deslizamiento traza una recta infinita que parte todos los trozos que cruza. Cuando hay tantos trozos como comensales, se sirve: la puntuación sale de lo justo que es el reparto (menor/mayor). Bonus por usar menos cortes y por una cereza por trozo.",
     "emoji": "🎂"
+  },
+  {
+    "id": "045-caja-rapida",
+    "title": "Caja Rápida",
+    "date": "2026-10-26",
+    "description": "Eres el encargado del súper y los clientes entran sin parar. Arrastra a cada uno a una caja: cada cajera cobra a su ritmo, la EXPRESS no acepta más de 5 artículos y las cajeras se van al café. Si se les acaba la paciencia, se van y te dejan una reseña de una estrella.",
+    "mechanic": "Reparto de colas en tiempo real: arrastras clientes con X artículos a una de 4 colas en paralelo con distinta velocidad. Abuelas lentas, prisas que pagan doble, express ≤5, descansos avisados y aros de paciencia. Puedes recolocar a quien espera en cola.",
+    "emoji": "🛒"
   }
 ]

@@ -358,5 +358,13 @@
     "description": "Eres el encargado del súper y los clientes entran sin parar. Arrastra a cada uno a una caja: cada cajera cobra a su ritmo, la EXPRESS no acepta más de 5 artículos y las cajeras se van al café. Si se les acaba la paciencia, se van y te dejan una reseña de una estrella.",
     "mechanic": "Reparto de colas en tiempo real: arrastras clientes con X artículos a una de 4 colas en paralelo con distinta velocidad. Abuelas lentas, prisas que pagan doble, express ≤5, descansos avisados y aros de paciencia. Puedes recolocar a quien espera en cola.",
     "emoji": "🛒"
+  },
+  {
+    "id": "046-escoba-en-el-dedo",
+    "title": "Escoba en el Dedo",
+    "date": "2026-10-27",
+    "description": "Una escoba de pie sobre tu dedo. Arrastra a los lados para mantenerla en equilibrio y toca las estrellas con la punta. Luego vienen la fregona, el paraguas, la baguette… cada vez más cortas y traicioneras. Hay ráfagas de viento y palomas kamikaze. Tres caídas y se acabó.",
+    "mechanic": "Péndulo invertido: no mueves la escoba, mueves el punto de apoyo. Si se inclina a un lado, acelera el dedo hacia ese lado. Las estrellas bajas obligan a inclinarla mucho a propósito. Los objetos más cortos se caen más rápido. El viento empuja de forma continua y las palomas dan golpes.",
+    "emoji": "🧹"
   }
 ]

@@ -366,5 +366,13 @@
     "description": "Una escoba de pie sobre tu dedo. Arrastra a los lados para mantenerla en equilibrio y toca las estrellas con la punta. Luego vienen la fregona, el paraguas, la baguette… cada vez más cortas y traicioneras. Hay ráfagas de viento y palomas kamikaze. Tres caídas y se acabó.",
     "mechanic": "Péndulo invertido: no mueves la escoba, mueves el punto de apoyo. Si se inclina a un lado, acelera el dedo hacia ese lado. Las estrellas bajas obligan a inclinarla mucho a propósito. Los objetos más cortos se caen más rápido. El viento empuja de forma continua y las palomas dan golpes.",
     "emoji": "🧹"
+  },
+  {
+    "id": "047-marana-de-cables",
+    "title": "Maraña de Cables",
+    "date": "2026-10-28",
+    "description": "Detrás de la tele vive un nido de cables. Arrastra los aparatos hasta que ningún cable se cruce con otro. Cada maraña resuelta te da tiempo extra y la siguiente trae más aparatos. A partir de la tercera aparece un gato que viene a descolocarte las cosas. Tócalo para echarlo.",
+    "mechanic": "Desenredar un grafo plano: mueves los vértices y las aristas fijas los siguen. Los cruces y los aparatos que pisan un cable se marcan en vivo. Lo resuelves al soltar con cero cruces. El tiempo sobrante se acumula, resolver rápido da más puntos, y un gato saboteador empuja aparatos si no lo espantas.",
+    "emoji": "🔌"
   }
 ]

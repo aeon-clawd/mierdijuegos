@@ -374,5 +374,13 @@
     "description": "Detrás de la tele vive un nido de cables. Arrastra los aparatos hasta que ningún cable se cruce con otro. Cada maraña resuelta te da tiempo extra y la siguiente trae más aparatos. A partir de la tercera aparece un gato que viene a descolocarte las cosas. Tócalo para echarlo.",
     "mechanic": "Desenredar un grafo plano: mueves los vértices y las aristas fijas los siguen. Los cruces y los aparatos que pisan un cable se marcan en vivo. Lo resuelves al soltar con cero cruces. El tiempo sobrante se acumula, resolver rápido da más puntos, y un gato saboteador empuja aparatos si no lo espantas.",
     "emoji": "🔌"
+  },
+  {
+    "id": "048-fontanero-de-guardia",
+    "title": "Fontanero de Guardia",
+    "date": "2026-10-29",
+    "description": "Son las 3 de la mañana y el baño de la vecina es un caos. Toca las tuberías para girarlas y abre camino al agua, que avanza sola desde el grifo hasta el desagüe. Si se sale por un extremo abierto, inundas el piso de abajo. Patitos de goma, tuberías oxidadas y ladrillos.",
+    "mechanic": "Construir por delante de un frente que avanza: cada toque gira 90° una casilla de tubería (recta, codo o cruce). El agua sale tras una cuenta atrás y llena casilla a casilla; las llenas se bloquean. Extremo abierto = fuga. Abrir el grifo antes da bonus; tocarlo luego mete turbo.",
+    "emoji": "🔧"
   }
 ]

@@ -382,5 +382,13 @@
     "description": "Son las 3 de la mañana y el baño de la vecina es un caos. Toca las tuberías para girarlas y abre camino al agua, que avanza sola desde el grifo hasta el desagüe. Si se sale por un extremo abierto, inundas el piso de abajo. Patitos de goma, tuberías oxidadas y ladrillos.",
     "mechanic": "Construir por delante de un frente que avanza: cada toque gira 90° una casilla de tubería (recta, codo o cruce). El agua sale tras una cuenta atrás y llena casilla a casilla; las llenas se bloquean. Extremo abierto = fuga. Abrir el grifo antes da bonus; tocarlo luego mete turbo.",
     "emoji": "🔧"
+  },
+  {
+    "id": "049-lazo-de-luciernagas",
+    "title": "Lazo de Luciérnagas",
+    "date": "2026-10-30",
+    "description": "Noche de verano y el tarro está vacío. Dibuja con el dedo un lazo alrededor de las luciérnagas: cuando tu trazo se cruza consigo mismo, se cierra y atrapa todo lo que haya dentro. Un lazo de un solo color multiplica los puntos. Si encierras una avispa, te pica.",
+    "mechanic": "Captura con lazo libre: el trazo tiene longitud limitada y la cola se va borrando. Se cierra al cruzarse o al soltar cerca del inicio, y puntúa lo que encierra. Un solo color multiplica por el número de bichos, una avispa dentro quita una vida y, si cruza el trazo, lo corta. Cada pedido da +10 s.",
+    "emoji": "🫙"
   }
 ]

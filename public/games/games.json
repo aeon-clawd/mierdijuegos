@@ -390,5 +390,13 @@
     "description": "Noche de verano y el tarro está vacío. Dibuja con el dedo un lazo alrededor de las luciérnagas: cuando tu trazo se cruza consigo mismo, se cierra y atrapa todo lo que haya dentro. Un lazo de un solo color multiplica los puntos. Si encierras una avispa, te pica.",
     "mechanic": "Captura con lazo libre: el trazo tiene longitud limitada y la cola se va borrando. Se cierra al cruzarse o al soltar cerca del inicio, y puntúa lo que encierra. Un solo color multiplica por el número de bichos, una avispa dentro quita una vida y, si cruza el trazo, lo corta. Cada pedido da +10 s.",
     "emoji": "🫙"
+  },
+  {
+    "id": "050-peluqueria-canina",
+    "title": "Peluquería Canina",
+    "date": "2026-11-01",
+    "description": "Los perros llegan greñudos y con prisa. Arrastra la maquinilla para quitar todo el pelo que sobra por fuera de la línea discontinua sin hacerles calvas. Caniches, leones, salchichas punk… y todos se mueven. Algunos hasta se sacuden en el peor momento.",
+    "mechanic": "Borrado de precisión con pincel fijo: la maquinilla elimina celdas de pelo dentro de su radio. Gana el pelo sobrante quitado, cortar dentro de la silueta deja calvas. Los perros se balancean bajo el dedo, avisan antes de sacudirse y hay tiempo límite. Fallo = demasiada calva o pelo.",
+    "emoji": "✂️"
   }
 ]

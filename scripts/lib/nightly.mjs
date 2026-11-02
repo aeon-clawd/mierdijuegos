@@ -6,6 +6,7 @@ import { madridDate, runStamp } from './dates.mjs';
 import { acquireLock } from './lock.mjs';
 import { loadCatalog, validateCatalog, nextGameNumber } from './catalog.mjs';
 import { readGeneratorOutput } from './generator-output.mjs';
+import { repairOverlongMetadata } from './metadata-repair.mjs';
 import { RANKING_AUTO } from './ranking-seed.mjs';
 
 export function prepareSite(root, site) {
@@ -42,8 +43,16 @@ export async function runNightly({ root, today=madridDate(), generate, smoke, bu
     save();
     const number=nextGameNumber(catalog);
     result.generator=await generate({root,output,run,catalog,number,today});
-    const parsed=readGeneratorOutput(output,{catalog,number,today});
-    if(parsed.errors.length) throw new Error(parsed.errors.join('\n'));
+    let parsed=readGeneratorOutput(output,{catalog,number,today});
+    if(parsed.errors.length) {
+      // Only overlong description/mechanic is repaired (once, no LLM call); then the
+      // full validator runs again. Anything else fails closed with the original errors.
+      const repair=repairOverlongMetadata({output,run,errors:parsed.errors});
+      if(!repair) throw new Error(parsed.errors.join('\n'));
+      result.metadataRepair=repair.summary;save();
+      parsed=readGeneratorOutput(repair.dir,{catalog,number,today});
+      if(parsed.errors.length) throw new Error(`after metadata repair: ${parsed.errors.join('\n')}`);
+    }
     result.entry=parsed.entry;
     result.novelty=parsed.novelty;
     result.status='validating';save();

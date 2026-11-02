@@ -8,7 +8,8 @@ export const ID_RE = /^(\d{3,})-([a-z0-9]+(?:-[a-z0-9]+)*)$/;
 export const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const FIELDS = ['id', 'title', 'date', 'description', 'mechanic', 'emoji'];
 
-const NEW_LIMITS = { title: 40, description: 300, mechanic: 300, emoji: 16 };
+export const NEW_LIMITS = { title: 40, description: 300, mechanic: 300, emoji: 16 };
+export const lengthError = (f, max) => `field "${f}" longer than ${max} characters`;
 
 export function loadCatalog(path) {
   let data;
@@ -105,7 +106,7 @@ export function validateNewEntry(entry, existing, { today, expectedNumber }) {
     if (typeof entry[f] !== 'string' || entry[f].trim() === '') errors.push(`field "${f}" must be a non-empty string`);
   }
   for (const [f, max] of Object.entries(NEW_LIMITS)) {
-    if (typeof entry[f] === 'string' && [...entry[f]].length > max) errors.push(`field "${f}" longer than ${max} characters`);
+    if (typeof entry[f] === 'string' && [...entry[f]].length > max) errors.push(lengthError(f, max));
   }
   const parsed = parseId(entry.id);
   if (!parsed) errors.push(`invalid id "${entry.id}"`);

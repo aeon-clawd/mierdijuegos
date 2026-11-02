@@ -17,6 +17,7 @@ Sitio Astro con un juego HTML nuevo cada noche. Detalle completo en `README.md`.
 - Juegos: cualquier tema, mecánica distinta del catálogo; mantener la marca (`#0a0a0a`, neones, español, tono juguetón). Contrato del generador en `scripts/generate-game.md`.
 - `.local/ready.json` con `status: "ready"` de otra fecha bloquea generar otro juego; solo un `publishGame` completo lo pasa a `published`. Fallos parciales lo dejan en `ready`; mira `.local/publish-result.json` y reintenta con `npm run publish`.
 - Fallo por cuota de Claude = no se crea juego.
+- Reparación automática de metadatos: un único intento, sin LLM, solo si **todos** los errores son `description`/`mechanic` > 300. No toca `output/` ni `claude.raw.log`; escribe `runs/<stamp>/repaired/` + `metadata-repair.json` y revalida todo (validador, smoke, build). El validador cuenta code points; la reparación limita también en UTF-16 (conservadora). Cualquier otro error falla cerrado. Detalle en `README.md`.
 - Lock `.local/nightly.lock` fail-closed: nunca borrarlo sin comprobar que su `pid` ya no existe.
 - `.local/` (logs, runs, estado) está ignorado por git.
 - El smoke fuerza el game-over con `mierdiTest.forceGameOver`; no prueba que el juego sea ganable ni divertido.

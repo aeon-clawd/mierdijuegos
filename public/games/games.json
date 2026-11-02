@@ -398,5 +398,13 @@
     "description": "Los perros llegan greñudos y con prisa. Arrastra la maquinilla para quitar todo el pelo que sobra por fuera de la línea discontinua sin hacerles calvas. Caniches, leones, salchichas punk… y todos se mueven. Algunos hasta se sacuden en el peor momento.",
     "mechanic": "Borrado de precisión con pincel fijo: la maquinilla elimina celdas de pelo dentro de su radio. Gana el pelo sobrante quitado, cortar dentro de la silueta deja calvas. Los perros se balancean bajo el dedo, avisan antes de sacudirse y hay tiempo límite. Fallo = demasiada calva o pelo.",
     "emoji": "✂️"
+  },
+  {
+    "id": "051-chupitos-de-capas",
+    "title": "Chupitos de Capas",
+    "date": "2026-11-02",
+    "description": "Eres barman en un garito de neón y te piden chupitos por capas. Mantén pulsado para inclinar la botella y suelta a tiempo: el chorro tarda en llegar y en cortarse. Pásate de la línea o desborda el vaso y te lo rechazan. Copas de cóctel, vasos de reloj de arena y miel de la abuela.",
+    "mechanic": "Dosificar con inercia: mantener pulsado inclina la botella y sube el caudal; al soltar tarda en enderezarse y el líquido en el aire sigue cayendo. La forma del vaso cambia lo rápido que sube el nivel. Quedarse corto da un chorrito extra; pasarse cuesta una vida.",
+    "emoji": "🍹"
   }
 ]

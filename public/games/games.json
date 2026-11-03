@@ -406,5 +406,13 @@
     "description": "Eres barman en un garito de neón y te piden chupitos por capas. Mantén pulsado para inclinar la botella y suelta a tiempo: el chorro tarda en llegar y en cortarse. Pásate de la línea o desborda el vaso y te lo rechazan. Copas de cóctel, vasos de reloj de arena y miel de la abuela.",
     "mechanic": "Dosificar con inercia: mantener pulsado inclina la botella y sube el caudal; al soltar tarda en enderezarse y el líquido en el aire sigue cayendo. La forma del vaso cambia lo rápido que sube el nivel. Quedarse corto da un chorrito extra; pasarse cuesta una vida.",
     "emoji": "🍹"
+  },
+  {
+    "id": "052-maleta-a-presion",
+    "title": "Maleta a Presión",
+    "date": "2026-11-03",
+    "description": "El taxi al aeropuerto ya está pitando. Arrastra la ropa, los zapatos y los peluches a la maleta y toca cada cosa para girarla. Tiene que quedar llena, sin un solo hueco. Cada maleta cerrada te da tiempo extra. A partir de la cuarta, tu suegra mete trastos que sobran.",
+    "mechanic": "Puzle de encaje contrarreloj. Las piezas son poliominós que salen de partir la maleta al azar, así que siempre hay solución. Al arrastrar, la pieza se ajusta sola a la rejilla y al tocarla gira 90°. Se gana llenando la maleta, no gastando todas las piezas.",
+    "emoji": "🧳"
   }
 ]

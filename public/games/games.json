@@ -414,5 +414,13 @@
     "description": "El taxi al aeropuerto ya está pitando. Arrastra la ropa, los zapatos y los peluches a la maleta y toca cada cosa para girarla. Tiene que quedar llena, sin un solo hueco. Cada maleta cerrada te da tiempo extra. A partir de la cuarta, tu suegra mete trastos que sobran.",
     "mechanic": "Puzle de encaje contrarreloj. Las piezas son poliominós que salen de partir la maleta al azar, así que siempre hay solución. Al arrastrar, la pieza se ajusta sola a la rejilla y al tocarla gira 90°. Se gana llenando la maleta, no gastando todas las piezas.",
     "emoji": "🧳"
+  },
+  {
+    "id": "053-guardia-del-cruce",
+    "title": "Guardia del Cruce",
+    "date": "2026-11-04",
+    "description": "Se ha roto el semáforo del pueblo y te toca dirigir el cruce. Toca cada semáforo para ponerlo en verde o en rojo y que nadie se la pegue en medio. Si alguien espera demasiado, pita y acaba saltándose el rojo. Las ambulancias no paran nunca y los tractores van a su bola.",
+    "mechanic": "Regular el tráfico con semáforos: cada toque cambia de verde a rojo, o al revés, una de las cuatro entradas. Los coches frenan con inercia y los que ya no pueden parar pasan igual. Si se les acaba la paciencia, se saltan el rojo. Cada choque cuesta una vida y cada vehículo que cruza da puntos.",
+    "emoji": "🚦"
   }
 ]

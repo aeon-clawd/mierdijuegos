@@ -422,5 +422,13 @@
     "description": "Se ha roto el semáforo del pueblo y te toca dirigir el cruce. Toca cada semáforo para ponerlo en verde o en rojo y que nadie se la pegue en medio. Si alguien espera demasiado, pita y acaba saltándose el rojo. Las ambulancias no paran nunca y los tractores van a su bola.",
     "mechanic": "Regular el tráfico con semáforos: cada toque cambia de verde a rojo, o al revés, una de las cuatro entradas. Los coches frenan con inercia y los que ya no pueden parar pasan igual. Si se les acaba la paciencia, se saltan el rojo. Cada choque cuesta una vida y cada vehículo que cruza da puntos.",
     "emoji": "🚦"
+  },
+  {
+    "id": "054-gancho-de-feria",
+    "title": "Gancho de Feria",
+    "date": "2026-11-05",
+    "description": "La máquina de gancho de la feria, con todas sus trampas. Mantén pulsado y arrastra para mover el gancho, que se balancea colgado del cable. Suelta para bajarlo. Cada ficha trae una fuerza distinta: si el peluche pesa más de la cuenta o lo pillas por el borde, se escurre.",
+    "mechanic": "Grúa con péndulo: el gancho cuelga de un cable y se balancea al acelerar el carro, también al bajar. Frena o contrarresta antes de soltar. Cada ficha sortea la fuerza de la garra; agarre = fuerza − peso − desvío del centro. Si va justo, se escurre al subir.",
+    "emoji": "🧸"
   }
 ]

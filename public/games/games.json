@@ -438,5 +438,13 @@
     "description": "Eres el payaso del cumpleaños y cada niño quiere un globo bien gordo. Mantén pulsado para hincharlo y desliza hacia arriba para entregarlo. Cuanto más grande, más puntos, pero cada globo revienta en un punto secreto. Si tiembla y cruje, ojo, que los del chino avisan tarde.",
     "mechanic": "Arriesgar o plantarse: mantener pulsado hincha cada vez más rápido y deslizar arriba lo entrega. Hay que superar un mínimo visible, pero el punto de reventar es secreto: solo avisan temblores, crujidos y hernias, antes o después según el globo. Rozar el límite puntúa doble.",
     "emoji": "🎈"
+  },
+  {
+    "id": "056-conga-de-boda",
+    "title": "Conga de Boda",
+    "date": "2026-11-08",
+    "description": "La boda está muerta y la tía Mari ha dicho basta. Guíala con el dedo y engancha a los invitados a la conga. Que no se te cruce la cola ni te la parta un camarero. Las abuelas puntúan doble y los tíos triple, pero vienen mareados. ¡Que no pare hasta que acabe la canción!",
+    "mechanic": "Serpiente con dirección continua: la tía avanza sola y gira poco a poco hacia el dedo. Cada invitado se engancha a la cola y da puntos cada segundo. Si te pisas o un camarero cruza la fila, se rompe por ahí y los sueltos se pueden recoger. Mesas y camareros de frente quitan vida.",
+    "emoji": "💃"
   }
 ]

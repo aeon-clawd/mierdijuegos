@@ -454,5 +454,13 @@
     "description": "En este bar las cañas no se llevan, se deslizan. Lánzala barra arriba con un golpe de dedo y frota la madera por delante para que resbale más. Tiene que pararse justo delante de quien la ha pedido. Si se pasa del final, ¡CRASH! Hay charcos de kalimotxo pegajoso y la barra cambia a cada ronda.",
     "mechanic": "Lanzar y corregir con el rozamiento. La fuerza del deslizamiento decide la velocidad. Después no se puede frenar, solo alargar: frotar la barra la pule durante unos segundos y quita los charcos pegajosos. Gana quien la deja en la franja del cliente.",
     "emoji": "🍺"
+  },
+  {
+    "id": "058-paraguas-de-la-abuela",
+    "title": "Paraguas de la Abuela",
+    "date": "2026-11-10",
+    "description": "La abuela va a por el pan y está diluviando. El paraguas lo llevas tú: arrástralo y se inclina solo hacia donde lo pongas. Ojo con el vendaval, los cubos de ¡AGUA VA! que tiran desde los balcones y los coches que pisan charcos. Si se empapa del todo, catarro y se acabó.",
+    "mechanic": "Escoltas a la abuela con un escudo. Ella camina sola y tú colocas el paraguas alrededor de su cabeza. Su ángulo depende de dónde lo pongas respecto a ella: arriba para la lluvia y de lado para los charcos.",
+    "emoji": "☂️"
   }
 ]

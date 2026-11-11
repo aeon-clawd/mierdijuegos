@@ -462,5 +462,13 @@
     "description": "La abuela va a por el pan y está diluviando. El paraguas lo llevas tú: arrástralo y se inclina solo hacia donde lo pongas. Ojo con el vendaval, los cubos de ¡AGUA VA! que tiran desde los balcones y los coches que pisan charcos. Si se empapa del todo, catarro y se acabó.",
     "mechanic": "Escoltas a la abuela con un escudo. Ella camina sola y tú colocas el paraguas alrededor de su cabeza. Su ángulo depende de dónde lo pongas respecto a ella: arriba para la lluvia y de lado para los charcos.",
     "emoji": "☂️"
+  },
+  {
+    "id": "059-monda-perfecta",
+    "title": "Monda Perfecta",
+    "date": "2026-11-11",
+    "description": "La abuela pela la naranja en una sola tira. Te toca a ti: da vueltas con el dedo alrededor de la fruta siguiendo la pista. Si cortas muy adentro, sale zumo; si vas muy por fuera, la tira se rompe. Y no corras, que cuanto más larga es la monda, más pesa.",
+    "mechanic": "Gesto circular continuo: el ángulo que recorres hace avanzar el cuchillo y la distancia al centro marca la profundidad. Hay que seguir una pista con baches. Muy adentro sale zumo y muy afuera la tira se tensa. Cuanto más crece la tira, más baja la velocidad máxima.",
+    "emoji": "🍊"
   }
 ]

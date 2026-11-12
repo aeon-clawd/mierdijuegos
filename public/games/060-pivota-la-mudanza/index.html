@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>¡Pivota! La Mudanza · Mierdijuegos</title>
+<script src="/ranking.js" defer></script>
+<style>
+html,body{margin:0;height:100%;background:#0a0a0a;color:#eee;overflow:hidden;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;-webkit-user-select:none;user-select:none}
+#c{position:fixed;inset:0;width:100vw;height:100vh;display:block;touch-action:none}
+.ov{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;padding:18px;box-sizing:border-box;background:rgba(10,10,10,.88);overflow:auto}
+.hide{display:none}
+.card{max-width:400px;width:100%;text-align:center}
+.emo{font-size:54px}
+h1{margin:4px 0;font-size:42px;color:#ff2bd6;text-shadow:0 0 16px #ff2bd6;letter-spacing:1px}
+h2{margin:6px 0;font-size:30px;color:#ffe23a;text-shadow:0 0 14px #ffe23a}
+.sub{color:#21e6ff;margin:0 0 14px;font-weight:bold}
+ul{text-align:left;padding-left:20px;line-height:1.45;font-size:15px;margin:0 0 18px}
+li{margin-bottom:7px}
+.y{color:#ffe23a}.c{color:#21e6ff}.g{color:#39ff88}.m{color:#ff2bd6}
+button{font:bold 22px system-ui,sans-serif;padding:14px 38px;border-radius:14px;border:2px solid #39ff88;background:#0f2a1a;color:#39ff88;box-shadow:0 0 18px #39ff8866;cursor:pointer;touch-action:manipulation}
+button:active{transform:scale(.96)}
+.big{font-size:34px;font-weight:bold;color:#21e6ff;margin:8px 0}
+.back{display:inline-block;margin-top:18px;color:#ff2bd6;text-decoration:none;font-weight:bold}
+.rec{color:#999;font-size:14px}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="menu" class="ov"><div class="card">
+<div class="emo">🛋️</div>
+<h1>¡PIVOTA!</h1>
+<p class="sub">Bajar los muebles del 5º. Sin ascensor.</p>
+<ul>
+<li><b class="y">Arrastra un EXTREMO</b>: tiras de ahí y el resto del mueble te sigue como un remolque. Llévalo de lado para girarlo y empújalo para que avance.</li>
+<li><b class="c">Arrastra el CENTRO</b>: se mueve sin girar.</li>
+<li>Sácalo por la <b class="y">SALIDA</b> antes de que se vaya el camión. Cada roce con la pared se come parte de la <b class="m">fianza</b>.</li>
+</ul>
+<button data-action="start">JUGAR</button>
+<p class="rec" id="rec"></p>
+</div></div>
+<div id="over" class="ov hide"><div class="card">
+<h2 id="oT">FIN</h2>
+<p id="oR"></p>
+<div class="big" id="oS">0</div>
+<p class="rec" id="oB"></p>
+<button data-action="retry">REINTENTAR</button><br>
+<a class="back" href="/" data-action="back">← MÁS MIERDIJUEGOS</a>
+</div></div>
+<script>
+(function(){
+'use strict';
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const menuEl=document.getElementById('menu'),overEl=document.getElementById('over');
+const C={g:'#39ff88',m:'#ff2bd6',c:'#21e6ff',y:'#ffe23a',r:'#ff4455'};
+const FURN=[
+ {n:'CÓMODA',t:.5,c:C.g},{n:'SOFÁ',t:.42,c:C.m},{n:'COLCHÓN',t:.3,c:C.c},{n:'ESCALERA',t:.16,c:C.y},
+ {n:'ARMARIO',t:.55,c:C.g},{n:'TABLA DE PLANCHAR',t:.2,c:C.c},{n:'SOFÁ CAMA',t:.46,c:C.m},{n:'ESPEJO GIGANTE',t:.24,c:C.y}];
+const PHR=['¡RAS!','¡El gotelé!','¡Mi fianza!','¡Esa esquina!','¡PIVOTA!','¡Que es de la abuela!','¡Eso deja marca!','¡CRAAC!'];
+const TOP=70,BOT=12,BKEY='mierdi-pivota-best';
+let W=0,H=0,DPR=1,state='menu',score=0,points=0,inputCount=0,floorN=0,done=0;
+let timeLeft=0,fianza=100,level=null,sofa=null,grab=null,pause=0,lastScrape=-9,shake=0,tNow=0,hintT=0,endReason='',hitP=null;
+let msgs=[],parts=[];
+const view={w:40,ox:0,oy:0};
+let best=0;try{best=+localStorage.getItem(BKEY)||0}catch(e){}
+document.getElementById('rec').textContent=best>0?'Récord: '+best+' pts':'';
+
+function resize(){DPR=Math.min(window.devicePixelRatio||1,2.5);W=innerWidth;H=innerHeight;cv.width=Math.round(W*DPR);cv.height=Math.round(H*DPR);fitView()}
+function fitView(){if(!level)return;const aw=W-16,ah=H-TOP-BOT,w=Math.min(aw/level.cols,ah/level.rows);view.w=w;view.ox=(W-w*level.cols)/2;view.oy=TOP+(ah-w*level.rows)/2}
+addEventListener('resize',resize);resize();
+
+const rnd=n=>Math.random()*n|0;
+// Pasillo en zigzag sobre una rejilla de 5 de ancho; tramos de 3-4 casillas entre esquinas
+function genLevel(){
+ const port=H>=W,S=5,aw=W-16,ah=H-TOP-BOT,cell=(port?aw:ah)/S;
+ const U=Math.max(8,Math.min(12,Math.floor((port?ah:aw)/cell)));
+ const uv=[];let v=[0,1,3,4][rnd(4)],u=0,next=3+rnd(2);const v0=v;
+ for(;;){
+  if(next>U-3){for(let k=u;k<U;k++)uv.push([k,v]);break}
+  for(let k=u;k<=next;k++)uv.push([k,v]);
+  const opts=[0,1,3,4].filter(q=>Math.abs(q-v)>=3),v2=opts[rnd(opts.length)],s=Math.sign(v2-v);
+  for(let q=v+s;q!==v2+s;q+=s)uv.push([next,q]);
+  v=v2;u=next+1;next+=3+rnd(2);
+ }
+ const map=(a,b)=>port?[b,a]:[a,b],key=(c,r)=>(c+20)*1000+r+20;
+ const cells=uv.map(p=>map(p[0],p[1])),ext=[0,1,2,3].map(k=>map(U+k,v)),walk=new Set();
+ cells.concat(ext).forEach(p=>walk.add(key(p[0],p[1])));
+ const lv={port,U,cols:port?S:U,rows:port?U:S,cells,ext,walk,key,v0,exitC:map(U-1,v),corners:[]};
+ const hs=(c,r)=>walk.has(key(c,r))?1:0;
+ for(let x=-2;x<=lv.cols+6;x++)for(let y=-2;y<=lv.rows+6;y++){const k=hs(x-1,y-1)+hs(x,y-1)+hs(x-1,y)+hs(x,y);if(k===2||k===3)lv.corners.push([x,y])}
+ return lv;
+}
+const has=(c,r)=>level.walk.has(level.key(c,r));
+const wk=(x,y)=>has(Math.floor(x),Math.floor(y));
+
+function valid(A,B){
+ const dx=B.x-A.x,dy=B.y-A.y,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L,nx=-uy,ny=ux,h=sofa.t/2,N=Math.ceil(L/.12);
+ for(let i=0;i<=N;i++){const px=A.x+dx*i/N,py=A.y+dy*i/N;
+  for(let k=-1;k<=1;k++){const qx=px+nx*h*k,qy=py+ny*h*k;if(!wk(qx,qy)){hitP={x:qx,y:qy};return false}}}
+ for(const c of level.corners){const qx=c[0]-A.x,qy=c[1]-A.y,s=qx*ux+qy*uy;
+  if(s<=.01||s>=L-.01)continue;if(Math.abs(qx*nx+qy*ny)<h-.01){hitP={x:c[0],y:c[1]};return false}}
+ return true;
+}
+// Remolque: el punto agarrado va al dedo y el extremo lejano lo sigue manteniendo la longitud
+function tryStep(sx,sy){
+ const A=sofa.A,B=sofa.B;let A2,B2;
+ if(grab.mid){A2={x:A.x+sx,y:A.y+sy};B2={x:B.x+sx,y:B.y+sy}}
+ else{
+  const s=grab.s,L=sofa.L,P={x:A.x+(B.x-A.x)*s+sx,y:A.y+(B.y-A.y)*s+sy},far=s<.5?B:A;
+  let ux=far.x-P.x,uy=far.y-P.y;const d=Math.hypot(ux,uy)||1;ux/=d;uy/=d;
+  const dF=(s<.5?1-s:s)*L,dN=(s<.5?s:1-s)*L,F={x:P.x+ux*dF,y:P.y+uy*dF},Nn={x:P.x-ux*dN,y:P.y-uy*dN};
+  if(s<.5){A2=Nn;B2=F}else{A2=F;B2=Nn}
+ }
+ if(!valid(A2,B2))return false;
+ sofa.A=A2;sofa.B=B2;return true;
+}
+function moveSofa(dt){
+ const s=grab.s,hp=()=>({x:sofa.A.x+(sofa.B.x-sofa.A.x)*s,y:sofa.A.y+(sofa.B.y-sofa.A.y)*s});
+ let h=hp();const tx=grab.fx+grab.ox,ty=grab.fy+grab.oy,dx=tx-h.x,dy=ty-h.y,dist=Math.hypot(dx,dy);
+ if(dist<.004)return;
+ const md=Math.min(dist,12*dt),n=Math.max(1,Math.ceil(md/.04)),sx=dx/dist*md/n,sy=dy/dist*md/n;
+ let hit=null;
+ for(let i=0;i<n;i++){
+  if(tryStep(sx,sy))continue;
+  if(!hit)hit=hitP;
+  if(!tryStep(sx,0)&&!tryStep(0,sy))break;
+ }
+ if(hit){scrape(hit);if(state!=='playing'||!grab)return;h=hp();if(Math.hypot(tx-h.x,ty-h.y)>1.3){grab=null;say('¡Se te escurre!',C.y)}}
+}
+function scrape(p){
+ if(tNow-lastScrape<.5)return;
+ lastScrape=tNow;fianza=Math.max(0,fianza-3);shake=6;
+ const s=toScr(p);
+ for(let i=0;i<12;i++)parts.push({x:s.x,y:s.y,vx:(Math.random()-.5)*240,vy:-Math.random()*200,l:.5+Math.random()*.5,c:Math.random()<.6?'#ddd':C.r});
+ say(PHR[rnd(PHR.length)],C.r,s.x,s.y-24,.9);
+ sfxScrape();
+ if(fianza<=0){endReason='La casera ha visto las paredes y se queda TODA la fianza.';endGame()}
+}
+function floorDone(){
+ done++;const gain=100*floorN+Math.ceil(timeLeft)*10;points+=gain;score=points;fianza=Math.min(100,fianza+15);
+ grab=null;pause=1.3;say('¡FUERA! +'+gain,C.g,W/2,H*.45,1.5);sfxWin();
+}
+function nextFloor(){
+ floorN++;level=genLevel();fitView();
+ const f=FURN[(floorN-1)%FURN.length],L=2.83-2*f.t-Math.max(.22,.6-.06*(floorN-1)),c=level.v0+.5;
+ sofa={A:level.port?{x:c,y:.15}:{x:.15,y:c},B:level.port?{x:c,y:.15+L}:{x:.15+L,y:c},L,t:f.t,n:f.n,col:f.c};
+ timeLeft=Math.max(28,55-3*(floorN-1));grab=null;pause=0;
+ say(f.n+(floorN>1?' · ¡PIVOTA!':''),f.c,W/2,H*.42,1.8);
+}
+function startGame(){
+ au();
+ state='playing';points=0;score=0;inputCount=0;floorN=0;done=0;fianza=100;msgs=[];parts=[];grab=null;pause=0;lastScrape=-9;shake=0;endReason='';
+ menuEl.classList.add('hide');overEl.classList.add('hide');
+ window.mierdiRanking?.reset();
+ nextFloor();
+ say('Tira de un EXTREMO para girar',C.y,W/2,TOP+34,3.2);
+}
+function endGame(){
+ if(state==='over')return;
+ const wasT=timeLeft<=0&&state==='playing';
+ state='over';grab=null;pause=0;score=Math.round(points);
+ if(score>best){best=score;try{localStorage.setItem(BKEY,String(best))}catch(e){}}
+ document.getElementById('oT').textContent=fianza<=0?'¡SIN FIANZA!':wasT?'¡SE FUE EL CAMIÓN!':'FIN DE LA MUDANZA';
+ document.getElementById('oR').textContent=endReason||'Se acabó la mudanza por hoy.';
+ document.getElementById('oS').textContent=score+' pts';
+ document.getElementById('oB').textContent='Tramos bajados: '+done+' · Récord: '+best+' pts';
+ document.getElementById('rec').textContent='Récord: '+best+' pts';
+ menuEl.classList.add('hide');overEl.classList.remove('hide');
+ sfxLose();
+ window.mierdiRanking?.fin(score);
+}
+function say(t,c,x,y,l){msgs.push({t,c,x:x==null?W/2:x,y:y==null?TOP+44:y,l:l||1.1})}
+
+function toGrid(e){const r=cv.getBoundingClientRect(),px=e.clientX-r.left,py=e.clientY-r.top;return{x:(px-view.ox)/view.w,y:(py-view.oy)/view.w,px,py}}
+cv.addEventListener('pointerdown',e=>{
+ if(state!=='playing')return;e.preventDefault();inputCount++;au();
+ if(pause>0||grab||!sofa)return;
+ const p=toGrid(e),A=sofa.A,B=sofa.B,dx=B.x-A.x,dy=B.y-A.y;
+ let s=((p.x-A.x)*dx+(p.y-A.y)*dy)/(dx*dx+dy*dy);s=Math.max(0,Math.min(1,s));
+ const d=Math.hypot(p.x-(A.x+dx*s),p.y-(A.y+dy*s));
+ if(d>sofa.t/2+Math.max(.3,32/view.w)){if(tNow-hintT>.8){hintT=tNow;say('¡Agarra el mueble!',C.y,p.px,p.py-14,.8)}return}
+ const mid=s>.35&&s<.65;if(mid)s=.5;
+ const hx=A.x+dx*s,hy=A.y+dy*s;
+ grab={id:e.pointerId,s,mid,fx:p.x,fy:p.y,ox:hx-p.x,oy:hy-p.y};
+ try{cv.setPointerCapture(e.pointerId)}catch(_){}
+ tone(mid?330:220,.06,'triangle',.05);
+});
+cv.addEventListener('pointermove',e=>{if(state!=='playing'||!grab||e.pointerId!==grab.id)return;e.preventDefault();const p=toGrid(e);grab.fx=p.x;grab.fy=p.y;inputCount++});
+const up=e=>{if(grab&&e.pointerId===grab.id)grab=null};
+cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);cv.addEventListener('lostpointercapture',up);
+document.querySelector('[data-action="start"]').addEventListener('click',startGame);
+document.querySelector('[data-action="retry"]').addEventListener('click',startGame);
+
+let ac=null;
+function au(){if(!ac){const A=window.AudioContext||window.webkitAudioContext;if(A)try{ac=new A()}catch(e){}}if(ac&&ac.state==='suspended')ac.resume()}
+function tone(f,d,type,v,f2,dl){if(!ac)return;const t=ac.currentTime+(dl||0),o=ac.createOscillator(),g=ac.createGain();o.type=type;o.frequency.setValueAtTime(f,t);if(f2)o.frequency.exponentialRampToValueAtTime(f2,t+d);g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.0001,t+d);o.connect(g);g.connect(ac.destination);o.start(t);o.stop(t+d+.02)}
+function sfxScrape(){if(!ac)return;const n=ac.sampleRate*.18|0,b=ac.createBuffer(1,n,ac.sampleRate),d=b.getChannelData(0);for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*(1-i/n);
+ const s=ac.createBufferSource(),f=ac.createBiquadFilter(),g=ac.createGain();s.buffer=b;f.type='bandpass';f.frequency.value=1700;f.Q.value=1.5;g.gain.value=.3;s.connect(f);f.connect(g);g.connect(ac.destination);s.start()}
+function sfxWin(){[523,659,784,1046].forEach((f,i)=>tone(f,.14,'square',.05,0,i*.09))}
+function sfxLose(){tone(300,.6,'sawtooth',.06,80)}
+
+function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath()}
+const toScr=p=>({x:view.ox+p.x*view.w,y:view.oy+p.y*view.w});
+function drawSofa(){
+ const A=toScr(sofa.A),B=toScr(sofa.B),L=Math.hypot(B.x-A.x,B.y-A.y),h=sofa.t*view.w/2;
+ const col=tNow-lastScrape<.25?C.r:sofa.col;
+ ctx.save();ctx.translate(A.x,A.y);ctx.rotate(Math.atan2(B.y-A.y,B.x-A.x));
+ ctx.shadowColor=col;ctx.shadowBlur=14;ctx.fillStyle=col+'2a';ctx.strokeStyle=col;ctx.lineWidth=2.5;
+ rr(0,-h,L,2*h,Math.min(h*.6,10));ctx.fill();ctx.stroke();ctx.shadowBlur=0;
+ ctx.lineWidth=1.5;ctx.strokeStyle=col+'aa';ctx.beginPath();
+ if(sofa.t<.22){const k=Math.max(3,Math.round(sofa.L/.28));for(let i=1;i<k;i++){const x=L*i/k;ctx.moveTo(x,-h);ctx.lineTo(x,h)}}
+ else{const k=Math.max(2,Math.round(sofa.L/.55));for(let i=1;i<k;i++){const x=L*i/k;ctx.moveTo(x,-h*.45);ctx.lineTo(x,h*.8)}ctx.moveTo(h*.5,-h*.45);ctx.lineTo(L-h*.5,-h*.45)}
+ ctx.stroke();
+ const hr=Math.max(5,Math.min(h*.6,11));ctx.fillStyle='#fff';
+ for(const s of [.07,.93]){ctx.beginPath();ctx.arc(L*s,0,hr*.5,0,7);ctx.fill()}
+ ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();const m=L/2;ctx.moveTo(m-hr,0);ctx.lineTo(m+hr,0);ctx.moveTo(m,-hr*.8);ctx.lineTo(m,hr*.8);ctx.stroke();
+ ctx.restore();
+}
+function hud(){
+ const fs=Math.round(Math.max(13,Math.min(18,W/24)));
+ ctx.textBaseline='middle';ctx.font='bold '+fs+'px system-ui,sans-serif';
+ ctx.textAlign='left';ctx.fillStyle=C.m;ctx.fillText('TRAMO '+floorN,12,20);
+ ctx.textAlign='right';ctx.fillStyle=C.c;ctx.fillText(points+' pts',W-12,20);
+ ctx.textAlign='center';ctx.fillStyle=timeLeft<10&&(tNow*4|0)%2?C.r:C.y;ctx.font='bold '+(fs+6)+'px system-ui,sans-serif';ctx.fillText('⏱ '+Math.ceil(timeLeft),W/2,20);
+ const bw=Math.min(220,W*.42),bx=12,by=40,bh=17;
+ ctx.fillStyle='#222';ctx.fillRect(bx,by,bw,bh);ctx.fillStyle=fianza>35?C.g:C.r;ctx.fillRect(bx,by,bw*fianza/100,bh);
+ ctx.font='bold '+(fs-3)+'px system-ui,sans-serif';ctx.textAlign='left';ctx.fillStyle='#0a0a0a';ctx.fillText('FIANZA '+Math.ceil(fianza)+'€',bx+5,by+bh/2+1);
+ if(sofa){ctx.textAlign='right';ctx.fillStyle=sofa.col;ctx.fillText(sofa.n,W-12,by+bh/2+1)}
+}
+function draw(){
+ ctx.setTransform(DPR,0,0,DPR,0,0);ctx.fillStyle='#0a0a0a';ctx.fillRect(0,0,W,H);
+ if(!level||!sofa)return;
+ const w=view.w,X=c=>view.ox+c*w,Y=r=>view.oy+r*w,ex=level.ext.slice(0,2),dc=level.cells.concat(ex);
+ ctx.save();if(shake>0)ctx.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);
+ for(const [c,r] of level.cells){ctx.fillStyle=(c+r)&1?'#171717':'#121212';ctx.fillRect(X(c),Y(r),w+.5,w+.5)}
+ ctx.fillStyle='rgba(255,226,58,.10)';for(const [c,r] of ex)ctx.fillRect(X(c),Y(r),w+.5,w+.5);
+ ctx.beginPath();
+ for(const [c,r] of dc){
+  if(!has(c,r-1)){ctx.moveTo(X(c),Y(r));ctx.lineTo(X(c+1),Y(r))}
+  if(!has(c,r+1)){ctx.moveTo(X(c),Y(r+1));ctx.lineTo(X(c+1),Y(r+1))}
+  if(!has(c-1,r)){ctx.moveTo(X(c),Y(r));ctx.lineTo(X(c),Y(r+1))}
+  if(!has(c+1,r)){ctx.moveTo(X(c+1),Y(r));ctx.lineTo(X(c+1),Y(r+1))}
+ }
+ ctx.strokeStyle=C.c;ctx.lineWidth=3;ctx.shadowColor=C.c;ctx.shadowBlur=10;ctx.stroke();ctx.shadowBlur=0;
+ const [ec,er]=level.cells[0];ctx.strokeStyle=C.m;ctx.lineWidth=6;ctx.beginPath();
+ if(level.port){ctx.moveTo(X(ec)+4,Y(er));ctx.lineTo(X(ec+1)-4,Y(er))}else{ctx.moveTo(X(ec),Y(er)+4);ctx.lineTo(X(ec),Y(er+1)-4)}ctx.stroke();
+ const [xc,xr]=level.exitC;ctx.globalAlpha=.55+.45*Math.sin(tNow*5);ctx.fillStyle=C.y;ctx.textAlign='center';ctx.textBaseline='middle';
+ ctx.font='bold '+Math.max(10,Math.round(w*.2))+'px system-ui,sans-serif';ctx.fillText('SALIDA',X(xc+.5),Y(xr+.38));ctx.fillText(level.port?'▼':'▶',X(xc+.5),Y(xr+.68));ctx.globalAlpha=1;
+ drawSofa();
+ if(grab){const s=grab.s,hp=toScr({x:sofa.A.x+(sofa.B.x-sofa.A.x)*s,y:sofa.A.y+(sofa.B.y-sofa.A.y)*s}),f=toScr({x:grab.fx+grab.ox,y:grab.fy+grab.oy});
+  ctx.strokeStyle=C.y;ctx.lineWidth=2;ctx.setLineDash([5,5]);ctx.beginPath();ctx.moveTo(hp.x,hp.y);ctx.lineTo(f.x,f.y);ctx.stroke();ctx.setLineDash([]);
+  ctx.beginPath();ctx.arc(hp.x,hp.y,Math.max(10,w*.18),0,7);ctx.stroke()}
+ ctx.restore();
+ for(const p of parts){ctx.globalAlpha=Math.min(1,p.l*2);ctx.fillStyle=p.c;ctx.fillRect(p.x-2,p.y-2,4,4)}
+ ctx.globalAlpha=1;ctx.textAlign='center';ctx.textBaseline='middle';
+ for(const m of msgs){ctx.globalAlpha=Math.min(1,m.l*2);ctx.font='bold 20px system-ui,sans-serif';ctx.fillStyle=m.c;ctx.shadowColor=m.c;ctx.shadowBlur=10;ctx.fillText(m.t,m.x,m.y)}
+ ctx.globalAlpha=1;ctx.shadowBlur=0;
+ hud();
+}
+function update(dt){
+ tNow+=dt;shake=Math.max(0,shake-dt*30);
+ for(const p of parts){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=320*dt;p.l-=dt}parts=parts.filter(p=>p.l>0);
+ for(const m of msgs){m.y-=18*dt;m.l-=dt}msgs=msgs.filter(m=>m.l>0);
+ if(state!=='playing'||!level)return;
+ if(pause>0){const d=3*dt,dx=level.port?0:d,dy=level.port?d:0;sofa.A.x+=dx;sofa.A.y+=dy;sofa.B.x+=dx;sofa.B.y+=dy;pause-=dt;if(pause<=0)nextFloor();return}
+ timeLeft-=dt;
+ if(timeLeft<=0){timeLeft=0;endReason='El camión se ha ido y el mueble se queda en el rellano.';endGame();return}
+ if(grab)moveSofa(dt);
+ if(state!=='playing')return;
+ const mx=(sofa.A.x+sofa.B.x)/2,my=(sofa.A.y+sofa.B.y)/2;
+ if((level.port?my:mx)>=level.U-.55)floorDone();
+}
+let last=performance.now();
+function frame(now){const dt=Math.min(.05,Math.max(0,(now-last)/1000));last=now;update(dt);draw();requestAnimationFrame(frame)}
+requestAnimationFrame(frame);
+
+window.mierdiTest={state:()=>state,score:()=>score,inputs:()=>inputCount,forceGameOver:endGame};
+})();
+</script>
+</body>
+</html>

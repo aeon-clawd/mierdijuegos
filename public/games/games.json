@@ -478,5 +478,13 @@
     "description": "Hay que bajar los muebles del 5º y no hay ascensor. Si arrastras un extremo, el resto del mueble te sigue como un remolque. Si arrastras el centro, se mueve sin girar. Sácalo por los pasillos en zigzag antes de que se vaya el camión. Cada roce con la pared se come parte de la fianza.",
     "mechanic": "Mueves un mueble rígido por un pasillo con esquinas. Al tirar de un extremo, el otro va detrás como un remolque: si tiras de lado gira y si empujas avanza a lo largo. El centro lo mueve sin girar. Cada mueble es más largo, pero siempre cabe por las esquinas.",
     "emoji": "🛋️"
+  },
+  {
+    "id": "061-dobla-la-servilleta",
+    "title": "Dobla la Servilleta",
+    "date": "2026-11-13",
+    "description": "Restaurante pijo, clientes imposibles: cada mesa pide su servilleta doblada como «El Cisne con Resaca». Arrastra un punto de la tela hasta donde quieras que caiga y se dobla justo por la mitad del camino. Clava la silueta amarilla antes de que el cliente pierda la paciencia.",
+    "mechanic": "Plegado por reflexión: el punto que arrastras y donde lo sueltas definen el pliegue (la mediatriz). Esa parte se refleja con sus capas encima del resto. Gana quien iguala la silueta objetivo; el parecido se mide al instante. Los pliegues objetivo siempre se pueden reproducir.",
+    "emoji": "🍽️"
   }
 ]

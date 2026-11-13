@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Dobla la Servilleta — Mierdijuegos</title>
+<script src="/ranking.js" defer></script>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#0a0a0a;overflow:hidden;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#eee;-webkit-user-select:none;user-select:none}
+#c{position:fixed;left:0;top:0;touch-action:none;display:block}
+.scr{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;background:rgba(10,10,10,.94);z-index:10;overflow:auto}
+.hid{display:none!important}
+h1{font-size:34px;margin:0 0 12px;color:#ff3df0;text-shadow:0 0 16px #ff3df0;line-height:1.1}
+.scr p{max-width:430px;line-height:1.4;margin:6px 0;font-size:16px}
+.y{color:#ffe14a}.g{color:#39ff88}.cy{color:#2ef3ff}
+.btn{background:#0a0a0a;border:2px solid #39ff88;color:#39ff88;font-family:inherit;font-size:20px;font-weight:800;padding:14px 34px;border-radius:12px;margin:16px;cursor:pointer;box-shadow:0 0 16px #39ff8866;touch-action:manipulation}
+a.back{color:#2ef3ff;font-weight:700;text-decoration:none;margin-top:6px}
+#hud{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;gap:14px;padding:10px 10px calc(12px + env(safe-area-inset-bottom));z-index:5;pointer-events:none}
+#hud button{pointer-events:auto;background:#0a0a0add;border:2px solid #2ef3ff;color:#2ef3ff;font-family:inherit;font-size:16px;font-weight:800;padding:10px 18px;border-radius:10px;touch-action:manipulation;cursor:pointer}
+#hud button.r{border-color:#ffe14a;color:#ffe14a}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud" class="hid"><button id="undo">↶ Deshacer</button><button id="reset" class="r">⟲ Desdoblar</button></div>
+<div id="menu" class="scr">
+<h1>🍽️ Dobla la Servilleta</h1>
+<p>Restaurante pijo, clientes imposibles. Cada mesa pide su servilleta con una forma absurda.</p>
+<p class="cy">👉 <b>Arrastra un punto</b> de la servilleta hasta donde quieras que caiga: se dobla justo por la mitad del camino.</p>
+<p class="y">Haz que coincida con la <b>silueta amarilla</b> antes de que el cliente se harte.</p>
+<p>↶ deshace, ⟲ la desdobla entera. Sin pliegues de más = bonus. Tres clientes cabreados y te echan.</p>
+<button class="btn" data-action="start">JUGAR</button>
+</div>
+<div id="over" class="scr hid">
+<h1>¡Te han echado!</h1>
+<p id="res"></p>
+<p id="rec" class="y"></p>
+<button class="btn" data-action="retry">REINTENTAR</button>
+<a href="/" data-action="back" class="back">← MÁS MIERDIJUEGOS</a>
+</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const menuEl=document.getElementById('menu'),overEl=document.getElementById('over'),hud=document.getElementById('hud');
+const RN=96,rc=document.createElement('canvas');rc.width=rc.height=RN;const rx=rc.getContext('2d',{willReadFrequently:true});
+const tc=document.createElement('canvas'),oc=document.createElement('canvas');
+const TOP=112,BOT=84,RK='mierdi-servilleta-record';
+let W=0,H=0,DPR=1,S=100,OX=0,OY=0;
+let state='menu',score=0,inputCount=0,lives=3,nap=0,served=0,K=1,pat=0,patMax=1,sim=0,busy=0;
+let layers=[],hist=[],tgt=null,name='',drag=null,preview=null,msgs=[],parts=[],tgtDirty=true,last=0,ac=null;
+const sq=()=>({pts:[[0,0],[1,0],[1,1],[0,1]],back:false});
+const pick=a=>a[Math.random()*a.length|0];
+
+function resize(){DPR=Math.min(window.devicePixelRatio||1,2);W=innerWidth;H=innerHeight;
+cv.width=Math.round(W*DPR);cv.height=Math.round(H*DPR);cv.style.width=W+'px';cv.style.height=H+'px';
+S=Math.max(60,Math.min((W-16)/1.9,(H-TOP-BOT)/1.9));OX=W/2-S/2;OY=TOP+(H-TOP-BOT)/2-S/2;tgtDirty=true}
+addEventListener('resize',resize);resize();
+
+// --- geometría de plegado ---
+function area(p){let a=0;for(let i=0;i<p.length;i++){const q=p[i],r=p[(i+1)%p.length];a+=q[0]*r[1]-r[0]*q[1]}return Math.abs(a)/2}
+function clip(poly,M,n,sgn){const out=[],sd=p=>((p[0]-M[0])*n[0]+(p[1]-M[1])*n[1])*sgn;
+for(let i=0;i<poly.length;i++){const a=poly[i],b=poly[(i+1)%poly.length],da=sd(a),db=sd(b);
+if(da>=0)out.push(a);
+if((da>=0)!==(db>=0)){const t=da/(da-db);out.push([a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t])}}
+return out.length>=3?out:null}
+function refl(p,M,n){const d=(p[0]-M[0])*n[0]+(p[1]-M[1])*n[1];return[p[0]-2*d*n[0],p[1]-2*d*n[1]]}
+// se mueve el lado s<0 (el del punto agarrado) y queda encima, en orden invertido
+function fold(L,M,n){const stay=[],mov=[];let ma=0,sa=0;
+for(const l of L){const a=clip(l.pts,M,n,1);if(a){const A=area(a);if(A>1e-5){stay.push({pts:a,back:l.back});sa+=A}}
+const b=clip(l.pts,M,n,-1);if(b){const B=area(b);if(B>1e-5){mov.push({pts:b.map(p=>refl(p,M,n)),back:!l.back});ma+=B}}}
+mov.reverse();return{layers:stay.concat(mov),ma,sa}}
+function lineOf(P,Q){const dx=Q[0]-P[0],dy=Q[1]-P[1],l=Math.hypot(dx,dy)||1;return{M:[(P[0]+Q[0])/2,(P[1]+Q[1])/2],n:[dx/l,dy/l]}}
+function inPoly(p,pts){let c=false;for(let i=0,j=pts.length-1;i<pts.length;j=i++){const a=pts[i],b=pts[j];
+if((a[1]>p[1])!==(b[1]>p[1])&&p[0]<(b[0]-a[0])*(p[1]-a[1])/(b[1]-a[1])+a[0])c=!c}return c}
+function edgeDist(p,pts){let m=1e9;for(let i=0;i<pts.length;i++){const a=pts[i],b=pts[(i+1)%pts.length],dx=b[0]-a[0],dy=b[1]-a[1],l=dx*dx+dy*dy;
+let t=l?((p[0]-a[0])*dx+(p[1]-a[1])*dy)/l:0;t=Math.max(0,Math.min(1,t));m=Math.min(m,Math.hypot(p[0]-a[0]-t*dx,p[1]-a[1]-t*dy))}return m}
+function onPaper(p,L,tol){for(const l of L)if(inPoly(p,l.pts)||edgeDist(p,l.pts)<tol)return true;return false}
+
+// parecido = intersección/unión de las siluetas rasterizadas
+function rpoly(pts){rx.beginPath();for(let i=0;i<pts.length;i++){const x=(pts[i][0]+.5)*RN/2,y=(pts[i][1]+.5)*RN/2;i?rx.lineTo(x,y):rx.moveTo(x,y)}rx.closePath();rx.fill()}
+function iou(A,B){rx.globalCompositeOperation='source-over';rx.fillStyle='#000';rx.fillRect(0,0,RN,RN);rx.globalCompositeOperation='lighter';
+rx.fillStyle='#f00';for(const l of A)rpoly(l.pts);rx.fillStyle='#0f0';for(const l of B)rpoly(l.pts);rx.globalCompositeOperation='source-over';
+const d=rx.getImageData(0,0,RN,RN).data;let i=0,u=0;for(let k=0;k<d.length;k+=4){const a=d[k]>127,b=d[k+1]>127;if(a&&b)i++;if(a||b)u++}return u?i/u:0}
+
+// --- objetivos: pliegues horizontales, verticales o a 45°, siempre reproducibles con la rejilla de 1/4 ---
+function randLine(){const t=Math.random()*4|0,sg=Math.random()<.5?1:-1,h=Math.SQRT1_2;
+if(t===0)return{M:[.5,pick([0,.25,.5,.75,1])],n:[0,sg]};
+if(t===1)return{M:[pick([0,.25,.5,.75,1]),.5],n:[sg,0]};
+if(t===2)return{M:[pick([-.75,-.5,-.25,0,.25,.5,.75]),0],n:[sg*h,-sg*h]};
+const e=pick([.25,.5,.75,1,1.25,1.5,1.75]);return{M:[e/2,e/2],n:[sg*h,sg*h]}}
+function reach(L,ln){const c=[];for(let i=-2;i<=6;i++)for(let j=-2;j<=6;j++){const p=[i/4,j/4],s=(p[0]-ln.M[0])*ln.n[0]+(p[1]-ln.M[1])*ln.n[1];
+if(s<-.05&&onPaper(p,L,.01))c.push([p,-s])}
+if(!c.length)return null;c.sort((a,b)=>b[1]-a[1]);return c[0][0]}
+function genTarget(k){
+for(let tries=0;tries<300;tries++){let L=[sq()],ok=true,hint=null;
+for(let f=0;f<k&&ok;f++){let done=false;
+for(let t=0;t<50&&!done;t++){const ln=randLine(),r=fold(L,ln.M,ln.n),tot=r.ma+r.sa;
+if(r.ma<.1*tot||r.sa<.1*tot)continue;
+if(!r.layers.every(l=>l.pts.every(p=>p[0]>-.42&&p[0]<1.42&&p[1]>-.42&&p[1]<1.42)))continue;
+const P=reach(L,ln);if(!P)continue;
+if(iou(L,r.layers)>.92)continue;
+if(f===0){const Q=refl(P,ln.M,ln.n);hint={P,Q:[Math.round(Q[0]*4)/4,Math.round(Q[1]*4)/4]}}
+L=r.layers;done=true}
+if(!done)ok=false}
+if(ok&&iou([sq()],L)<.85)return{layers:L,k,hint}}
+if(k>1)return genTarget(k-1);
+return{layers:fold([sq()],[.5,.5],[0,-1]).layers,k:1,hint:{P:[.5,1],Q:[.5,0]}}}
+
+const N1=['El Cisne','El Abanico','El Barco','La Mitra','El Tejado','La Pajarita','El Tricornio','El Sobre','El Cohete','El Pingüino','La Pirámide','El Gorro','La Flecha','El Tiburón'];
+const N2=['Triste','del Obispo','de Cuenca','Existencial','Low Cost','de Domingo','con Resaca','Imperial','de la Abuela','Sideral','Fiscal','Mediterráneo','en Paro','Feroz'];
+
+// --- audio ---
+function snd(f,d,type,v,dl){if(!ac)return;try{const t=ac.currentTime+(dl||0),o=ac.createOscillator(),g=ac.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);
+g.gain.setValueAtTime(v||.06,t);g.gain.exponentialRampToValueAtTime(.0008,t+d);o.connect(g);g.connect(ac.destination);o.start(t);o.stop(t+d+.02)}catch(_){}}
+
+function toast(txt,col,big){msgs.push({txt,col,big:!!big,l:big?1.6:1.2,m:big?1.6:1.2})}
+
+// --- partida ---
+function startGame(){
+try{if(!ac){const A=window.AudioContext||window.webkitAudioContext;if(A)ac=new A()}if(ac&&ac.state==='suspended')ac.resume()}catch(_){}
+score=0;lives=3;nap=-1;served=0;busy=0;drag=null;preview=null;msgs=[];parts=[];
+state='playing';menuEl.classList.add('hid');overEl.classList.add('hid');hud.classList.remove('hid');
+window.mierdiRanking?.reset();
+newNapkin()}
+function newNapkin(){nap++;K=nap<2?1:nap<5?2:nap<9?3:4;tgt=genTarget(K);K=tgt.k;layers=[sq()];hist=[];drag=null;preview=null;
+patMax=pat=Math.max(14,16+13*K-.6*Math.min(nap,12));sim=iou(layers,tgt.layers);name=pick(N1)+' '+pick(N2);tgtDirty=true;busy=0}
+function doFold(P,Q){
+if(P[0]===Q[0]&&P[1]===Q[1]){toast('Arrastra hasta donde quieras que caiga','#2ef3ff');return}
+if(hist.length>=K+3){toast('¡Demasiados pliegues! Deshaz alguno','#ff3df0');snd(160,.2,'square',.04);return}
+const ln=lineOf(P,Q),r=fold(layers,ln.M,ln.n);
+if(r.ma<1e-4){toast('Ahí no hay tela que doblar','#ff3df0');return}
+hist.push(layers);layers=r.layers;sim=iou(layers,tgt.layers);
+snd(420,.09,'triangle',.06);snd(620,.07,'triangle',.04,.05);
+if(sim>=.94)success()}
+function success(){const exact=hist.length<=K,pts=50*K+Math.ceil(pat)*3+(exact?30:0);score+=pts;served++;busy=1.3;
+toast((exact?'¡PERFECTA! ':'¡Servida! ')+'+'+pts,'#39ff88',true);if(exact)toast('Sin pliegues de más','#ffe14a');
+const cx=OX+S/2,cy=OY+S/2,cols=['#39ff88','#ff3df0','#2ef3ff','#ffe14a'];
+for(let i=0;i<40;i++){const a=Math.random()*6.28,v=80+Math.random()*260;parts.push({x:cx,y:cy,vx:Math.cos(a)*v,vy:Math.sin(a)*v-120,c:pick(cols),l:1+Math.random()*.6})}
+[523,659,784,1047].forEach((f,i)=>snd(f,.18,'square',.04,i*.08))}
+function timeout(){drag=null;preview=null;busy=1.7;
+if(sim>=.8){const pts=Math.round(sim*20*K);score+=pts;served++;toast('Pasable… +'+pts,'#ffe14a',true);snd(330,.25,'triangle',.05)}
+else{lives--;toast(lives>0?'¡Se limpia con la manga!':'¡Te echan del restaurante!','#ff3df0',true);snd(140,.45,'sawtooth',.06)}}
+function endGame(){if(state!=='playing')return;state='over';drag=null;preview=null;busy=0;hud.classList.add('hid');
+let rec=0;try{rec=+localStorage.getItem(RK)||0;if(score>rec){rec=score;localStorage.setItem(RK,String(score))}}catch(_){rec=Math.max(rec,score)}
+document.getElementById('res').innerHTML='Servilletas servidas: <b class="g">'+served+'</b><br>Puntos: <b class="y">'+score+'</b>';
+document.getElementById('rec').textContent='Récord: '+rec;
+overEl.classList.remove('hid');
+window.mierdiRanking?.fin(score)}
+
+// --- entrada ---
+function toU(e){const r=cv.getBoundingClientRect();return[(e.clientX-r.left-OX)/S,(e.clientY-r.top-OY)/S]}
+function snapStart(u){let best=null,bd=.32;for(let i=-2;i<=6;i++)for(let j=-2;j<=6;j++){const p=[i/4,j/4],d=Math.hypot(p[0]-u[0],p[1]-u[1]);
+if(d<bd&&onPaper(p,layers,.02)){bd=d;best=p}}return best}
+const cl=v=>Math.max(-.5,Math.min(1.5,Math.round(v*4)/4));
+cv.addEventListener('pointerdown',e=>{if(state!=='playing')return;e.preventDefault();inputCount++;if(busy>0)return;
+const P=snapStart(toU(e));if(!P){toast('¡Agarra la servilleta!','#ff3df0');return}
+drag={P,Q:P,id:e.pointerId};preview=null;try{cv.setPointerCapture(e.pointerId)}catch(_){}
+snd(700,.05,'triangle',.035)});
+cv.addEventListener('pointermove',e=>{if(!drag||e.pointerId!==drag.id||state!=='playing')return;const u=toU(e),Q=[cl(u[0]),cl(u[1])];
+if(Q[0]!==drag.Q[0]||Q[1]!==drag.Q[1]){drag.Q=Q;inputCount++;
+if(Q[0]===drag.P[0]&&Q[1]===drag.P[1])preview=null;else{const ln=lineOf(drag.P,Q);preview=fold(layers,ln.M,ln.n).layers;snd(900,.03,'sine',.02)}}});
+function endDrag(e,ok){if(!drag||e.pointerId!==drag.id)return;const d=drag;drag=null;preview=null;inputCount++;if(ok&&state==='playing'&&busy<=0)doFold(d.P,d.Q)}
+cv.addEventListener('pointerup',e=>endDrag(e,true));
+cv.addEventListener('pointercancel',e=>endDrag(e,false));
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+document.getElementById('undo').addEventListener('click',()=>{if(state!=='playing'||busy>0)return;inputCount++;
+if(hist.length){layers=hist.pop();sim=iou(layers,tgt.layers);snd(300,.08,'triangle',.05)}});
+document.getElementById('reset').addEventListener('click',()=>{if(state!=='playing'||busy>0)return;inputCount++;
+if(hist.length){layers=[sq()];hist=[];sim=iou(layers,tgt.layers);snd(240,.12,'triangle',.05)}});
+document.querySelectorAll('[data-action="start"],[data-action="retry"]').forEach(b=>b.addEventListener('click',startGame));
+
+// --- dibujo ---
+function pathPoly(c,pts){c.beginPath();for(let i=0;i<pts.length;i++){const x=OX+pts[i][0]*S,y=OY+pts[i][1]*S;i?c.lineTo(x,y):c.moveTo(x,y)}c.closePath()}
+function renderTgt(){tc.width=oc.width=cv.width;tc.height=oc.height=cv.height;const t=tc.getContext('2d');t.setTransform(DPR,0,0,DPR,0,0);t.fillStyle='#ffe14a';
+for(const l of tgt.layers){pathPoly(t,l.pts);t.fill()}
+const o=oc.getContext('2d'),s=3*DPR;for(const[a,b]of[[s,0],[-s,0],[0,s],[0,-s],[s,s],[-s,-s],[s,-s],[-s,s]])o.drawImage(tc,a,b);
+o.globalCompositeOperation='destination-out';o.drawImage(tc,0,0);o.globalCompositeOperation='source-over';tgtDirty=false}
+function drawPaper(L,a,glow){ctx.globalAlpha=a;ctx.lineJoin='round';ctx.lineWidth=2;if(glow){ctx.shadowColor='#39ff88';ctx.shadowBlur=14}
+for(const l of L){pathPoly(ctx,l.pts);ctx.fillStyle=l.back?'#3a1036':'#0f3940';ctx.fill();ctx.strokeStyle=l.back?'#ff3df0':'#2ef3ff';ctx.stroke()}
+ctx.shadowBlur=0;ctx.globalAlpha=1}
+function arrow(P,Q,col,a){const x1=OX+P[0]*S,y1=OY+P[1]*S,x2=OX+Q[0]*S,y2=OY+Q[1]*S,an=Math.atan2(y2-y1,x2-x1);
+ctx.globalAlpha=a;ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-13*Math.cos(an-.45),y2-13*Math.sin(an-.45));ctx.lineTo(x2-13*Math.cos(an+.45),y2-13*Math.sin(an+.45));ctx.closePath();ctx.fill();ctx.globalAlpha=1}
+function foldLine(P,Q){const ln=lineOf(P,Q),d=[-ln.n[1],ln.n[0]];ctx.setLineDash([8,6]);ctx.strokeStyle='#fff';ctx.globalAlpha=.65;ctx.lineWidth=1.5;
+ctx.beginPath();ctx.moveTo(OX+(ln.M[0]-d[0]*3)*S,OY+(ln.M[1]-d[1]*3)*S);ctx.lineTo(OX+(ln.M[0]+d[0]*3)*S,OY+(ln.M[1]+d[1]*3)*S);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1}
+function dot(P,r,col){ctx.fillStyle=col;ctx.beginPath();ctx.arc(OX+P[0]*S,OY+P[1]*S,r,0,7);ctx.fill()}
+function drawHud(){ctx.textBaseline='middle';ctx.font='800 20px system-ui,sans-serif';ctx.textAlign='left';ctx.fillStyle='#ffe14a';ctx.fillText('⭐ '+score,14,26);
+ctx.textAlign='right';ctx.font='800 22px system-ui,sans-serif';for(let i=0;i<3;i++){ctx.fillStyle=i<lives?'#ff3df0':'#333';ctx.fillText('♥',W-14-i*24,26)}
+ctx.textAlign='center';ctx.font='700 15px system-ui,sans-serif';ctx.fillStyle='#2ef3ff';ctx.fillText('Mesa '+(nap+1)+' pide: «'+name+'»',W/2,52);
+ctx.font='600 13px system-ui,sans-serif';ctx.fillStyle=sim>=.8?'#39ff88':'#bbb';
+ctx.fillText('Objetivo: '+K+' pliegue'+(K>1?'s':'')+' · llevas '+hist.length+' · parecido '+Math.round(sim*100)+'%',W/2,73);
+const bw=Math.min(W-40,420),bx=(W-bw)/2,by=88,r=Math.max(0,pat/patMax);ctx.fillStyle='#222';ctx.fillRect(bx,by,bw,9);
+ctx.fillStyle=r>.5?'#39ff88':r>.25?'#ffe14a':'#ff3df0';ctx.fillRect(bx,by,bw*r,9);
+ctx.font='16px system-ui,sans-serif';ctx.textAlign='left';ctx.fillText(r>.5?'🙂':r>.25?'😒':'😤',bx+bw*r-8,by+22)}
+function draw(t){ctx.setTransform(DPR,0,0,DPR,0,0);ctx.fillStyle='#0a0a0a';ctx.fillRect(0,0,W,H);
+ctx.fillStyle='rgba(46,243,255,.2)';for(let i=-2;i<=6;i++)for(let j=-2;j<=6;j++){ctx.beginPath();ctx.arc(OX+i/4*S,OY+j/4*S,1.7,0,7);ctx.fill()}
+if(state==='menu'||!tgt)return;
+if(tgtDirty)renderTgt();
+ctx.setTransform(1,0,0,1,0,0);ctx.globalAlpha=.13;ctx.drawImage(tc,0,0);ctx.globalAlpha=.6+.35*Math.sin(t/250);ctx.drawImage(oc,0,0);ctx.globalAlpha=1;ctx.setTransform(DPR,0,0,DPR,0,0);
+if(preview){drawPaper(layers,.18);drawPaper(preview,1)}else drawPaper(layers,1,busy>0&&sim>=.94);
+if(drag){if(preview){foldLine(drag.P,drag.Q);arrow(drag.P,drag.Q,'#ffe14a',.95);dot(drag.Q,6,'#ffe14a')}dot(drag.P,8,'#39ff88')}
+else if(state==='playing'&&busy<=0&&hist.length===0&&tgt.hint&&(nap===0||pat<patMax*.45)){const h=tgt.hint,pr=(t%1600)/1600;
+arrow(h.P,h.Q,'#ffe14a',.35);dot([h.P[0]+(h.Q[0]-h.P[0])*pr,h.P[1]+(h.Q[1]-h.P[1])*pr],9,'rgba(57,255,136,.8)');
+ctx.font='700 13px system-ui,sans-serif';ctx.textAlign='center';ctx.fillStyle='#39ff88';ctx.fillText(nap===0?'arrastra así':'pista del maître',OX+h.P[0]*S,OY+h.P[1]*S+22)}
+for(const p of parts){ctx.globalAlpha=Math.max(0,Math.min(1,p.l));ctx.fillStyle=p.c;ctx.fillRect(p.x-3,p.y-3,6,6)}ctx.globalAlpha=1;
+drawHud();
+let k=0;for(const m of msgs){const a=Math.min(1,m.l/.3),y=H*.42+k*40-(1-m.l/m.m)*24;k++;
+ctx.globalAlpha=a;ctx.font=(m.big?'900 26px':'700 16px')+' system-ui,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+const w=ctx.measureText(m.txt).width+28;ctx.fillStyle='rgba(10,10,10,.85)';ctx.fillRect(W/2-w/2,y-(m.big?20:14),w,m.big?40:28);
+ctx.fillStyle=m.col;ctx.shadowColor=m.col;ctx.shadowBlur=10;ctx.fillText(m.txt,W/2,y);ctx.shadowBlur=0}ctx.globalAlpha=1}
+
+function update(dt){
+if(state==='playing'){
+if(busy>0){busy-=dt;if(busy<=0){if(lives<=0)endGame();else newNapkin()}}
+else{pat-=dt;if(pat<=0){pat=0;timeout()}}}
+for(const p of parts){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=500*dt;p.l-=dt}parts=parts.filter(p=>p.l>0);
+for(const m of msgs)m.l-=dt;msgs=msgs.filter(m=>m.l>0)}
+function loop(t){const dt=Math.min(.05,last?(t-last)/1000:0);last=t;update(dt);draw(t);requestAnimationFrame(loop)}
+requestAnimationFrame(loop);
+
+window.mierdiTest={state:()=>state,score:()=>score,inputs:()=>inputCount,forceGameOver:endGame};
+</script>
+</body>
+</html>

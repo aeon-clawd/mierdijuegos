@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>¿Quién se ha comido mi táper?</title>
+<script src="/ranking.js" defer></script>
+<style>
+html,body{margin:0;height:100%;background:#0a0a0a;color:#eee;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden}
+canvas{position:fixed;left:0;top:0;display:block;touch-action:none;user-select:none;-webkit-user-select:none}
+.scr{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;text-align:center;background:rgba(10,10,10,.93);overflow:auto;z-index:5}
+.hide{display:none}
+.box{max-width:420px;line-height:1.45;font-size:16px}
+h1{color:#39ff14;text-shadow:0 0 14px #39ff14;font-size:28px;margin:6px 0 12px}
+.rule{color:#ffe600}
+.dim{color:#888;font-size:14px}
+.big{font-size:52px;line-height:1}
+.sc{font-size:44px;color:#ffe600;text-shadow:0 0 14px #ffe600;font-weight:800;margin:6px 0}
+button{font:800 20px system-ui,sans-serif;color:#0a0a0a;background:#39ff14;border:0;border-radius:14px;padding:14px 38px;margin:14px 0 8px;box-shadow:0 0 18px #39ff14;cursor:pointer;touch-action:manipulation}
+a.back{display:inline-block;color:#00e5ff;text-decoration:none;font-weight:700;margin-top:10px;padding:8px}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="menu" class="scr"><div class="box">
+<div class="big">🥡🕵️</div>
+<h1>¿Quién se ha comido mi táper?</h1>
+<p>Alguien ha saqueado la nevera de la oficina. Cada compañero suelta una frase.</p>
+<p class="rule"><b>REGLA:</b> solo <b>miente el culpable</b>. Los demás dicen la verdad… hasta que la regla cambie. ¡Léela siempre!</p>
+<p>👆 Toca una frase para anotarla ✓ / ✗<br>🎯 Pulsa <b style="color:#ff2bd6">ACUSAR</b> en el culpable<br>⏱️ Acertar da tiempo · fallar quita un 🥡 (tienes 3)</p>
+<button data-action="start">JUGAR</button>
+<p id="bestM" class="dim"></p>
+</div></div>
+<div id="over" class="scr hide"><div class="box">
+<div class="big">🍽️</div>
+<h1 id="oTitle">Fin</h1>
+<p id="oWhy"></p>
+<div class="sc" id="oScore">0</div>
+<p id="oInfo" class="dim"></p>
+<button data-action="retry">REINTENTAR</button><br>
+<a href="/" data-action="back" class="back">← MÁS MIERDIJUEGOS</a>
+</div></div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const $=id=>document.getElementById(id);
+const EMO='system-ui,"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+let W=0,H=0,DPR=1;
+function resize(){DPR=Math.min(window.devicePixelRatio||1,3);W=innerWidth;H=innerHeight;cv.width=Math.round(W*DPR);cv.height=Math.round(H*DPR);cv.style.width=W+'px';cv.style.height=H+'px';ctx.setTransform(DPR,0,0,DPR,0,0);}
+addEventListener('resize',resize);resize();
+
+const POOL=[['Paco','🧔'],['Lola','👩'],['Merche','👵'],['Toni','🧑'],['Puri','👩‍🦱'],['Jordi','👨‍🦲'],['Vane','👱‍♀️'],['Chema','🤓'],['Rosi','👩‍🦰'],['Manolo','👴'],['Iker','🧑‍🦱'],['Nuria','👧']];
+const DEPTS=[['Contabilidad','#00e5ff'],['Marketing','#ffe600']];
+const FOODS=[['el táper de lentejas','🥡'],['el yogur griego','🥛'],['la tortilla del jefe','🍳'],['el último dónut','🍩'],['la pizza fría','🍕'],['la tarta de cumpleaños','🎂'],['el sándwich de atún','🥪'],['las croquetas de la suegra','🧆'],['el flan de huevo','🍮'],['el sushi del lunes','🍣'],['el bocata de calamares','🥖'],['el gazpacho','🥣']];
+const KEY='mierdi-taper-best';
+const rnd=n=>Math.floor(Math.random()*n);
+const pick=a=>a[rnd(a.length)];
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=rnd(i+1);[a[i],a[j]]=[a[j],a[i]]}return a}
+
+let state='menu',score=0,inputCount=0;
+let lives=3,timeLeft=75,level=0,streak=0,solved=0,cs=null,phase='think',phaseT=0,caseT=0,ruleFlash=0,seenB=false,shake=0,lastPts=0,lastBonus=0,rects=[];
+let best=0;try{best=+localStorage.getItem(KEY)||0}catch(e){}
+$('bestM').textContent=best?'Récord: '+best:'';
+
+// ---- lógica ----
+const honest=(s,c,m)=>m===0?s!==c:s===c;
+function ev(st,c,m,dept){
+  let v;
+  if(st.k==='is')v=c===st.x;
+  else if(st.k==='lie')v=!honest(st.x,c,m);
+  else if(st.k==='dept')v=dept[c]===st.d;
+  else v=c===st.x||c===st.y;
+  return st.neg?!v:v;
+}
+const fits=(sts,h,m,dept)=>sts.every((st,s)=>ev(st,h,m,dept)===honest(s,h,m));
+function randSt(s,n,L){
+  const types=['is','is','dept'];if(L>=2)types.push('lie','lie');if(L>=5)types.push('or');
+  const k=pick(types),neg=Math.random()<.5;
+  const other=()=>{let x;do x=rnd(n);while(x===s);return x};
+  if(k==='is')return{k,x:Math.random()<.3?s:other(),neg};
+  if(k==='lie')return{k,x:other(),neg};
+  if(k==='dept')return{k,d:rnd(2),neg};
+  const x=rnd(n);let y;do y=rnd(n);while(y===x);return{k,x,y,neg};
+}
+function gen(n,m,L){
+  for(let t=0;t<6000;t++){
+    const dept=[];do{for(let i=0;i<n;i++)dept[i]=rnd(2)}while(dept.every(d=>d===dept[0]));
+    const c=rnd(n),sts=[];
+    for(let s=0;s<n;s++){const st=randSt(s,n,L);if(ev(st,c,m,dept)!==honest(s,c,m))st.neg=!st.neg;sts.push(st)}
+    let cnt=0;for(let h=0;h<n;h++)if(fits(sts,h,m,dept))cnt++;
+    if(cnt!==1)continue;
+    if(L>=2){let d=0;sts.forEach((st,s)=>{if(st.k==='is'&&!st.neg&&st.x===c&&s!==c)d++});if(d>1)continue}
+    return{c,sts,dept};
+  }
+  return null;
+}
+function fallback(n){
+  const dept=[];for(let i=0;i<n;i++)dept[i]=i%2;
+  const c=rnd(n);
+  return{c,dept,sts:Array.from({length:n},(_,s)=>s===c?{k:'is',x:s,neg:true}:{k:'is',x:c,neg:false})};
+}
+function say(st,s,P){
+  const N=i=>P[i].name;
+  if(st.k==='is'){if(st.x===s)return st.neg?'Yo no he sido, lo juro.':'Vale… he sido yo.';return st.neg?N(st.x)+' no ha sido.':'Ha sido '+N(st.x)+'.'}
+  if(st.k==='lie')return st.neg?N(st.x)+' dice la verdad.':N(st.x)+' miente.';
+  if(st.k==='dept')return st.neg?'No ha sido nadie de '+DEPTS[st.d][0]+'.':'Ha sido alguien de '+DEPTS[st.d][0]+'.';
+  const me=st.x===s||st.y===s,o=st.x===s?st.y:st.x;
+  if(me)return st.neg?'Ni '+N(o)+' ni yo hemos sido.':'O ha sido '+N(o)+' o he sido yo.';
+  return st.neg?'Ni '+N(st.x)+' ni '+N(st.y)+' han sido.':'Ha sido '+N(st.x)+' o '+N(st.y)+'.';
+}
+function newCase(){
+  const L=level,n=L<3?3:L<7?4:5;
+  let m=0;if(L===4)m=1;else if(L>4&&Math.random()<.4)m=1;
+  let g=gen(n,m,L);if(!g){m=0;g=fallback(n)}
+  const prev=cs?cs.mode:0;
+  const P=shuffle(POOL.slice()).slice(0,n).map(([name,face])=>({name,face}));
+  cs={n,mode:m,c:g.c,sts:g.sts,dept:g.dept,P,food:pick(FOODS),marks:new Array(n).fill(0),accused:-1,ok:false};
+  cs.txt=cs.sts.map((st,s)=>'«'+say(st,s,P)+'»');
+  phase='think';phaseT=0;caseT=0;
+  if(m!==prev)ruleFlash=m===1&&!seenB?3:1.8;
+  if(m===1)seenB=true;
+}
+
+// ---- audio ----
+let AC=null;
+function au(){if(!AC){try{AC=new(window.AudioContext||window.webkitAudioContext)()}catch(e){}}if(AC&&AC.state==='suspended')AC.resume()}
+function beep(f,d=.1,type='square',v=.05,slide=0){if(!AC)return;const t=AC.currentTime,o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.setValueAtTime(f,t);if(slide)o.frequency.exponentialRampToValueAtTime(f*slide,t+d);g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.0001,t+d);o.connect(g);g.connect(AC.destination);o.start(t);o.stop(t+d+.02)}
+
+// ---- partida ----
+function startGame(){
+  window.mierdiRanking?.reset();
+  score=0;lives=3;timeLeft=75;level=0;streak=0;solved=0;seenB=false;shake=0;cs=null;ruleFlash=0;
+  state='playing';
+  $('menu').classList.add('hide');$('over').classList.add('hide');
+  newCase();
+}
+function accuse(i){
+  cs.accused=i;cs.ok=i===cs.c;phase='reveal';phaseT=0;
+  if(cs.ok){
+    solved++;streak++;
+    lastPts=Math.round((100*cs.n+Math.max(0,40-caseT)*5)*(1+.25*Math.min(streak-1,4)));
+    score+=lastPts;
+    lastBonus=Math.max(5,(cs.n===3?10:cs.n===4?14:18)-Math.floor(level/6));
+    timeLeft+=lastBonus;
+    beep(660,.08);setTimeout(()=>beep(990,.15),90);
+  }else{
+    streak=0;lives--;shake=.4;beep(220,.35,'sawtooth',.06,.5);
+  }
+}
+function nextAfterReveal(){if(lives<=0){endGame();return}level++;newCase()}
+function endGame(){
+  if(state==='over')return;
+  state='over';
+  if(score>best){best=score;try{localStorage.setItem(KEY,String(best))}catch(e){}}
+  $('oTitle').textContent=solved>=12?'Sherlock del táper':solved>=7?'Inspector de nevera':solved>=3?'Detective de pasillo':'Becario despistado';
+  $('oWhy').textContent=lives<=0?'Tres acusaciones falsas. RRHH te ha abierto expediente.':'Se acabó la pausa del café.';
+  $('oScore').textContent=score;
+  $('oInfo').textContent='Casos resueltos: '+solved+' · Récord: '+best;
+  $('over').classList.remove('hide');
+  window.mierdiRanking?.fin(score);
+}
+document.querySelectorAll('[data-action="start"],[data-action="retry"]').forEach(b=>b.addEventListener('click',()=>{au();startGame()}));
+
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+cv.addEventListener('pointerdown',e=>{
+  if(state!=='playing'||!cs)return;
+  inputCount++;au();
+  const r=cv.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
+  if(phase==='reveal'){if(phaseT>.5)nextAfterReveal();return}
+  for(let i=0;i<rects.length;i++){
+    const q=rects[i];
+    if(x>=q.kx&&x<=q.kx+q.kw&&y>=q.ky&&y<=q.ky+q.kh){accuse(i);return}
+    if(x>=q.x&&x<=q.x+q.w&&y>=q.y&&y<=q.y+q.h){cs.marks[i]=(cs.marks[i]+1)%3;beep(cs.marks[i]===1?880:cs.marks[i]===2?440:330,.05,'triangle',.05);return}
+  }
+});
+
+// ---- dibujo ----
+function rr(x,y,w,h,r){ctx.beginPath();if(ctx.roundRect)ctx.roundRect(x,y,w,h,r);else ctx.rect(x,y,w,h)}
+function wrap(t,mw){const ws=t.split(' '),out=[];let cur='';for(const w of ws){const s=cur?cur+' '+w:w;if(ctx.measureText(s).width>mw&&cur){out.push(cur);cur=w}else cur=s}if(cur)out.push(cur);return out}
+function stamp(text,x,y,col,rot){ctx.save();ctx.translate(x,y);ctx.rotate(rot);ctx.font='900 22px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';const w=ctx.measureText(text).width+20;rr(-w/2,-17,w,34,6);ctx.fillStyle='rgba(10,10,10,.75)';ctx.fill();ctx.lineWidth=3;ctx.strokeStyle=col;ctx.stroke();ctx.fillStyle=col;ctx.fillText(text,0,1);ctx.restore()}
+
+function draw(t){
+  ctx.fillStyle='#0a0a0a';ctx.fillRect(0,0,W,H);
+  if(!cs){ctx.font='120px '+EMO;ctx.textAlign='center';ctx.textBaseline='middle';ctx.globalAlpha=.15;ctx.fillText('🧊',W/2,H/2);ctx.globalAlpha=1;return}
+  ctx.save();
+  if(shake>0)ctx.translate((Math.random()-.5)*14*shake,(Math.random()-.5)*14*shake);
+  const cw=Math.min(W-20,560),cx=(W-cw)/2;let y=12;
+  ctx.textBaseline='top';
+  ctx.font='bold 16px system-ui';ctx.textAlign='left';ctx.fillStyle='#39ff14';ctx.fillText(score+' pts',cx,y);
+  ctx.textAlign='center';ctx.fillStyle='#00e5ff';ctx.fillText('Caso '+(level+1)+(streak>1?'  🔥x'+streak:''),W/2,y);
+  ctx.textAlign='right';ctx.font='16px '+EMO;ctx.fillStyle='#fff';ctx.fillText('🥡'.repeat(Math.max(0,lives))+'▫️'.repeat(Math.max(0,3-lives)),cx+cw,y);
+  y+=26;
+  const low=timeLeft<10;
+  rr(cx,y,cw,10,5);ctx.fillStyle='#222';ctx.fill();
+  const tf=Math.max(0,Math.min(1,timeLeft/90));
+  if(tf>0){rr(cx,y,Math.max(10,cw*tf),10,5);ctx.fillStyle=low&&(t/250|0)%2?'#ff2bd6':low?'#ff5a5a':'#39ff14';ctx.fill()}
+  ctx.font='bold 11px system-ui';ctx.fillStyle='#aaa';ctx.textAlign='right';ctx.fillText(Math.ceil(timeLeft)+' s',cx+cw,y+13);
+  y+=22;
+  ctx.textAlign='left';ctx.font='bold 19px system-ui';ctx.fillStyle='#fff';
+  const ql=wrap('¿Quién se ha comido '+cs.food[0]+'? '+cs.food[1],cw);ql.forEach((l,k)=>ctx.fillText(l,cx,y+k*23));y+=ql.length*23+4;
+  const rule=cs.mode===0?'📜 REGLA: solo MIENTE el culpable. Los demás dicen la verdad.':'🔄 AL REVÉS: solo el culpable dice la VERDAD. Los demás mienten.';
+  ctx.font='bold 14px system-ui';
+  const blink=ruleFlash>0&&(t/180|0)%2;
+  ctx.fillStyle=blink?'#fff':cs.mode===0?'#ffe600':'#ff2bd6';
+  const rl=wrap(rule,cw);rl.forEach((l,k)=>ctx.fillText(l,cx,y+k*18));y+=rl.length*18+10;
+  // tarjetas
+  const n=cs.n,gap=8,avail=H-y-62,ch=Math.max(64,Math.min(116,avail/n-gap)),rev=phase==='reveal';
+  rects=[];
+  for(let i=0;i<n;i++){
+    const x=cx,cy=y+i*(ch+gap),w=cw,h=ch,isC=i===cs.c,hon=honest(i,cs.c,cs.mode);
+    rr(x,cy,w,h,12);ctx.fillStyle=rev&&isC?'#262300':'#141414';ctx.fill();
+    ctx.lineWidth=rev&&isC?3:1.5;ctx.strokeStyle=rev&&isC?'#ffe600':'#2c2c2c';ctx.stroke();
+    const ax=x+32,ay=cy+h/2;
+    ctx.beginPath();ctx.arc(ax,ay,23,0,7);ctx.fillStyle='#202020';ctx.fill();ctx.lineWidth=2.5;ctx.strokeStyle=DEPTS[cs.dept[i]][1];ctx.stroke();
+    ctx.font='28px '+EMO;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#fff';ctx.fillText(cs.P[i].face,ax,ay+1);
+    if(rev&&isC){ctx.font='20px '+EMO;ctx.fillText(cs.food[1],ax+19,ay-19)}
+    const bx=x+64,bw=w-64-92,by=cy+7,bh=h-14,mk=cs.marks[i];
+    const bc=mk===1?'#39ff14':mk===2?'#ff2bd6':'#4a4a4a';
+    ctx.beginPath();ctx.moveTo(bx+1,ay-7);ctx.lineTo(bx-8,ay);ctx.lineTo(bx+1,ay+7);ctx.closePath();ctx.fillStyle='#1e1e1e';ctx.fill();
+    rr(bx,by,bw,bh,10);ctx.fillStyle=mk===1?'#13220f':mk===2?'#24101f':'#1e1e1e';ctx.fill();ctx.lineWidth=mk?2.5:1;ctx.strokeStyle=bc;ctx.stroke();
+    ctx.textAlign='left';ctx.textBaseline='top';ctx.font='bold 12px system-ui';ctx.fillStyle='#fff';
+    const nm=cs.P[i].name.toUpperCase();ctx.fillText(nm,bx+10,by+7);const nw=ctx.measureText(nm).width;
+    ctx.font='12px system-ui';ctx.fillStyle=DEPTS[cs.dept[i]][1];ctx.fillText(' · '+DEPTS[cs.dept[i]][0],bx+10+nw,by+7);
+    ctx.textAlign='right';
+    if(rev){ctx.font='bold 11px system-ui';ctx.fillStyle=hon?'#39ff14':'#ff2bd6';ctx.fillText(hon?'VERDAD':'MENTIRA',bx+bw-8,by+8)}
+    else if(mk){ctx.font='bold 16px system-ui';ctx.fillStyle=bc;ctx.fillText(mk===1?'✓':'✗',bx+bw-8,by+4)}
+    let fs=16,lines;
+    for(;fs>=11;fs--){ctx.font=fs+'px system-ui';lines=wrap(cs.txt[i],bw-18);if(25+lines.length*(fs+4)<=bh)break}
+    ctx.textAlign='left';ctx.fillStyle='#eee';lines.forEach((l,k)=>ctx.fillText(l,bx+10,by+25+k*(fs+4)));
+    const kx=x+w-84,ky=cy+8,kw=76,kh=h-16,acc=rev&&cs.accused===i;
+    rr(kx,ky,kw,kh,10);ctx.fillStyle=acc?'#ff2bd6':'#1a0b18';ctx.fill();ctx.lineWidth=2;ctx.strokeStyle='#ff2bd6';ctx.stroke();
+    ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='20px '+EMO;ctx.fillStyle='#fff';ctx.fillText('👉',kx+kw/2,ky+kh/2-11);
+    ctx.font='bold 13px system-ui';ctx.fillStyle=acc?'#0a0a0a':'#ff2bd6';ctx.fillText('ACUSAR',kx+kw/2,ky+kh/2+13);
+    if(rev&&acc)stamp(cs.ok?'¡PILLADO!':'INOCENTE',x+w*.45,ay,cs.ok?'#39ff14':'#ff2bd6',-.12);
+    rects.push({x,y:cy,w,h,kx,ky,kw,kh});
+  }
+  // franja inferior
+  const fy=H-50;ctx.textAlign='center';ctx.textBaseline='middle';
+  if(rev){
+    rr(cx,fy,cw,40,10);ctx.fillStyle=cs.ok?'#0f2a0b':'#2a0b24';ctx.fill();ctx.strokeStyle=cs.ok?'#39ff14':'#ff2bd6';ctx.lineWidth=2;ctx.stroke();
+    ctx.font='bold 15px system-ui';ctx.fillStyle='#fff';
+    ctx.fillText(cs.ok?'¡Bien! +'+lastPts+' pts · +'+lastBonus+' s':'¡Era '+cs.P[cs.c].name+'! Mira quién mentía 👆',W/2,fy+20);
+  }else if(ruleFlash>0){
+    ctx.font='bold 16px system-ui';ctx.fillStyle=(t/200|0)%2?'#ffe600':'#ff2bd6';ctx.fillText('⚠️ ¡CAMBIO DE REGLA! Léela arriba',W/2,fy+20);
+  }else{
+    ctx.font='13px system-ui';ctx.fillStyle='#777';ctx.fillText(level<2?'Toca una frase para marcarla ✓/✗ · ACUSAR al culpable':'Supón un culpable y comprueba si todo cuadra',W/2,fy+20);
+  }
+  ctx.restore();
+}
+
+let lastT=performance.now();
+function update(dt){
+  phaseT+=dt;if(shake>0)shake-=dt;if(ruleFlash>0)ruleFlash-=dt;
+  if(phase==='think'){
+    caseT+=dt;
+    if(ruleFlash<=0){timeLeft-=dt;if(timeLeft<=0){timeLeft=0;endGame()}}
+  }else if(phaseT>(cs.ok?1.8:3.8))nextAfterReveal();
+}
+function loop(t){
+  const dt=Math.min(.1,Math.max(0,(t-lastT)/1000));lastT=t;
+  if(state==='playing'&&cs)update(dt);
+  draw(t);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+window.mierdiTest={state:()=>state,score:()=>score,inputs:()=>inputCount,forceGameOver:endGame};
+</script>
+</body>
+</html>

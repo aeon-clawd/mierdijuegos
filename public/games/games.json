@@ -486,5 +486,13 @@
     "description": "Restaurante pijo, clientes imposibles: cada mesa pide su servilleta doblada como «El Cisne con Resaca». Arrastra un punto de la tela hasta donde quieras que caiga y se dobla justo por la mitad del camino. Clava la silueta amarilla antes de que el cliente pierda la paciencia.",
     "mechanic": "Plegado por reflexión: el punto que arrastras y donde lo sueltas definen el pliegue (la mediatriz). Esa parte se refleja con sus capas encima del resto. Gana quien iguala la silueta objetivo; el parecido se mide al instante. Los pliegues objetivo siempre se pueden reproducir.",
     "emoji": "🍽️"
+  },
+  {
+    "id": "062-quien-se-ha-comido-mi-taper",
+    "title": "¿Quién se ha comido mi táper?",
+    "date": "2026-11-14",
+    "description": "Alguien ha saqueado la nevera de la oficina. Cada compañero suelta una frase y solo miente el culpable… hasta que la regla se da la vuelta. Cruza las declaraciones, apunta quién dice la verdad y acusa antes de que acabe la pausa del café. Tres acusaciones falsas y RRHH te abre expediente.",
+    "mechanic": "Deducción contrarreloj: cada sospechoso hace una afirmación sobre otro, sobre su departamento o sobre quién miente. Hay que probar hipótesis hasta que todo encaje con la regla. Cada caso tiene una sola solución. Las frases se marcan ✓/✗ y acertar da tiempo extra.",
+    "emoji": "🥡"
   }
 ]

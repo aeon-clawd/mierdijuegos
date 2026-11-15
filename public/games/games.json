@@ -494,5 +494,13 @@
     "description": "Alguien ha saqueado la nevera de la oficina. Cada compañero suelta una frase y solo miente el culpable… hasta que la regla se da la vuelta. Cruza las declaraciones, apunta quién dice la verdad y acusa antes de que acabe la pausa del café. Tres acusaciones falsas y RRHH te abre expediente.",
     "mechanic": "Deducción contrarreloj: cada sospechoso hace una afirmación sobre otro, sobre su departamento o sobre quién miente. Hay que probar hipótesis hasta que todo encaje con la regla. Cada caso tiene una sola solución. Las frases se marcan ✓/✗ y acertar da tiempo extra.",
     "emoji": "🥡"
+  },
+  {
+    "id": "063-malabares-en-el-semaforo",
+    "title": "Malabares en el Semáforo",
+    "date": "2026-11-15",
+    "description": "Semáforo en rojo, tu momento de gloria. Agarra las cosas abajo y lánzalas hacia arriba con un golpe de dedo: cuanto más rápido deslizas, más alto suben. En cada verde un conductor te tira otra cosa: huevos, sandías, un pollo de goma… y una motosierra. Tres caídas y a casa.",
+    "mechanic": "Malabares por flick: la velocidad del dedo al soltar es la velocidad del objeto. Solo agarras en la zona baja y no puedes sujetar más de 1,3 s, así que hay que escalonar lanzamientos con varios objetos a la vez. Cambiar de lado puntúa doble; el huevo se rompe si lo lanzas fuerte.",
+    "emoji": "🤹"
   }
 ]

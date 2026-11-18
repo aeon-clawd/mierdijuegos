@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Móvil de Cuna — Mierdijuegos</title>
+<script src="/ranking.js" defer></script>
+<style>
+html,body{margin:0;height:100%;background:#0a0a0a;overflow:hidden;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#eee}
+canvas{position:fixed;inset:0;display:block;touch-action:none}
+.ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:22px;box-sizing:border-box;text-align:center;background:rgba(10,10,10,.9);z-index:5;overflow:auto}
+.hid{display:none}
+h1{margin:0;font-size:clamp(30px,9vw,52px);color:#39ff14;text-shadow:0 0 14px #39ff14}
+h2{margin:0;font-size:clamp(24px,7vw,40px);color:#ff2bd6;text-shadow:0 0 12px #ff2bd6}
+.big{font-size:60px;line-height:1}
+ul{list-style:none;padding:0;margin:0;max-width:420px;text-align:left;font-size:16px;line-height:1.45}
+li{margin:6px 0}
+b.y{color:#ffe600}b.c{color:#00e5ff}b.m{color:#ff2bd6}b.g{color:#39ff14}
+p{margin:0;max-width:420px;font-size:17px}
+button{font:inherit;font-size:22px;font-weight:800;padding:14px 36px;border-radius:14px;border:3px solid #ff2bd6;background:#1a0016;color:#fff;box-shadow:0 0 16px #ff2bd6;cursor:pointer;touch-action:manipulation}
+a.back{color:#00e5ff;text-decoration:none;font-weight:700;font-size:16px;padding:8px}
+.stats{font-size:18px;line-height:1.6}
+</style></head>
+<body>
+<canvas id="c"></canvas>
+<div class="ov" id="menu">
+<div class="big">👶</div>
+<h1>MÓVIL DE CUNA</h1>
+<p>El bebé por fin duerme. Cuelga todos los juguetes en el móvil <b class="m">antes de que se despierte</b>.</p>
+<ul>
+<li>👆 <b class="c">Arrastra</b> el juguete de abajo y suéltalo <b class="c">debajo de una barra</b>: se cuelga ahí y ya no se mueve.</li>
+<li>⚖️ Lo pesado y lejos del centro <b class="y">tumba la barra</b>. Compensa al otro lado.</li>
+<li>💥 Si la barra se inclina demasiado… <b class="m">¡CATACROC!</b> El juguete al suelo y −1 ❤️.</li>
+<li>🎁 Pesa lo que le da la gana. 🎈 <b class="c">tira hacia ARRIBA</b>.</li>
+<li>✨ Móvil bien nivelado = más puntos. Perfecto = ×2 y ❤️ extra.</li>
+</ul>
+<button data-action="start">JUGAR</button>
+</div>
+<div class="ov hid" id="over">
+<div class="big" id="oEmo">😭</div>
+<h2 id="oTit">¡BUAAAAH!</h2>
+<p id="oWhy"></p>
+<div class="stats" id="oStats"></div>
+<button data-action="retry">REINTENTAR</button>
+<a href="/" data-action="back">← MÁS MIERDIJUEGOS</a>
+</div>
+<script>
+const $=s=>document.querySelector(s);
+const cv=$('#c'),g=cv.getContext('2d');
+const FT='"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+const FALL=0.33,CEIL=78;
+const TOYS=[['🦆',1],['⭐',1],['🍓',1],['🐟',2],['🌙',2],['🚀',2],['🧸',3],['🐢',3],['🐘',4],['🦕',4]];
+let W=0,H=0,DPR=1,T=0,last=0,ac=null;
+let state='menu',score=0,inputCount=0,hearts=3,level=0,phase='play',phaseT=0,why='';
+let rods=[],main=null,queue=[],falling=[],floats=[],timeLeft=0,timeMax=1,shake=0,drag=null,banner=null;
+let done=0,perfects=0,dropped=0,hung=0,deco=[];
+let best=+(localStorage.getItem('mierdi-movil-cuna')||0);
+
+function resize(){
+  DPR=Math.min(window.devicePixelRatio||1,2.5);W=innerWidth;H=innerHeight;
+  cv.width=Math.round(W*DPR);cv.height=Math.round(H*DPR);cv.style.width=W+'px';cv.style.height=H+'px';
+  g.setTransform(DPR,0,0,DPR,0,0);
+  deco=[];for(let i=0;i<45;i++)deco.push([Math.random()*W,Math.random()*H,Math.random()]);
+  if(main)layout();
+}
+addEventListener('resize',resize);
+
+function tone(f,d,type,v){if(!ac)return;try{const o=ac.createOscillator(),gn=ac.createGain(),t=ac.currentTime;o.type=type||'sine';o.frequency.setValueAtTime(f,t);gn.gain.setValueAtTime(v||.1,t);gn.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(gn).connect(ac.destination);o.start(t);o.stop(t+d+.02);}catch(e){}}
+
+function mkRod(mass,u,parent){return{mass,u,parent,toys:[],kids:[],th:0,om:0,L:100,x:0,y:0,ax:0,ay:0}}
+function wt(r){let s=r.mass;for(const t of r.toys)s+=t.w;for(const k of r.kids)s+=wt(k);return s}
+function tq(r){let s=0;for(const t of r.toys)s+=t.w*t.u;for(const k of r.kids)s+=wt(k)*k.u;return s}
+function ratio(r){return tq(r)/Math.max(.6,wt(r))}
+function fs(t){if(t.w<0)return t.w<-1.5?46:36;if(t.myst&&!t.rev)return 40;return 20+t.w*8}
+function anyDoomed(){return rods.some(r=>r.toys.some(t=>t.doom!==undefined))}
+
+function layout(){main.x=W/2;main.y=CEIL+56;main.L=Math.min(W*.36,210);updPos(main)}
+function updPos(r){
+  const drop=Math.min(115,H*.14);
+  for(const k of r.kids){
+    k.ax=r.x+k.u*r.L*Math.cos(r.th);k.ay=r.y+k.u*r.L*Math.sin(r.th);
+    k.x=k.ax;k.y=k.ay+drop;k.L=r.L*.48;updPos(k);
+  }
+}
+function toyPos(r,t){
+  const ax=r.x+t.u*r.L*Math.cos(r.th),ay=r.y+t.u*r.L*Math.sin(r.th),s=t.w<0?-1:1;
+  return[ax,ay,ax+Math.sin(t.sw)*t.len*s,ay+Math.cos(t.sw)*t.len*s];
+}
+
+function buildLevel(){
+  level++;
+  main=mkRod(1.5,0,null);rods=[main];
+  let hint='Cuelga los juguetes sin que se vuelque';
+  if(level>=4){
+    const s=Math.random()<.5?-1:1,k=mkRod(.8,.6*s,main);main.kids.push(k);rods.push(k);
+    hint='¡Ojo! Una barra cuelga de otra';
+    if(level>=7){const k2=mkRod(.8,-.62*s,main);main.kids.push(k2);rods.push(k2);hint='Dos barras colgantes';}
+  }
+  if(level===3)hint='🎁 Llegan regalos de peso misterioso';
+  if(level===5)hint='🎈 Globos: tiran hacia ARRIBA';
+  const n=Math.min(8,3+Math.ceil(level/1.5));
+  queue=[];
+  for(let i=0;i<n;i++){
+    const r=Math.random();let t;
+    if(i>=2&&level>=5&&r<.16)t={emo:'🎈',w:Math.random()<.5?-1:-2};
+    else if(i>0&&level>=3&&r<.34)t={emo:'🎁',w:1+(Math.random()*4|0),myst:1};
+    else{const pool=TOYS.filter(a=>a[1]<=(level<3?3:4)),a=pool[Math.random()*pool.length|0];t={emo:a[0],w:a[1]};}
+    queue.push(t);
+  }
+  timeMax=timeLeft=10+n*(5-Math.min(1.6,level*.2));
+  phase='play';phaseT=0;drag=null;
+  banner={t:1.8,txt:'MÓVIL '+level,sub:hint,col:'#39ff14'};
+  layout();
+}
+
+function float(x,y,txt,col,sz){floats.push({x,y,txt,col:col||'#fff',sz:sz||18,t:1.4})}
+
+function snap(){
+  if(!drag||!queue.length)return null;
+  const t=queue[0],tx=drag.x,ty=drag.y-60;let b=null;
+  for(const r of rods){
+    const c=Math.cos(r.th),s=Math.sin(r.th);
+    const u=(tx-r.x)/(r.L*c);
+    if(Math.abs(u)>1.12)continue;
+    const uu=Math.max(-1,Math.min(1,u));
+    const ry=r.y+uu*r.L*s,pe=ty-ry,want=t.w<0?-pe:pe;
+    if(want<12||want>170)continue;
+    if(!b||want<b.d)b={r,u:uu,len:Math.max(28,Math.min(130,want)),d:want};
+  }
+  return b;
+}
+
+function place(s){
+  const t=queue.shift();
+  t.u=s.u;t.len=s.len;t.sw=0;t.sv=0;s.r.toys.push(t);hung++;
+  const p=toyPos(s.r,t);
+  if(t.myst){t.rev=1;float(p[2],p[3]-40,'¡pesaba '+t.w+'!','#ffe600',17)}
+  if(rods.some(r=>Math.abs(ratio(r))>FALL)){
+    t.doom=.5;tone(200,.35,'sawtooth',.1);float(p[2],p[3]+30,'¡SE VUELCA!','#ff2bd6',20);
+  }else{
+    const w=Math.max(...rods.map(r=>Math.abs(ratio(r))));
+    tone(440+(1-w/FALL)*440,.14,'triangle',.12);
+    if(w<.04)float(p[2],p[3]+34,'¡nivel!','#39ff14');
+    else if(w>FALL*.7)float(p[2],p[3]+34,'uy, uy…','#ffe600');
+  }
+}
+
+function finishMobile(){
+  const worst=Math.max(...rods.map(r=>Math.abs(ratio(r))));
+  const lev=Math.max(0,1-worst/FALL);
+  let base=0;for(const r of rods)for(const t of r.toys)base+=Math.abs(t.w)*10;
+  let pts=Math.round(base*(.4+lev)*(1+level*.15)+timeLeft*4);
+  const perfect=worst<.04&&base>0;
+  let sub='Nivelado '+Math.round(lev*100)+'% · +'+pts;
+  if(perfect){pts*=2;perfects++;if(hearts<3)hearts++;sub='¡PERFECTO! ×2 → +'+pts+(hearts<=3?' · +❤️':'');tone(1047,.4,'triangle',.12)}
+  score+=pts;done++;
+  tone(660,.15,'triangle',.12);setTimeout(()=>tone(880,.2,'triangle',.1),0);
+  banner={t:2,txt:perfect?'✨ ¡PERFECTO! ✨':'¡MÓVIL COLGADO!',sub,col:perfect?'#ffe600':'#00e5ff'};
+  phase='done';phaseT=2;
+}
+
+function update(dt){
+  T+=dt;if(shake>0)shake-=dt;
+  for(const f of falling){f.vy+=(f.bal?-500:1500)*dt;f.x+=f.vx*dt;f.y+=f.vy*dt;f.rot+=f.vr*dt}
+  falling=falling.filter(f=>f.y<H+100&&f.y>-100);
+  for(const f of floats){f.t-=dt;f.y-=28*dt}
+  floats=floats.filter(f=>f.t>0);
+  if(banner){banner.t-=dt;if(banner.t<=0)banner=null}
+  if(!main)return;
+  rods.forEach((r,i)=>{
+    const tg=Math.max(-.75,Math.min(.75,ratio(r)*1.3))+Math.sin(T*1.1+i*2)*.012;
+    const pom=r.om;r.om+=((tg-r.th)*26-r.om*3.4)*dt;r.th+=r.om*dt;
+    const da=r.om-pom;
+    for(const t of r.toys){t.sv+=(-t.sw*14-t.sv*1.5)*dt-da*.6;t.sw+=t.sv*dt}
+  });
+  updPos(main);
+  if(state!=='playing')return;
+  for(const r of rods)for(let i=r.toys.length-1;i>=0;i--){
+    const t=r.toys[i];if(t.doom===undefined)continue;
+    t.doom-=dt;
+    if(t.doom<=0){
+      const p=toyPos(r,t);r.toys.splice(i,1);
+      falling.push({x:p[2],y:p[3],vx:(Math.sign(r.th)||1)*90,vy:t.w<0?-40:-140,rot:0,vr:(Math.random()-.5)*10,emo:t.emo,fs:fs(t),bal:t.w<0});
+      hearts--;dropped++;shake=.45;why='fall';
+      tone(110,.45,'square',.13);
+      float(p[2],Math.min(p[3],H-200),'¡CATACROC! −❤️','#ff2bd6',22);
+      if(hearts<=0){phase='dying';phaseT=1.4;drag=null;banner={t:1.4,txt:'💥 ¡TODO AL SUELO!',sub:'',col:'#ff2bd6'}}
+    }
+  }
+  if(phase==='play'){
+    timeLeft-=dt;
+    if(timeLeft<=0){
+      timeLeft=0;hearts--;why='woke';drag=null;tone(300,.7,'sawtooth',.1);
+      phase=hearts<=0?'dying':'woke';phaseT=1.9;
+      banner={t:1.9,txt:'😭 ¡SE HA DESPERTADO!',sub:hearts>0?'−1 ❤️ · lo vuelves a dormir…':'',col:'#ff2bd6'};
+    }else if(!queue.length&&!anyDoomed())finishMobile();
+  }else{
+    phaseT-=dt;
+    if(phaseT<=0){if(phase==='dying')endGame();else buildLevel()}
+  }
+}
+
+function line(x1,y1,x2,y2,c,w){g.strokeStyle=c;g.lineWidth=w;g.beginPath();g.moveTo(x1,y1);g.lineTo(x2,y2);g.stroke()}
+function emoji(e,x,y,s,rot){g.save();g.translate(x,y);if(rot)g.rotate(rot);g.font=s+'px '+FT;g.textAlign='center';g.textBaseline='middle';g.fillText(e,0,0);g.restore()}
+function pips(t,x,y){
+  if(t.myst&&!t.rev){g.fillStyle='#ffe600';g.font='bold 15px system-ui';g.textAlign='center';g.textBaseline='middle';g.fillText('?',x,y);return}
+  const n=Math.ceil(Math.abs(t.w));g.fillStyle=t.w<0?'#00e5ff':'#ffe600';
+  for(let i=0;i<n;i++){g.beginPath();g.arc(x+(i-(n-1)/2)*8,y,2.7,0,7);g.fill()}
+}
+function rr(x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath()}
+
+function drawRod(r){
+  for(const k of r.kids)line(k.ax,k.ay,k.x,k.y,'rgba(255,255,255,.5)',1.5);
+  for(const t of r.toys){const p=toyPos(r,t),s=t.w<0?-1:1;line(p[0],p[1],p[2],p[3]-s*fs(t)*.45,'rgba(255,255,255,.45)',1.2)}
+  const c=Math.cos(r.th),s=Math.sin(r.th),col=r.parent?'#ff2bd6':'#00e5ff';
+  g.save();g.shadowColor=col;g.shadowBlur=12;g.strokeStyle=col;g.lineWidth=r.parent?5:7;g.lineCap='round';
+  g.beginPath();g.moveTo(r.x-c*r.L,r.y-s*r.L);g.lineTo(r.x+c*r.L,r.y+s*r.L);g.stroke();g.restore();
+  g.fillStyle='#fff';g.beginPath();g.arc(r.x,r.y,4,0,7);g.fill();
+  const rt=ratio(r),q=Math.min(1,Math.abs(rt)/FALL),bc=q<.3?'#39ff14':q<.7?'#ffe600':'#ff2bd6';
+  rr(r.x-24,r.y-26,48,12,6);g.fillStyle='#111';g.fill();g.strokeStyle=bc;g.lineWidth=1.5;g.stroke();
+  line(r.x,r.y-28,r.x,r.y-12,'rgba(255,255,255,.3)',1);
+  g.fillStyle=bc;g.beginPath();g.arc(r.x+Math.max(-1,Math.min(1,rt/FALL))*18,r.y-20,4.5,0,7);g.fill();
+  for(const t of r.toys){
+    const p=toyPos(r,t);
+    if(t.doom!==undefined&&Math.floor(T*16)%2){g.fillStyle='rgba(255,43,214,.35)';g.beginPath();g.arc(p[2],p[3],fs(t)*.65,0,7);g.fill()}
+    emoji(t.emo,p[2],p[3],fs(t),t.sw*.5);
+    pips(t,p[2],p[3]+(t.w<0?-1:1)*(fs(t)*.55+6)*(t.w<0?1:1));
+  }
+  for(const k of r.kids)drawRod(k);
+}
+
+function draw(){
+  g.save();g.setTransform(DPR,0,0,DPR,0,0);
+  g.fillStyle='#0a0a0a';g.fillRect(0,0,W,H);
+  if(shake>0)g.translate((Math.random()-.5)*14*shake,(Math.random()-.5)*14*shake);
+  for(const d of deco){g.fillStyle='rgba(0,229,255,'+(.06+.08*Math.sin(T*1.5+d[2]*9)**2)+')';g.fillRect(d[0],d[1],2,2)}
+  line(0,CEIL,W,CEIL,'#2a2a2a',3);
+  if(main){
+    line(W/2,CEIL,main.x,main.y,'rgba(255,255,255,.6)',1.6);
+    g.strokeStyle='#ffe600';g.lineWidth=2.5;g.beginPath();g.arc(W/2,CEIL+6,6,Math.PI*1.1,Math.PI*2.4);g.stroke();
+    drawRod(main);
+  }
+  for(const f of falling)emoji(f.emo,f.x,f.y,f.fs,f.rot);
+  if(state==='playing'){
+    const ty=H-140;
+    rr(10,ty,W-20,130,18);g.fillStyle='rgba(255,255,255,.04)';g.fill();g.strokeStyle='rgba(57,255,20,.35)';g.lineWidth=1.5;g.stroke();
+    if(phase==='play'&&queue.length){
+      const t=queue[0];
+      if(!drag){
+        const pul=1+Math.sin(T*5)*.06;
+        g.strokeStyle='rgba(57,255,20,.6)';g.lineWidth=2;g.setLineDash([5,5]);g.beginPath();g.arc(W/2,H-78,40*pul,0,7);g.stroke();g.setLineDash([]);
+        emoji(t.emo,W/2,H-78,fs(t));pips(t,W/2,H-28);
+        if(hung===0&&level===1){g.fillStyle='#39ff14';g.font='bold 15px system-ui';g.textAlign='center';g.fillText('↑ arrástrame bajo la barra ↑',W/2,ty-14)}
+      }
+      g.fillStyle='rgba(255,255,255,.4)';g.font='12px system-ui';g.textAlign='center';
+      if(queue.length>1)g.fillText('luego',Math.min(W-60,W/2+108),ty+16);
+      for(let i=1;i<Math.min(3,queue.length);i++){const x=Math.min(W-80,W/2+90)+(i-1)*44;emoji(queue[i].emo,x,H-74,Math.min(30,fs(queue[i])*.65));}
+      g.fillText('quedan '+queue.length,Math.max(50,W/2-118),ty+16);
+      if(t.w<0){g.fillStyle='#00e5ff';g.font='bold 13px system-ui';g.fillText('¡tira hacia ARRIBA!',Math.max(70,W/2-110),H-74)}
+      if(drag){
+        const s=snap(),tx=drag.x,tyy=drag.y-60;
+        if(s){
+          const ax=s.r.x+s.u*s.r.L*Math.cos(s.r.th),ay=s.r.y+s.u*s.r.L*Math.sin(s.r.th);
+          g.setLineDash([4,4]);line(ax,ay,tx,tyy,'#39ff14',1.8);g.setLineDash([]);
+          g.strokeStyle='#39ff14';g.lineWidth=2;g.beginPath();g.arc(ax,ay,7,0,7);g.stroke();
+        }
+        g.globalAlpha=s?1:.7;emoji(t.emo,tx,tyy,fs(t));g.globalAlpha=1;
+      }
+    }
+  }
+  if(main&&state!=='menu'){
+    g.fillStyle='#ffe600';g.font='bold 20px system-ui';g.textAlign='left';g.textBaseline='middle';g.fillText('★ '+score,14,24);
+    g.textAlign='right';g.font='18px '+FT;g.fillText('❤️'.repeat(Math.max(0,hearts))+'🖤'.repeat(Math.max(0,3-hearts)),W-12,24);
+    g.textAlign='center';g.fillStyle='#39ff14';g.font='bold 15px system-ui';g.fillText('MÓVIL '+level,W/2,20);
+    const f=Math.max(0,timeLeft/timeMax),bw=Math.min(220,W-150),bx=W/2-bw/2+14;
+    emoji(phase==='woke'||phase==='dying'?'😭':f<.25?'🥱':'😴',bx-18,48,22);
+    rr(bx,42,bw,11,5);g.fillStyle='#1a1a1a';g.fill();
+    rr(bx,42,Math.max(6,bw*f),11,5);g.fillStyle=f<.3?'#ff2bd6':'#00e5ff';g.fill();
+  }
+  for(const f of floats){g.globalAlpha=Math.min(1,f.t*1.5);g.fillStyle=f.col;g.font='bold '+f.sz+'px system-ui';g.textAlign='center';g.textBaseline='middle';g.fillText(f.txt,f.x,f.y)}
+  g.globalAlpha=1;
+  if(banner&&state==='playing'){
+    const y=H-200,a=Math.min(1,banner.t*2);g.globalAlpha=a;
+    g.save();g.shadowColor=banner.col;g.shadowBlur=14;g.fillStyle=banner.col;g.font='900 '+Math.min(32,W/12)+'px system-ui';g.textAlign='center';g.fillText(banner.txt,W/2,y);g.restore();
+    if(banner.sub){g.fillStyle='#fff';g.font='15px system-ui';g.textAlign='center';g.fillText(banner.sub,W/2,y+28)}
+    g.globalAlpha=1;
+  }
+  g.restore();
+}
+
+function loop(ts){
+  const dt=Math.min(.05,(ts-last)/1000||0);last=ts;
+  update(dt);draw();requestAnimationFrame(loop);
+}
+
+function pt(e){const b=cv.getBoundingClientRect();return{x:e.clientX-b.left,y:e.clientY-b.top}}
+cv.addEventListener('pointerdown',e=>{
+  e.preventDefault();
+  if(state!=='playing')return;
+  inputCount++;
+  const p=pt(e);
+  if(phase==='play'&&queue.length&&!anyDoomed()&&!drag){
+    if(Math.hypot(p.x-W/2,p.y-(H-78))<80||(p.y>H-140&&Math.abs(p.x-W/2)<95)){
+      drag={x:p.x,y:p.y,id:e.pointerId};
+      try{cv.setPointerCapture(e.pointerId)}catch(_){}
+      tone(520,.05,'sine',.08);
+    }
+  }
+});
+cv.addEventListener('pointermove',e=>{if(drag&&e.pointerId===drag.id){const p=pt(e);drag.x=p.x;drag.y=p.y}});
+function release(e){
+  if(!drag||e.pointerId!==drag.id)return;
+  if(e.type==='pointerup'&&state==='playing'&&phase==='play'){const p=pt(e);drag.x=p.x;drag.y=p.y;const s=snap();if(s)place(s);else tone(260,.08,'sine',.06)}
+  drag=null;
+}
+cv.addEventListener('pointerup',release);
+cv.addEventListener('pointercancel',release);
+
+function startGame(){
+  try{ac=ac||new(window.AudioContext||window.webkitAudioContext)();ac.resume&&ac.resume()}catch(e){ac=null}
+  state='playing';score=0;inputCount=0;hearts=3;level=0;done=0;perfects=0;dropped=0;hung=0;why='';
+  falling=[];floats=[];drag=null;shake=0;banner=null;main=null;rods=[];
+  buildLevel();
+  $('#menu').classList.add('hid');$('#over').classList.add('hid');
+  window.mierdiRanking?.reset();
+}
+
+function endGame(){
+  if(state==='over')return;
+  state='over';drag=null;
+  if(score>best){best=score;try{localStorage.setItem('mierdi-movil-cuna',String(best))}catch(e){}}
+  $('#oEmo').textContent=why==='fall'?'💥':'😭';
+  $('#oTit').textContent=why==='fall'?'¡CATACROC!':'¡BUAAAAH!';
+  $('#oWhy').textContent=why==='fall'?'El móvil ha acabado esparcido por la cuna.':why==='woke'?'El bebé se ha despertado y ya no hay quien lo duerma.':'Fin de la guardia nocturna.';
+  $('#oStats').innerHTML='<b class="y">★ '+score+' puntos</b><br>Móviles colgados: '+done+' · Perfectos: '+perfects+'<br>Juguetes al suelo: '+dropped+'<br><b class="c">Récord: '+best+'</b>';
+  $('#over').classList.remove('hid');
+  window.mierdiRanking?.fin(score);
+}
+
+document.querySelectorAll('[data-action="start"],[data-action="retry"]').forEach(b=>b.addEventListener('click',startGame));
+resize();
+requestAnimationFrame(loop);
+window.mierdiTest={state:()=>state,score:()=>score,inputs:()=>inputCount,forceGameOver:endGame};
+</script>
+</body></html>

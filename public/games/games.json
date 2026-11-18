@@ -510,5 +510,13 @@
     "description": "Eres el portero de LA MIERDI y solo tienes un contador de mano. Pulsa +1 cuando alguien entra y −1 cuando sale. Ojo con los que pasan de largo, los perros, los indecisos, los riders y el humo. Al acabar cada canción llega el inspector: si tu cuenta no cuadra, multa.",
     "mechanic": "Recuento a ciegas: llevas un clicker +1/−1 y el total real no se ve hasta la inspección de fin de canción. Grupos en piña, perros que no cuentan, indecisos que se asoman, riders que entran y salen, dos puertas y humo. Fallar por 1 = sin puntos; por 2 o más = multa.",
     "emoji": "🕺"
+  },
+  {
+    "id": "065-movil-de-cuna",
+    "title": "Móvil de Cuna",
+    "date": "2026-11-18",
+    "description": "El bebé por fin duerme y el móvil de la cuna está vacío. Arrastra cada juguete y cuélgalo de una barra. Lo pesado lejos del centro la tumba, así que compensa al otro lado antes de que se vuelque. Hay regalos de peso misterioso, globos que tiran hacia arriba y barras que cuelgan de otras barras.",
+    "mechanic": "Equilibrio de palancas por colocación. Cada juguete se queda colgado donde lo sueltas y la barra se inclina según el par (peso × distancia). Si pasa del límite, el último juguete se cae. Al acabar, cuanto más nivelado quede, más puntos. Hay barras anidadas, pesos ocultos y globos de peso negativo.",
+    "emoji": "👶"
   }
 ]
